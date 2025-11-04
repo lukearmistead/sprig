@@ -26,7 +26,7 @@ def export_transactions_to_csv(database_path, output_path=None):
     column_names = [
         'id', 'account_id', 'amount', 'description', 'date',
         'type', 'status', 'details', 'running_balance', 'links',
-        'llm_category', 'created_at'
+        'inferred_category', 'created_at'
     ]
 
     with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:

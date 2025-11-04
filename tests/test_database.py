@@ -39,7 +39,7 @@ def test_database_initialization():
             expected_transactions_columns = {
                 "id", "account_id", "amount", "description", "date", 
                 "type", "status", "details", "running_balance", 
-                "links", "llm_category", "created_at"
+                "links", "inferred_category", "created_at"
             }
             assert transactions_columns == expected_transactions_columns
 

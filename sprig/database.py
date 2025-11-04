@@ -49,7 +49,7 @@ class SprigDatabase:
                     details TEXT,
                     running_balance REAL,
                     links TEXT,
-                    llm_category TEXT,
+                    inferred_category TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -85,22 +85,22 @@ class SprigDatabase:
             return False
     
     def get_uncategorized_transactions(self):
-        """Get transactions that don't have an LLM category assigned."""
+        """Get transactions that don't have an inferred category assigned."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
                 SELECT id, description, amount, date, type 
                 FROM transactions 
-                WHERE llm_category IS NULL
+                WHERE inferred_category IS NULL
                 ORDER BY date DESC
             """)
             return cursor.fetchall()
     
     def update_transaction_category(self, transaction_id: str, category: str) -> bool:
-        """Update the LLM category for a specific transaction."""
+        """Update the inferred category for a specific transaction."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
-                    "UPDATE transactions SET llm_category = ? WHERE id = ?",
+                    "UPDATE transactions SET inferred_category = ? WHERE id = ?",
                     (category, transaction_id)
                 )
                 conn.commit()

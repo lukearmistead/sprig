@@ -45,7 +45,7 @@ def test_export_transactions_to_csv_with_data():
                 expected_header = [
                     'id', 'account_id', 'amount', 'description', 'date', 
                     'type', 'status', 'details', 'running_balance', 'links', 
-                    'llm_category', 'created_at'
+                    'inferred_category', 'created_at'
                 ]
                 assert rows[0] == expected_header
                 
