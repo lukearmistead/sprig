@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from sprig.models import RuntimeConfig
 from sprig.sync import sync_all_accounts
+from sprig.export import export_transactions_to_csv
 
 def main():
     parser = argparse.ArgumentParser(
@@ -26,6 +27,13 @@ def main():
         "--full", 
         action="store_true", 
         help="Perform full resync of all data"
+    )
+    
+    # Export command
+    export_parser = subparsers.add_parser("export", help="Export transactions to CSV")
+    export_parser.add_argument(
+        "-o", "--output", 
+        help="Output filename (default: exports/transactions_YYYY-MM-DD.csv)"
     )
     
     args = parser.parse_args()
@@ -44,6 +52,8 @@ def main():
     
     if args.command == "sync":
         sync_all_accounts(config)
+    elif args.command == "export":
+        export_transactions_to_csv(config.database_path, args.output)
 
 if __name__ == "__main__":
     main()

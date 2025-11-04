@@ -108,3 +108,9 @@ class SprigDatabase:
         except Exception as e:
             print(f"Error updating category for transaction {transaction_id}: {e}")
             return False
+    
+    def get_transactions_for_export(self):
+        """Get all transactions for export."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT * FROM transactions ORDER BY date DESC")
+            return cursor.fetchall()
