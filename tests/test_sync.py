@@ -1,0 +1,188 @@
+"""Tests for sprig.sync module."""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+from sprig.sync import sync_all_accounts, sync_accounts_for_token, sync_transactions_for_account
+
+
+def test_sync_transactions_for_account():
+    """Test syncing transactions for a single account."""
+    # Mock client and database
+    mock_client = Mock()
+    mock_db = Mock()
+    
+    # Mock transaction data from API
+    mock_transactions = [
+        {
+            "id": "txn_123",
+            "account_id": "acc_456", 
+            "amount": 25.50,
+            "description": "Test Transaction",
+            "date": "2024-01-15",
+            "type": "card_payment",
+            "status": "posted"
+        },
+        {
+            "id": "txn_124",
+            "account_id": "acc_456",
+            "amount": -10.00,
+            "description": "Another Transaction", 
+            "date": "2024-01-16",
+            "type": "ach",
+            "status": "posted"
+        }
+    ]
+    
+    mock_client.get_transactions.return_value = mock_transactions
+    mock_db.insert_record.return_value = True
+    
+    # Call function
+    sync_transactions_for_account(mock_client, mock_db, "test_token", "acc_456")
+    
+    # Verify API call
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456")
+    
+    # Verify database inserts (should have all Pydantic model fields)
+    assert mock_db.insert_record.call_count == 2
+    
+    # Check that transactions were inserted (verify the call was made with transaction data)
+    calls = mock_db.insert_record.call_args_list
+    assert len(calls) == 2
+    assert calls[0][0][0] == "transactions"  # Table name
+    assert calls[0][0][1]["id"] == "txn_123"  # Transaction ID
+    assert calls[1][0][0] == "transactions"  # Table name
+    assert calls[1][0][1]["id"] == "txn_124"  # Transaction ID
+
+
+def test_sync_accounts_for_token():
+    """Test syncing accounts and their transactions for a single token."""
+    # Mock client and database
+    mock_client = Mock()
+    mock_db = Mock()
+    
+    # Mock account data from API
+    mock_accounts = [
+        {
+            "id": "acc_123",
+            "name": "Test Account",
+            "type": "depository",
+            "currency": "USD",
+            "status": "open"
+        }
+    ]
+    
+    mock_client.get_accounts.return_value = mock_accounts
+    mock_client.get_transactions.return_value = []  # No transactions for simplicity
+    mock_db.insert_record.return_value = True
+    
+    # Call function
+    sync_accounts_for_token(mock_client, mock_db, "test_token")
+    
+    # Verify API calls
+    mock_client.get_accounts.assert_called_once_with("test_token")
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_123")
+    
+    # Verify account insert (should have all Pydantic model fields)
+    account_calls = [call for call in mock_db.insert_record.call_args_list if call[0][0] == "accounts"]
+    assert len(account_calls) == 1
+    inserted_account = account_calls[0][0][1]
+    assert inserted_account["id"] == "acc_123"
+    assert inserted_account["name"] == "Test Account"
+    assert inserted_account["type"] == "depository"
+
+
+@patch('sprig.sync.categorize_uncategorized_transactions')
+@patch('sprig.sync.SprigDatabase')
+@patch('sprig.sync.TellerClient')
+def test_sync_all_accounts(mock_teller_client_class, mock_database_class, mock_categorize):
+    """Test syncing all accounts for all access tokens."""
+    # Mock config
+    mock_config = Mock()
+    mock_config.access_tokens = ["token_1", "token_2"]
+    mock_config.database_path = Path("/test/path")
+    
+    # Mock client and database instances
+    mock_client = Mock()
+    mock_db = Mock()
+    mock_teller_client_class.return_value = mock_client
+    mock_database_class.return_value = mock_db
+    
+    # Mock API responses
+    mock_client.get_accounts.return_value = [
+        {
+            "id": "acc_123",
+            "name": "Test Account",
+            "type": "depository", 
+            "currency": "USD",
+            "status": "open"
+        }
+    ]
+    mock_client.get_transactions.return_value = []
+    mock_db.insert_record.return_value = True
+    
+    # Call function
+    sync_all_accounts(mock_config)
+    
+    # Verify client and database were created
+    mock_teller_client_class.assert_called_once_with(mock_config)
+    mock_database_class.assert_called_once_with(mock_config.database_path)
+    
+    # Verify get_accounts called for each token
+    assert mock_client.get_accounts.call_count == 2
+    mock_client.get_accounts.assert_any_call("token_1")
+    mock_client.get_accounts.assert_any_call("token_2")
+    
+    # Verify categorization was called
+    mock_categorize.assert_called_once_with(mock_config, mock_db)
+
+
+def test_sync_with_real_database():
+    """Integration test with real database but mocked API client."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create real database
+        from sprig.database import SprigDatabase
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+        
+        # Mock client
+        mock_client = Mock()
+        mock_client.get_accounts.return_value = [
+            {
+                "id": "acc_integration",
+                "name": "Integration Test Account",
+                "type": "depository",
+                "currency": "USD", 
+                "status": "open"
+            }
+        ]
+        mock_client.get_transactions.return_value = [
+            {
+                "id": "txn_integration",
+                "account_id": "acc_integration",
+                "amount": 100.00,
+                "description": "Integration Test Transaction",
+                "date": "2024-01-15",
+                "type": "deposit",
+                "status": "posted"
+            }
+        ]
+        
+        # Call sync function
+        sync_accounts_for_token(mock_client, db, "test_token")
+        
+        # Verify data in database
+        import sqlite3
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM accounts")
+            account_count = cursor.fetchone()[0]
+            assert account_count == 1
+            
+            cursor = conn.execute("SELECT COUNT(*) FROM transactions")
+            transaction_count = cursor.fetchone()[0]
+            assert transaction_count == 1
+            
+            cursor = conn.execute("SELECT name FROM accounts WHERE id = 'acc_integration'")
+            account_name = cursor.fetchone()[0]
+            assert account_name == "Integration Test Account"
