@@ -150,7 +150,31 @@ Sprig uses Teller's official category system with enhanced descriptions:
 - **utilities** - Electricity, water, internet
 - And 25+ more categories...
 
-Categories can be customized in `config.yml`.
+Categories and categorization prompts can be customized in `config.yml`.
+
+### Customizing Categorization
+
+Sprig uses a **PromptCatalog** system for managing AI prompts. You can customize the categorization behavior by editing `config.yml`:
+
+```yaml
+prompts:
+  categorization:
+    template: |
+      Your custom categorization prompt here...
+      Categories: {categories}
+      Transactions: {transactions}
+    model: "claude-3-haiku-20240307"  # Or claude-3-opus-20240229
+    max_tokens: 1000
+    guidelines:
+      - "Custom guideline 1"
+      - "Custom guideline 2"
+```
+
+**Key benefits:**
+- **Version controlled prompts** - All changes tracked in git
+- **Model flexibility** - Switch between Claude models per prompt
+- **Template variables** - `{categories}` and `{transactions}` auto-populated
+- **Validation** - Pydantic models ensure prompt configs are valid
 
 ### CSV Output Format
 
@@ -176,10 +200,11 @@ ruff check .  # Linting
 - **`sprig/database.py`** - SQLite operations
 - **`sprig/teller_client.py`** - Teller API client with mTLS
 - **`sprig/categorizer.py`** - Claude AI categorization  
+- **`sprig/prompt_catalog.py`** - Prompt template management and rendering
 - **`sprig/sync.py`** - Transaction sync orchestration
 - **`sprig/export.py`** - CSV export
 - **`sprig/models/`** - Pydantic data models
-- **`config.yml`** - Category definitions
+- **`config.yml`** - Category definitions and prompt templates
 
 ### Contributing
 1. Fork repo → create feature branch → add tests → submit PR

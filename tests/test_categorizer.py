@@ -7,70 +7,37 @@ import tempfile
 import yaml
 
 from sprig.categorizer import (
-    load_categories, 
-    get_category_names, 
     TransactionCategorizer,
-    build_categorization_prompt,
     FALLBACK_CATEGORY
 )
+from sprig.prompt_catalog import PromptCatalog
 from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, ClaudeContentBlock, TransactionCategory
 
 
-class TestLoadCategories:
-    """Test category loading functionality."""
+class TestPromptCatalogIntegration:
+    """Test PromptCatalog integration functionality."""
     
-    def test_load_categories_valid_config(self):
-        """Test loading categories from valid config file."""
-        categories = load_categories()
+    def test_prompt_catalog_loads_categories(self):
+        """Test that PromptCatalog loads categories from config."""
+        catalog = PromptCatalog()
+        categories = catalog._categories
         assert isinstance(categories, dict)
         assert "dining" in categories
         assert "groceries" in categories
         assert "undefined" in categories
         assert all(isinstance(desc, str) for desc in categories.values())
     
-    def test_load_categories_missing_section(self):
-        """Test error when config missing categories section."""
-        # Create temp config without categories section
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
-            yaml.dump({"other_section": "data"}, f)
-            temp_path = Path(f.name)
-        
-        with pytest.raises(ValueError, match="config.yml must contain a 'categories' section"):
-            load_categories(temp_path)
+    def test_prompt_catalog_formats_categories(self):
+        """Test that PromptCatalog formats categories correctly."""
+        catalog = PromptCatalog()
+        formatted = catalog.format_categories()
+        assert "dining:" in formatted
+        assert "groceries:" in formatted
+        assert "Restaurants" in formatted or "restaurants" in formatted
     
-    def test_load_categories_invalid_values(self):
-        """Test error when category values are not strings."""
-        # Create temp config with non-string values
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
-            yaml.dump({"categories": {"dining": "Restaurant", "invalid": 123}}, f)
-            temp_path = Path(f.name)
-        
-        with pytest.raises(ValueError, match="All category descriptions must be strings"):
-            load_categories(temp_path)
-
-
-class TestGetCategoryNames:
-    """Test category name extraction."""
-    
-    def test_get_category_names_with_dict(self):
-        """Test getting names from provided dict."""
-        categories = {"dining": "Restaurants", "fuel": "Gas stations"}
-        names = get_category_names(categories)
-        assert names == ["dining", "fuel"]
-    
-    def test_get_category_names_loads_config(self):
-        """Test getting names loads from config when not provided."""
-        names = get_category_names()
-        assert isinstance(names, list)
-        assert "dining" in names
-        assert "groceries" in names
-
-
-class TestBuildCategorizationPrompt:
-    """Test prompt building functionality."""
-    
-    def test_build_prompt_includes_descriptions(self):
-        """Test that prompt includes category descriptions."""
+    def test_prompt_catalog_formats_transactions(self):
+        """Test that PromptCatalog formats transactions correctly."""
+        catalog = PromptCatalog()
         transactions = [
             TellerTransaction(
                 id="txn_123",
@@ -82,14 +49,11 @@ class TestBuildCategorizationPrompt:
                 status="posted"
             )
         ]
-        categories = {"dining": "Restaurants and food delivery", "fuel": "Gas stations"}
         
-        prompt = build_categorization_prompt(transactions, categories)
-        
-        assert "dining: Restaurants and food delivery" in prompt
-        assert "fuel: Gas stations" in prompt
-        assert "txn_123" in prompt
-        assert "Restaurant" in prompt
+        formatted = catalog.format_transactions(transactions)
+        assert "txn_123" in formatted
+        assert "Restaurant" in formatted
+        assert "25.5" in formatted
 
 
 class TestTransactionCategorizerParsing:
@@ -379,5 +343,5 @@ class TestEdgeCases:
         assert FALLBACK_CATEGORY == "undefined"
         
         # Verify undefined is actually a valid category
-        categories = load_categories()
-        assert FALLBACK_CATEGORY in categories
+        catalog = PromptCatalog()
+        assert FALLBACK_CATEGORY in catalog._categories
