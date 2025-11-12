@@ -7,13 +7,19 @@ import argparse
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Add the sprig package to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Load environment variables once at startup
+load_dotenv()
+
+# Import after path setup and env loading
+from sprig.auth import authenticate
+from sprig.export import export_transactions_to_csv
 from sprig.models import RuntimeConfig
 from sprig.sync import sync_all_accounts
-from sprig.export import export_transactions_to_csv
-from sprig.auth import authenticate
 
 def main():
     parser = argparse.ArgumentParser(
@@ -39,6 +45,18 @@ def main():
     
     # Auth command
     auth_parser = subparsers.add_parser("auth", help="Authenticate with Teller")
+    auth_parser.add_argument(
+        "--environment",
+        choices=["sandbox", "development", "production"],
+        default="development",
+        help="Teller environment (default: development)"
+    )
+    auth_parser.add_argument(
+        "--port",
+        type=int,
+        default=8001,
+        help="Local server port (default: 8001)"
+    )
     
     args = parser.parse_args()
     
@@ -66,7 +84,7 @@ def main():
         export_transactions_to_csv(config.database_path, args.output)
     elif args.command == "auth":
         # Auth command doesn't need full config validation
-        authenticate()
+        authenticate(args.environment, args.port)
 
 if __name__ == "__main__":
     main()

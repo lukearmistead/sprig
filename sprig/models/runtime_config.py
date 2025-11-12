@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
 
+class TellerAccessToken(BaseModel):
+    """Validated Teller access token."""
+    token: str = Field(..., pattern=r'^token_[a-z0-9]+$')
+
+
 class RuntimeConfig(BaseModel):
     """Runtime configuration for Sprig (API keys, paths, certificates)."""
 

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sprig - Connect Your Bank</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        .logo {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .connect-button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 20px;
+        }
+        .connect-button:hover {
+            background: #3182ce;
+        }
+        .connect-button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+        .status.success {
+            background: #f0fff4;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+        .env-info {
+            background: #edf2f7;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: #4a5568;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🌱</div>
+        <h1>Connect Your Bank to Sprig</h1>
+        <p class="subtitle">
+            Securely connect your bank accounts using Teller.io.<br>
+            Your data stays local and private.
+        </p>
+        
+        <div class="env-info">
+            Environment: <strong>{{ environment }}</strong><br>
+            App ID: <strong>{{ app_id }}</strong>
+        </div>
+        
+        <button id="teller-connect" class="connect-button">
+            Connect to Your Bank
+        </button>
+        
+        <div id="status" class="status"></div>
+        
+        <p style="margin-top: 30px; font-size: 0.85rem; color: #718096;">
+            After connecting, you can close this window and return to the terminal.
+        </p>
+    </div>
+
+    <!-- Teller Connect Script -->
+    <script src="https://cdn.teller.io/connect/connect.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const button = document.getElementById("teller-connect");
+            const status = document.getElementById("status");
+            
+            function showStatus(message, type) {
+                status.textContent = message;
+                status.className = `status ${type}`;
+                status.style.display = "block";
+            }
+            
+            // Configure Teller Connect
+            const tellerConnect = TellerConnect.setup({
+                applicationId: "{{ app_id }}",
+                environment: "{{ environment }}",
+                selectAccount: "multiple",
+                onInit: function() {
+                    console.log("Teller Connect initialized");
+                },
+                onSuccess: function(enrollment) {
+                    console.log("Enrollment successful:", enrollment);
+                    
+                    // Show success message
+                    showStatus("🎉 Authentication successful! Saving token...", "success");
+                    button.disabled = true;
+                    button.textContent = "Saving...";
+                    
+                    // Send token to server
+                    fetch("/save-token", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            accessToken: enrollment.accessToken,
+                            userId: enrollment.user.id,
+                            institutionName: enrollment.institution?.name || "Unknown"
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showStatus("✅ " + data.message, "success");
+                            button.textContent = "Complete!";
+                        } else {
+                            showStatus("❌ Error: " + data.error, "error");
+                            button.disabled = false;
+                            button.textContent = "Connect to Your Bank";
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error saving token:", error);
+                        showStatus("❌ Failed to save token. Please try again.", "error");
+                        button.disabled = false;
+                        button.textContent = "Connect to Your Bank";
+                    });
+                },
+                onExit: function() {
+                    console.log("User closed Teller Connect");
+                    showStatus("Authentication cancelled.", "error");
+                },
+                onError: function(error) {
+                    console.error("Teller Connect error:", error);
+                    showStatus("❌ Connection error. Please try again.", "error");
+                }
+            });
+
+            // Handle button click
+            button.addEventListener("click", function() {
+                button.disabled = true;
+                button.textContent = "Opening Connect...";
+                status.style.display = "none";
+                
+                try {
+                    tellerConnect.open();
+                } catch (error) {
+                    console.error("Error opening Teller Connect:", error);
+                    showStatus("❌ Failed to open Connect. Please refresh and try again.", "error");
+                    button.disabled = false;
+                    button.textContent = "Connect to Your Bank";
+                }
+            });
+        });
+    </script>
+</body>
+</html>

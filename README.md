@@ -22,77 +22,51 @@ Sprig is a lightweight Python CLI tool that securely connects to your bank accou
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/lukearmistead/sprig.git
-   cd sprig
-   ```
+```bash
+git clone https://github.com/lukearmistead/sprig.git
+cd sprig
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-2. **Set up Python environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+### Setup
 
-3. **Configure your credentials**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your credentials (see setup guide below)
-   ```
+```bash
+# 1. Configure your Teller APP_ID and Claude API key
+cp .env.example .env
+# Edit .env with your credentials
 
-4. **Run your first sync**
-   ```bash
-   python sprig.py sync
-   ```
+# 2. Download certificates from Teller dashboard to certs/ directory
+# 3. Connect your bank accounts
+python sprig.py auth
 
-5. **Export to CSV**
-   ```bash
-   python sprig.py export
-   ```
+# 4. Sync and export your data
+python sprig.py sync
+python sprig.py export
+```
 
 Your transactions will be exported to `exports/transactions-YYYY-MM-DD.csv`!
 
 ---
 
-## 🔧 Detailed Setup
+## 🔧 Configuration
 
-### Getting Teller.io Credentials
+### Teller.io Setup
 
 1. **Create a Teller Developer Account**
    - Sign up at [teller.io](https://teller.io)
    - Create a new application in the dashboard
    - Note your `APP_ID` from the application settings
+   - Download certificate and private key files to `certs/` directory
 
-2. **Download Certificates**
-   - Download the certificate and private key files from your Teller dashboard
-   - Place them in the `certs/` directory:
-     ```
-     certs/
-     ├── certificate.pem
-     └── private_key.pem
-     ```
+2. **Environment Variables**
 
-3. **Get Access Tokens**
-
-   **Option A: Using Built-in Auth (Recommended)**
-   ```bash
-   python sprig.py auth
-   ```
-   This opens a browser window where you can connect your bank accounts. Access tokens are automatically saved to your `.env` file.
-
-   **Option B: Manual Token Setup**
-   - Use Teller's demo tools or Connect widget to authenticate
-   - Copy the access tokens and add them to your `.env` file
-
-### Configure Environment Variables
-
-Edit your `.env` file with your credentials:
+Edit your `.env` file:
 
 ```env
 # Teller.io Configuration
 APP_ID=your_teller_app_id_here
-ACCESS_TOKENS=token1,token2,token3
 CERT_PATH=certs/certificate.pem
 KEY_PATH=certs/private_key.pem
 
@@ -104,38 +78,18 @@ DATABASE_PATH=sprig.db
 ENVIRONMENT=development
 ```
 
-### Claude API Key (Optional)
-
-For AI categorization, get an API key from [console.anthropic.com](https://console.anthropic.com) and add as `CLAUDE_API_KEY` in `.env`. Without this, transactions sync but aren't categorized.
+**Note**: `ACCESS_TOKENS` are automatically managed by the `auth` command.
 
 ---
 
-## 📖 Usage
+## 📖 Commands
 
-### Available Commands
-
-**Sync transactions and categorize**
 ```bash
-python sprig.py sync
+python sprig.py auth                               # Connect bank accounts
+python sprig.py sync                               # Download and categorize transactions  
+python sprig.py export                             # Export to CSV
+python sprig.py export -o /path/to/file.csv        # Export to custom location
 ```
-Downloads new transactions from all connected accounts and categorizes them using Claude AI.
-
-**Export to CSV**
-```bash
-python sprig.py export
-```
-Exports all transactions to a CSV file in the `exports/` directory.
-
-**Export to custom location**
-```bash
-python sprig.py export -o /path/to/my-transactions.csv
-```
-
-**Authenticate new bank accounts**
-```bash
-python sprig.py auth
-```
-Opens a browser to connect additional bank accounts via Teller Connect.
 
 ### Transaction Categories
 
@@ -173,6 +127,7 @@ ruff check .  # Linting
 ```
 
 ### Project Structure
+- **`sprig/auth.py`** - Teller Connect authentication server
 - **`sprig/database.py`** - SQLite operations
 - **`sprig/teller_client.py`** - Teller API client with mTLS
 - **`sprig/categorizer.py`** - Claude AI categorization  
@@ -199,11 +154,10 @@ ruff check .  # Linting
 ## 🆘 Troubleshooting
 
 **Certificate errors:** Download certificates from Teller dashboard to `certs/` directory  
-**Authentication failures:** Re-run `python sprig.py auth` for fresh tokens  
-**Claude API errors:** Check API key starts with `sk-ant-` (categorization is optional)  
+**Authentication failures:** Re-run `python sprig.py auth`  
 **Import errors:** Activate virtual environment: `source venv/bin/activate`
 
-Need help? Check [GitHub Issues](https://github.com/lukearmistead/sprig/issues) or [Teller.io Docs](https://teller.io/docs)
+Need help? Check [GitHub Issues](https://github.com/lukearmistead/sprig/issues)
 
 ---
 
