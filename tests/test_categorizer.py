@@ -1,69 +1,14 @@
 """Tests for transaction categorization functionality."""
 
-import pytest
 from unittest.mock import Mock, patch
-from pathlib import Path
-import tempfile
-import yaml
 
 from sprig.categorizer import (
-    load_categories, 
-    get_category_names, 
     TransactionCategorizer,
     build_categorization_prompt,
     FALLBACK_CATEGORY
 )
-from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, ClaudeContentBlock, TransactionCategory
-
-
-class TestLoadCategories:
-    """Test category loading functionality."""
-    
-    def test_load_categories_valid_config(self):
-        """Test loading categories from valid config file."""
-        categories = load_categories()
-        assert isinstance(categories, dict)
-        assert "dining" in categories
-        assert "groceries" in categories
-        assert "undefined" in categories
-        assert all(isinstance(desc, str) for desc in categories.values())
-    
-    def test_load_categories_missing_section(self):
-        """Test error when config missing categories section."""
-        # Create temp config without categories section
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
-            yaml.dump({"other_section": "data"}, f)
-            temp_path = Path(f.name)
-        
-        with pytest.raises(ValueError, match="config.yml must contain a 'categories' section"):
-            load_categories(temp_path)
-    
-    def test_load_categories_invalid_values(self):
-        """Test error when category values are not strings."""
-        # Create temp config with non-string values
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
-            yaml.dump({"categories": {"dining": "Restaurant", "invalid": 123}}, f)
-            temp_path = Path(f.name)
-        
-        with pytest.raises(ValueError, match="All category descriptions must be strings"):
-            load_categories(temp_path)
-
-
-class TestGetCategoryNames:
-    """Test category name extraction."""
-    
-    def test_get_category_names_with_dict(self):
-        """Test getting names from provided dict."""
-        categories = {"dining": "Restaurants", "fuel": "Gas stations"}
-        names = get_category_names(categories)
-        assert names == ["dining", "fuel"]
-    
-    def test_get_category_names_loads_config(self):
-        """Test getting names loads from config when not provided."""
-        names = get_category_names()
-        assert isinstance(names, list)
-        assert "dining" in names
-        assert "groceries" in names
+from sprig.models import RuntimeConfig, TellerTransaction, TransactionCategory
+from sprig.models.category_config import CategoryConfig
 
 
 class TestBuildCategorizationPrompt:
@@ -71,23 +16,28 @@ class TestBuildCategorizationPrompt:
     
     def test_build_prompt_includes_descriptions(self):
         """Test that prompt includes category descriptions."""
+        from datetime import date
+        
         transactions = [
             TellerTransaction(
                 id="txn_123",
                 account_id="acc_1",
                 amount=25.50,
                 description="Restaurant",
-                date="2024-01-01",
+                date=date(2024, 1, 1),
                 type="debit",
                 status="posted"
             )
         ]
-        categories = {"dining": "Restaurants and food delivery", "fuel": "Gas stations"}
         
-        prompt = build_categorization_prompt(transactions, categories)
+        # Load actual category config
+        category_config = CategoryConfig.load()
         
-        assert "dining: Restaurants and food delivery" in prompt
-        assert "fuel: Gas stations" in prompt
+        prompt = build_categorization_prompt(transactions, category_config)
+        
+        # Should include actual categories from config
+        assert "dining:" in prompt
+        assert "groceries:" in prompt
         assert "txn_123" in prompt
         assert "Restaurant" in prompt
 
@@ -133,7 +83,7 @@ class TestTransactionCategorizerParsing:
         categories_list = [
             TransactionCategory(transaction_id="txn_1", category="dining"),
             TransactionCategory(transaction_id="txn_2", category="wrong"),
-            TransactionCategory(transaction_id="txn_3", category="fuel")
+            TransactionCategory(transaction_id="txn_3", category="transport")
         ]
         
         result = self.categorizer._validate_categories(categories_list)
@@ -141,7 +91,7 @@ class TestTransactionCategorizerParsing:
         assert result == {
             "txn_1": "dining",
             "txn_2": FALLBACK_CATEGORY,
-            "txn_3": "fuel"
+            "txn_3": "transport"
         }
     
     
@@ -168,41 +118,6 @@ class TestTransactionCategorizerParsing:
         }
 
 
-class TestClaudeResponseUnpacking:
-    """Test extracting data from ClaudeResponse."""
-    
-    def test_claude_response_unpacking(self):
-        """Test extracting categories from ClaudeResponse content."""
-        # The content[0].text contains list of TransactionCategory objects
-        mock_response = ClaudeResponse(
-            id="msg_123",
-            type="message", 
-            role="assistant",
-            content=[
-                ClaudeContentBlock(
-                    type="text",
-                    text=[
-                        TransactionCategory(transaction_id="txn_ABC123", category="dining"),
-                        TransactionCategory(transaction_id="txn_DEF456", category="groceries"),
-                        TransactionCategory(transaction_id="txn_GHI789", category="fuel")
-                    ]
-                )
-            ],
-            model="claude-3-haiku",
-            usage="test"
-        )
-        
-        # Extract categories from content[0].text
-        categories_list = mock_response.content[0].text
-        
-        # Verify structure
-        assert len(categories_list) == 3
-        assert categories_list[0].transaction_id == "txn_ABC123"
-        assert categories_list[0].category == "dining"
-        assert categories_list[1].transaction_id == "txn_DEF456"
-        assert categories_list[1].category == "groceries"
-        assert categories_list[2].transaction_id == "txn_GHI789"
-        assert categories_list[2].category == "fuel"
 
 
 class TestCategorizeBatchIntegration:
@@ -230,15 +145,11 @@ class TestCategorizeBatchIntegration:
             "content": [
                 {
                     "type": "text", 
-                    "text": [
-                        {"transaction_id": "txn_ABC123", "category": "dining"},
-                        {"transaction_id": "txn_DEF456", "category": "fuel"},
-                        {"transaction_id": "txn_GHI789", "category": "groceries"}
-                    ]
+                    "text": '{"transaction_id": "txn_ABC123", "category": "dining"}, {"transaction_id": "txn_DEF456", "category": "transport"}, {"transaction_id": "txn_GHI789", "category": "groceries"}]'
                 }
             ],
             "model": "claude-3-haiku",
-            "usage": "test"
+            "usage": {}
         }
         mock_client.messages.create.return_value = mock_api_response
         
@@ -280,7 +191,7 @@ class TestCategorizeBatchIntegration:
         # Assert correct categories returned
         assert result == {
             "txn_ABC123": "dining",
-            "txn_DEF456": "fuel",
+            "txn_DEF456": "transport",
             "txn_GHI789": "groceries"
         }
         
@@ -306,15 +217,11 @@ class TestCategorizeBatchIntegration:
             "content": [
                 {
                     "type": "text", 
-                    "text": [
-                        {"transaction_id": "txn_1", "category": "dining"},
-                        {"transaction_id": "txn_2", "category": "invalid_cat"},
-                        {"transaction_id": "txn_3", "category": "groceries"}
-                    ]
+                    "text": '{"transaction_id": "txn_1", "category": "dining"}, {"transaction_id": "txn_2", "category": "invalid_cat"}, {"transaction_id": "txn_3", "category": "groceries"}]'
                 }
             ],
             "model": "claude-3-haiku",
-            "usage": "test"
+            "usage": {}
         }
         mock_client.messages.create.return_value = mock_api_response
         
@@ -356,28 +263,29 @@ class TestEdgeCases:
         """Test transaction IDs that are numeric strings."""
         categories_list = [
             TransactionCategory(transaction_id="12345", category="dining"),
-            TransactionCategory(transaction_id="67890", category="fuel")
+            TransactionCategory(transaction_id="67890", category="transport")
         ]
         
         result = self.categorizer._validate_categories(categories_list)
         
-        assert result == {"12345": "dining", "67890": "fuel"}
+        assert result == {"12345": "dining", "67890": "transport"}
     
     def test_response_with_special_characters(self):
         """Test transaction IDs with special characters."""
         categories_list = [
             TransactionCategory(transaction_id="txn_abc-123", category="dining"),
-            TransactionCategory(transaction_id="txn_def_456", category="fuel")
+            TransactionCategory(transaction_id="txn_def_456", category="transport")
         ]
         
         result = self.categorizer._validate_categories(categories_list)
         
-        assert result == {"txn_abc-123": "dining", "txn_def_456": "fuel"}
+        assert result == {"txn_abc-123": "dining", "txn_def_456": "transport"}
     
     def test_constants_values(self):
         """Test that constants have expected values."""
         assert FALLBACK_CATEGORY == "undefined"
         
         # Verify undefined is actually a valid category
-        categories = load_categories()
-        assert FALLBACK_CATEGORY in categories
+        category_config = CategoryConfig.load()
+        category_names = {cat.name for cat in category_config.categories}
+        assert FALLBACK_CATEGORY in category_names

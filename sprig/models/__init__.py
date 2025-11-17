@@ -3,6 +3,7 @@
 from .teller import TellerAccount, TellerTransaction
 from .claude import ClaudeResponse, ClaudeContentBlock, TransactionCategory
 from .runtime_config import RuntimeConfig
+from .category_config import CategoryConfig, Category
 
 __all__ = [
     "TellerAccount",
@@ -11,4 +12,6 @@ __all__ = [
     "ClaudeContentBlock",
     "TransactionCategory",
     "RuntimeConfig",
+    "CategoryConfig",
+    "Category",
 ]

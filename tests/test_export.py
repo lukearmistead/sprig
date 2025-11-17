@@ -105,8 +105,8 @@ def test_export_transactions_to_csv_default_filename():
                 assert exports_dir.exists()
                 assert exports_dir.is_dir()
                 
-                # Verify CSV file exists with date pattern
-                csv_files = list(exports_dir.glob("transactions_*.csv"))
+                # Verify CSV file exists with date pattern  
+                csv_files = list(exports_dir.glob("transactions-*.csv"))
                 assert len(csv_files) == 1
                 
         finally:
