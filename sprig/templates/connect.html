@@ -57,6 +57,35 @@
             background: #cbd5e0;
             cursor: not-allowed;
         }
+        .action-buttons {
+            display: none;
+            gap: 12px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .action-buttons button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: none;
+        }
+        .add-another-btn {
+            background: #48bb78;
+            color: white;
+        }
+        .add-another-btn:hover {
+            background: #38a169;
+        }
+        .done-btn {
+            background: #718096;
+            color: white;
+        }
+        .done-btn:hover {
+            background: #4a5568;
+        }
         .status {
             padding: 12px;
             border-radius: 6px;
@@ -91,20 +120,25 @@
             Securely connect your bank accounts using Teller.io.<br>
             Your data stays local and private.
         </p>
-        
+
         <div class="env-info">
             Environment: <strong>{{ environment }}</strong><br>
             App ID: <strong>{{ app_id }}</strong>
         </div>
-        
+
         <button id="teller-connect" class="connect-button">
             Connect to Your Bank
         </button>
-        
+
         <div id="status" class="status"></div>
-        
-        <p style="margin-top: 30px; font-size: 0.85rem; color: #718096;">
-            After connecting, you can close this window and return to the terminal.
+
+        <div id="action-buttons" class="action-buttons">
+            <button id="add-another" class="add-another-btn">Add Another Account</button>
+            <button id="done" class="done-btn">Done</button>
+        </div>
+
+        <p id="instruction-text" style="margin-top: 30px; font-size: 0.85rem; color: #718096;">
+            After connecting, you can add multiple accounts or close this window.
         </p>
     </div>
 
@@ -114,82 +148,112 @@
         document.addEventListener("DOMContentLoaded", function() {
             const button = document.getElementById("teller-connect");
             const status = document.getElementById("status");
-            
-            function showStatus(message, type) {
-                status.textContent = message;
+            const actionButtons = document.getElementById("action-buttons");
+            const addAnotherBtn = document.getElementById("add-another");
+            const doneBtn = document.getElementById("done");
+
+            // Helpers
+            const apiPost = (endpoint, data) => fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            }).then(r => r.json());
+
+            const showStatus = (msg, type) => {
+                status.textContent = msg;
                 status.className = `status ${type}`;
                 status.style.display = "block";
-            }
-            
+            };
+
+            const setButton = (text, disabled) => {
+                button.textContent = text;
+                button.disabled = disabled;
+            };
+
+            const showActions = () => {
+                button.style.display = "none";
+                actionButtons.style.display = "flex";
+            };
+
+            const hideActions = () => {
+                actionButtons.style.display = "none";
+                button.style.display = "inline-block";
+            };
+
             // Configure Teller Connect
             const tellerConnect = TellerConnect.setup({
                 applicationId: "{{ app_id }}",
                 environment: "{{ environment }}",
                 selectAccount: "multiple",
-                onInit: function() {
-                    console.log("Teller Connect initialized");
-                },
-                onSuccess: function(enrollment) {
-                    console.log("Enrollment successful:", enrollment);
-                    
-                    // Show success message
+                onSuccess: async function(enrollment) {
                     showStatus("🎉 Authentication successful! Saving token...", "success");
-                    button.disabled = true;
-                    button.textContent = "Saving...";
-                    
-                    // Send token to server
-                    fetch("/save-token", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
+                    setButton("Saving...", true);
+
+                    try {
+                        const data = await apiPost("/save-token", {
                             accessToken: enrollment.accessToken,
                             userId: enrollment.user.id,
                             institutionName: enrollment.institution?.name || "Unknown"
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
+                        });
+
                         if (data.success) {
                             showStatus("✅ " + data.message, "success");
-                            button.textContent = "Complete!";
+                            showActions();
                         } else {
                             showStatus("❌ Error: " + data.error, "error");
-                            button.disabled = false;
-                            button.textContent = "Connect to Your Bank";
+                            setButton("Connect to Your Bank", false);
                         }
-                    })
-                    .catch(error => {
-                        console.error("Error saving token:", error);
+                    } catch (error) {
+                        console.error("Error:", error);
                         showStatus("❌ Failed to save token. Please try again.", "error");
-                        button.disabled = false;
-                        button.textContent = "Connect to Your Bank";
-                    });
+                        setButton("Connect to Your Bank", false);
+                    }
                 },
-                onExit: function() {
-                    console.log("User closed Teller Connect");
-                    showStatus("Authentication cancelled.", "error");
-                },
-                onError: function(error) {
-                    console.error("Teller Connect error:", error);
+                onExit: () => setButton("Connect to Your Bank", false),
+                onError: (error) => {
+                    console.error("Error:", error);
                     showStatus("❌ Connection error. Please try again.", "error");
+                    setButton("Connect to Your Bank", false);
                 }
             });
 
-            // Handle button click
+            // Event handlers
             button.addEventListener("click", function() {
-                button.disabled = true;
-                button.textContent = "Opening Connect...";
+                setButton("Opening Connect...", true);
                 status.style.display = "none";
-                
                 try {
                     tellerConnect.open();
                 } catch (error) {
-                    console.error("Error opening Teller Connect:", error);
+                    console.error("Error:", error);
                     showStatus("❌ Failed to open Connect. Please refresh and try again.", "error");
-                    button.disabled = false;
-                    button.textContent = "Connect to Your Bank";
+                    setButton("Connect to Your Bank", false);
+                }
+            });
+
+            addAnotherBtn.addEventListener("click", function() {
+                hideActions();
+                setButton("Connect Another Account", false);
+                status.style.display = "none";
+                try {
+                    tellerConnect.open();
+                } catch (error) {
+                    console.error("Error:", error);
+                    showStatus("❌ Failed to open Connect. Please try again.", "error");
+                    setButton("Connect to Your Bank", false);
+                }
+            });
+
+            doneBtn.addEventListener("click", async function() {
+                doneBtn.disabled = true;
+                addAnotherBtn.disabled = true;
+                showStatus("🎉 All done! Shutting down...", "success");
+                try {
+                    const data = await apiPost("/done", {});
+                    if (data.success) {
+                        showStatus("✅ " + data.message + " You can close this window.", "success");
+                    }
+                } catch (error) {
+                    console.error("Error:", error);
                 }
             });
         });
