@@ -3,6 +3,7 @@
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
+import requests
 
 from sprig.sync import sync_all_accounts, sync_accounts_for_token, sync_transactions_for_account
 
@@ -186,3 +187,99 @@ def test_sync_with_real_database():
             cursor = conn.execute("SELECT name FROM accounts WHERE id = 'acc_integration'")
             account_name = cursor.fetchone()[0]
             assert account_name == "Integration Test Account"
+
+
+def test_sync_accounts_for_token_invalid_token():
+    """Test that invalid/expired tokens are handled gracefully."""
+    # Mock client and database
+    mock_client = Mock()
+    mock_db = Mock()
+    
+    # Mock 401 Unauthorized error for invalid token
+    mock_response = Mock()
+    mock_response.status_code = 401
+    error = requests.HTTPError()
+    error.response = mock_response
+    mock_client.get_accounts.side_effect = error
+    
+    # Call function
+    result = sync_accounts_for_token(mock_client, mock_db, "invalid_token")
+    
+    # Should return False for invalid token
+    assert not result
+    
+    # Should not insert anything to database
+    mock_db.insert_record.assert_not_called()
+    
+    # Should have attempted to get accounts
+    mock_client.get_accounts.assert_called_once_with("invalid_token")
+
+
+def test_sync_accounts_for_token_other_http_error():
+    """Test that non-401 HTTP errors are re-raised."""
+    # Mock client and database
+    mock_client = Mock()
+    mock_db = Mock()
+    
+    # Mock 500 Internal Server Error
+    mock_response = Mock()
+    mock_response.status_code = 500
+    error = requests.HTTPError()
+    error.response = mock_response
+    mock_client.get_accounts.side_effect = error
+    
+    # Should re-raise the error
+    try:
+        sync_accounts_for_token(mock_client, mock_db, "test_token")
+        assert False, "Expected HTTPError to be raised"
+    except requests.HTTPError as e:
+        assert e.response.status_code == 500
+
+
+@patch('sprig.sync.categorize_uncategorized_transactions')
+@patch('sprig.sync.SprigDatabase')
+@patch('sprig.sync.TellerClient') 
+@patch('builtins.print')
+def test_sync_all_accounts_with_invalid_tokens(mock_print, mock_teller_client_class, mock_database_class, mock_categorize):
+    """Test sync_all_accounts handles invalid tokens and shows appropriate messages."""
+    # Mock config with mix of valid and invalid tokens
+    mock_config = Mock()
+    mock_config.access_tokens = ["valid_token", "invalid_token_123456", "another_valid"]
+    mock_config.database_path = Path("/test/path")
+    
+    # Mock client and database instances
+    mock_client = Mock()
+    mock_db = Mock()
+    mock_teller_client_class.return_value = mock_client
+    mock_database_class.return_value = mock_db
+    
+    # Mock API responses - second token returns 401 error
+    def mock_get_accounts(token):
+        if token == "invalid_token_123456":
+            mock_response = Mock()
+            mock_response.status_code = 401
+            error = requests.HTTPError()
+            error.response = mock_response
+            raise error
+        else:
+            return [{
+                "id": f"acc_{token[:5]}",
+                "name": "Test Account",
+                "type": "depository",
+                "currency": "USD", 
+                "status": "open"
+            }]
+    
+    mock_client.get_accounts.side_effect = mock_get_accounts
+    mock_client.get_transactions.return_value = []
+    mock_db.insert_record.return_value = True
+    
+    # Call function
+    sync_all_accounts(mock_config)
+    
+    # Should print success message for valid tokens
+    mock_print.assert_any_call("✅ Successfully synced 2 valid tokens")
+    
+    # Should print warning about invalid tokens
+    warning_calls = [call for call in mock_print.call_args_list if "invalid/expired tokens" in str(call)]
+    assert len(warning_calls) > 0

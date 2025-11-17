@@ -1,5 +1,7 @@
 """Transaction synchronization logic for Sprig."""
 
+import requests
+
 from sprig.categorizer import TransactionCategorizer
 from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
 from sprig.database import SprigDatabase
@@ -13,21 +15,50 @@ def sync_all_accounts(config: RuntimeConfig):
     client = TellerClient(config)
     db = SprigDatabase(config.database_path)
     
+    invalid_tokens = []
+    valid_tokens = 0
+    
     for token in config.access_tokens:
-        sync_accounts_for_token(client, db, token)
+        success = sync_accounts_for_token(client, db, token)
+        if success:
+            valid_tokens += 1
+        else:
+            invalid_tokens.append(token[:12] + "...")  # Show partial token for identification
+    
+    if invalid_tokens:
+        print(f"\n⚠️  Found {len(invalid_tokens)} invalid/expired tokens:")
+        for token in invalid_tokens:
+            print(f"   - {token}")
+        print("These may be from re-authenticated accounts. Consider removing them from ACCESS_TOKENS in .env")
+    
+    print(f"✅ Successfully synced {valid_tokens} valid tokens")
     
     # Categorize any uncategorized transactions
     categorize_uncategorized_transactions(config, db)
 
 
-def sync_accounts_for_token(client: TellerClient, db: SprigDatabase, token: str):
-    """Sync accounts and their transactions for a single token."""
-    accounts = client.get_accounts(token)
+def sync_accounts_for_token(client: TellerClient, db: SprigDatabase, token: str) -> bool:
+    """Sync accounts and their transactions for a single token.
+    
+    Returns:
+        True if sync was successful, False if token is invalid/expired
+    """
+    try:
+        accounts = client.get_accounts(token)
+    except requests.HTTPError as e:
+        if e.response and e.response.status_code == 401:
+            print(f"Skipping invalid/expired token {token[:12]}... (account may have been re-authenticated)")
+            return False
+        else:
+            # Re-raise other HTTP errors
+            raise
     
     for account_data in accounts:
         account = TellerAccount(**account_data)
         db.insert_record("accounts", account.model_dump())
         sync_transactions_for_account(client, db, token, account.id)
+    
+    return True
 
 
 def sync_transactions_for_account(client: TellerClient, db: SprigDatabase, token: str, account_id: str):
