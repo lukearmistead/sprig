@@ -1,6 +1,7 @@
 """Tests for sprig.sync module."""
 
 import tempfile
+from datetime import date
 from pathlib import Path
 from unittest.mock import Mock, patch
 import requests
@@ -375,4 +376,136 @@ def test_sync_all_accounts_without_recategorize(mock_teller_client_class, mock_d
     mock_teller_client_class.assert_called_once_with(mock_config)
     mock_database_class.assert_called_once_with(mock_config.database_path)
     mock_client.get_accounts.assert_called_once_with("token_1")
+    mock_categorize.assert_called_once_with(mock_config, mock_db)
+
+
+def test_sync_transactions_with_cutoff_date():
+    """Test syncing transactions with cutoff_date filter."""
+    # Mock client and database
+    mock_client = Mock()
+    mock_db = Mock()
+
+    # Mock transaction data with different dates
+    mock_transactions = [
+        {
+            "id": "txn_old",
+            "account_id": "acc_456",
+            "amount": 25.50,
+            "description": "Old Transaction",
+            "date": "2024-01-01",
+            "type": "card_payment",
+            "status": "posted"
+        },
+        {
+            "id": "txn_new",
+            "account_id": "acc_456",
+            "amount": -10.00,
+            "description": "Recent Transaction",
+            "date": "2024-02-15",
+            "type": "ach",
+            "status": "posted"
+        }
+    ]
+
+    mock_client.get_transactions.return_value = mock_transactions
+    mock_db.insert_record.return_value = True
+
+    # Call function with cutoff_date filter
+    cutoff_date = date(2024, 2, 1)
+    sync_transactions_for_account(mock_client, mock_db, "test_token", "acc_456", cutoff_date=cutoff_date)
+
+    # Verify API call
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456")
+
+    # Verify only recent transaction was inserted (old one filtered out)
+    assert mock_db.insert_record.call_count == 1
+    calls = mock_db.insert_record.call_args_list
+    assert calls[0][0][1]["id"] == "txn_new"
+
+
+
+def test_sync_transactions_with_cutoff_date():
+    """Test syncing transactions with cutoff_date filter."""
+    # Mock client and database
+    mock_client = Mock()
+    mock_db = Mock()
+
+    # Mock transaction data with different dates
+    mock_transactions = [
+        {
+            "id": "txn_old",
+            "account_id": "acc_456",
+            "amount": 25.50,
+            "description": "Old Transaction",
+            "date": "2024-01-01",
+            "type": "card_payment",
+            "status": "posted"
+        },
+        {
+            "id": "txn_new",
+            "account_id": "acc_456",
+            "amount": -10.00,
+            "description": "Recent Transaction",
+            "date": "2024-02-15",
+            "type": "ach",
+            "status": "posted"
+        }
+    ]
+
+    mock_client.get_transactions.return_value = mock_transactions
+    mock_db.insert_record.return_value = True
+
+    # Call function with cutoff_date filter
+    cutoff_date = date(2024, 2, 1)
+    sync_transactions_for_account(mock_client, mock_db, "test_token", "acc_456", cutoff_date=cutoff_date)
+
+    # Verify API call
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456")
+
+    # Verify only recent transaction was inserted (old one filtered out)
+    assert mock_db.insert_record.call_count == 1
+    calls = mock_db.insert_record.call_args_list
+    assert calls[0][0][1]["id"] == "txn_new"
+
+
+@patch('sprig.sync.categorize_uncategorized_transactions')
+@patch('sprig.sync.SprigDatabase')
+@patch('sprig.sync.TellerClient')
+@patch('sprig.sync.logger')
+def test_sync_all_accounts_with_days_filter(
+    mock_logger, mock_teller_client_class, mock_database_class, mock_categorize
+):
+    """Test sync_all_accounts with days parameter logs info."""
+    # Mock config
+    mock_config = Mock()
+    mock_config.access_tokens = ["token_1"]
+    mock_config.database_path = Path("/test/path")
+
+    # Mock client and database instances
+    mock_client = Mock()
+    mock_db = Mock()
+    mock_teller_client_class.return_value = mock_client
+    mock_database_class.return_value = mock_db
+
+    # Mock API responses
+    mock_client.get_accounts.return_value = [
+        {
+            "id": "acc_123",
+            "name": "Test Account",
+            "type": "depository",
+            "currency": "USD",
+            "status": "open"
+        }
+    ]
+    mock_client.get_transactions.return_value = []
+    mock_db.insert_record.return_value = True
+
+    # Call function with days parameter
+    sync_all_accounts(mock_config, days=30)
+
+    # Verify filtering message was logged
+    info_calls = [call for call in mock_logger.info.call_args_list if "Filtering transactions from the last 30 days" in str(call)]
+    assert len(info_calls) > 0
+
+    # Verify categorization was called
     mock_categorize.assert_called_once_with(mock_config, mock_db)
