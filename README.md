@@ -87,8 +87,23 @@ ENVIRONMENT=development
 ```bash
 python sprig.py auth                               # Connect bank accounts
 python sprig.py sync                               # Download and categorize transactions  
+python sprig.py sync --recategorize                # Recategorize ALL transactions with updated AI
 python sprig.py export                             # Export to CSV
 python sprig.py export -o /path/to/file.csv        # Export to custom location
+```
+
+### Recategorization
+
+After improving your categories or prompts, use `--recategorize` to re-run AI categorization on all transactions:
+
+```bash
+# Update your categories in config.yml, then:
+python sprig.py sync --recategorize
+
+# This will:
+# 1. Clear all existing categories
+# 2. Re-categorize every transaction with updated AI
+# 3. Apply your improved category definitions
 ```
 
 ### Transaction Categories

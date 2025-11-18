@@ -131,3 +131,60 @@ def test_insert_record_handles_duplicates():
             cursor = conn.execute("SELECT name FROM accounts WHERE id = 'acc_123'")
             name = cursor.fetchone()[0]
             assert name == "Updated Account"
+
+
+def test_clear_all_categories():
+    """Test clearing all transaction categories."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+        
+        # Insert test transactions with categories
+        transaction_data = [
+            {
+                "id": "txn_1",
+                "account_id": "acc_123",
+                "amount": 25.50,
+                "description": "Restaurant",
+                "date": date(2024, 1, 15),
+                "type": "card_payment",
+                "status": "posted"
+            },
+            {
+                "id": "txn_2", 
+                "account_id": "acc_123",
+                "amount": 50.00,
+                "description": "Gas Station",
+                "date": date(2024, 1, 16),
+                "type": "card_payment",
+                "status": "posted"
+            }
+        ]
+        
+        for txn in transaction_data:
+            db.insert_record("transactions", txn)
+        
+        # Add categories to transactions
+        db.update_transaction_category("txn_1", "dining")
+        db.update_transaction_category("txn_2", "transport")
+        
+        # Verify categories were set
+        import sqlite3
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM transactions WHERE inferred_category IS NOT NULL")
+            categorized_count = cursor.fetchone()[0]
+            assert categorized_count == 2
+        
+        # Clear all categories
+        rows_cleared = db.clear_all_categories()
+        assert rows_cleared == 2
+        
+        # Verify all categories are now NULL
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM transactions WHERE inferred_category IS NOT NULL")
+            categorized_count = cursor.fetchone()[0]
+            assert categorized_count == 0
+            
+            cursor = conn.execute("SELECT COUNT(*) FROM transactions WHERE inferred_category IS NULL")
+            uncategorized_count = cursor.fetchone()[0]
+            assert uncategorized_count == 2

@@ -31,7 +31,8 @@ This file guides Claude when working on Sprig - "Actually-personal personal fina
 | Sync logic | `sync.py` | `database.py` | `test_sync.py` | Orchestration, duplicate detection |
 | Categorization | `categorizer.py` | - | `test_categorizer.py` | Claude API, prompts, batching |
 | CSV export | `export.py` | `database.py` | `test_export.py` | File I/O, formatting |
-| Data models | `models/*.py` | - | `test_models.py` | Pydantic validation, types |
+| Data models | `models/*.py` | - | `test_models.py`, `test_claude_models.py` | Pydantic validation, types |
+| Claude API | `models/claude.py` | - | `test_claude.py` | Claude response parsing |
 | CLI | `sprig.py` | all modules | - | Commands, argument parsing |
 
 **Decision Tree for New Code**:
@@ -67,13 +68,13 @@ def save_transaction(self, transaction: TellerTransaction, account_id: str) -> b
     self.connection.execute("""
         INSERT INTO transactions (
             id, account_id, amount, date, description,
-            status, details, type, running_balance
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            status, details, type, running_balance, inferred_category
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         transaction.id, account_id, transaction.amount,
         transaction.date, transaction.description,
         transaction.status, transaction.details,
-        transaction.type, transaction.running_balance
+        transaction.type, transaction.running_balance, None  # inferred_category added later by categorizer
     ))
     return True
 ```
@@ -259,10 +260,10 @@ def sample_transaction():
 ### Active Problems 🔧
 1. **Duplicate Accounts**: Re-authentication creates new account IDs
    - Solution: Fingerprinting with (institution_id, type, last4)
-   - Status: Implementing in `sync.py`
+   - Status: Design documented, implementation pending
 
 2. **Category Optimization**: Improving prompt for better accuracy
-   - Current: 13 categories in `config.yml`
+   - Current: 14 categories in `config.yml`
    - Testing: Different prompt templates
 
 ### Not Implemented Yet ❌
@@ -333,7 +334,7 @@ EXPORT_DIR=exports      # Defaults to ./exports
 ### Category Configuration (`config.yml`)
 ```yaml
 # Sprig Transaction Categories Configuration
-# This file defines the 13 categories used for transaction classification.
+# This file defines the 14 categories used for transaction classification.
 categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
@@ -359,8 +360,10 @@ categories:
     description: "Investments, retirement contributions, transfers to savings, and building wealth for the future"
   - name: general
     description: "Bank fees, charitable donations, gifts, professional services, and anything that doesn't fit elsewhere"
+  - name: transfers
+    description: "Credit card payments, loan payments, interest charges, account transfers, and internal money movements between your accounts"
   - name: undefined
-    description: "Unclassifiable transactions that defy categorization or have unclear purposes"
+    description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
 ```
 
 ## Development Workflow
