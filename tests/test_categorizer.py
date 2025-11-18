@@ -5,8 +5,7 @@ from unittest.mock import Mock, patch
 
 from sprig.categorizer import (
     TransactionCategorizer,
-    build_categorization_prompt,
-    FALLBACK_CATEGORY
+    build_categorization_prompt
 )
 from sprig.models import RuntimeConfig, TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
@@ -33,7 +32,9 @@ class TestBuildCategorizationPrompt:
         # Load actual category config
         category_config = CategoryConfig.load()
         
-        prompt = build_categorization_prompt(transactions, category_config)
+        # Provide empty account info for test
+        account_info = {}
+        prompt = build_categorization_prompt(transactions, account_info, category_config)
         
         # Should include actual categories from config
         assert "dining:" in prompt
@@ -76,7 +77,7 @@ class TestTransactionCategorizerParsing:
         
         result = self.categorizer._validate_categories(categories_list)
         
-        assert result == {"txn_123": "dining", "txn_456": FALLBACK_CATEGORY}
+        assert result == {"txn_123": "dining", "txn_456": None}
     
     def test_validate_categories_mixed_valid_invalid(self):
         """Test mix of valid and invalid categories."""
@@ -90,7 +91,7 @@ class TestTransactionCategorizerParsing:
         
         assert result == {
             "txn_1": "dining",
-            "txn_2": FALLBACK_CATEGORY,
+            "txn_2": None,
             "txn_3": "transport"
         }
     
@@ -113,8 +114,8 @@ class TestTransactionCategorizerParsing:
         result = self.categorizer._validate_categories(categories_list)
         
         assert result == {
-            "txn_1": FALLBACK_CATEGORY,
-            "txn_2": FALLBACK_CATEGORY
+            "txn_1": None,
+            "txn_2": None
         }
 
 
@@ -184,9 +185,14 @@ class TestCategorizeBatchIntegration:
             )
         ]
         
-        # Run categorization
+        # Run categorization with account info
         categorizer = TransactionCategorizer(self.runtime_config)
-        result = categorizer.categorize_batch(transactions)
+        account_info = {
+            "txn_ABC123": {"name": "Checking", "subtype": "checking"},
+            "txn_DEF456": {"name": "Checking", "subtype": "checking"},
+            "txn_GHI789": {"name": "Checking", "subtype": "checking"}
+        }
+        result = categorizer.categorize_batch(transactions, account_info)
         
         # Assert correct categories returned
         assert result == {
@@ -238,14 +244,15 @@ class TestCategorizeBatchIntegration:
             )
         ]
         
-        # Run categorization
+        # Run categorization with empty account info
         categorizer = TransactionCategorizer(self.runtime_config)
-        result = categorizer.categorize_batch(transactions)
+        account_info = {}
+        result = categorizer.categorize_batch(transactions, account_info)
         
-        # Assert invalid category gets fallback
+        # Assert invalid category gets None
         assert result == {
             "txn_1": "dining",
-            "txn_2": FALLBACK_CATEGORY,
+            "txn_2": None,
             "txn_3": "groceries"
         }
 
@@ -281,11 +288,8 @@ class TestEdgeCases:
         
         assert result == {"txn_abc-123": "dining", "txn_def_456": "transport"}
     
-    def test_constants_values(self):
-        """Test that constants have expected values."""
-        assert FALLBACK_CATEGORY == "undefined"
-        
-        # Verify undefined is actually a valid category
+    def test_category_config_loads(self):
+        """Test that category config loads properly."""
         category_config = CategoryConfig.load()
         category_names = {cat.name for cat in category_config.categories}
-        assert FALLBACK_CATEGORY in category_names
+        assert "undefined" in category_names  # undefined should still be a valid category

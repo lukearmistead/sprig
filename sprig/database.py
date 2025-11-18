@@ -92,10 +92,13 @@ class SprigDatabase:
         """Get transactions that don't have an inferred category assigned."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                SELECT id, description, amount, date, type 
-                FROM transactions 
-                WHERE inferred_category IS NULL
-                ORDER BY date DESC
+                SELECT t.id, t.description, t.amount, t.date, t.type, 
+                       t.account_id, a.name, a.subtype,
+                       json_extract(t.details, '$.counterparty.name') as counterparty
+                FROM transactions t
+                LEFT JOIN accounts a ON t.account_id = a.id
+                WHERE t.inferred_category IS NULL
+                ORDER BY t.date DESC
             """)
             return cursor.fetchall()
     
