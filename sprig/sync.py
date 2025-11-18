@@ -154,8 +154,8 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     for row in uncategorized:
         txn_id = row[0]
         txn_data = {
-            "id": txn_id, "description": row[1], "amount": row[2], 
-            "date": row[3], "type": row[4], "account_id": row[5], 
+            "id": txn_id, "description": row[1], "amount": row[2],
+            "date": row[3], "type": row[4], "account_id": row[5],
             "status": "posted"
         }
         transactions.append(TellerTransaction(**txn_data))
@@ -163,7 +163,8 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         account_info[txn_id] = {
             "name": row[6],
             "subtype": row[7],
-            "counterparty": row[8]  # counterparty from JSON extraction
+            "counterparty": row[8],  # counterparty from JSON extraction
+            "last_four": row[9]  # account last four digits
         }
     
     if not transactions:

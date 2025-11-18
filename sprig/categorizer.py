@@ -7,7 +7,7 @@ import anthropic
 from anthropic import RateLimitError
 
 from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionForCategorization
+from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
 from sprig.models.category_config import CategoryConfig
 
 logger = get_logger("sprig.categorizer")
@@ -93,20 +93,22 @@ def build_categorization_prompt(
     for t in transactions:
         info = account_info.get(t.id, {})
         minimal_transactions.append(
-            TransactionForCategorization(
+            TransactionView(
                 id=t.id,
+                date=str(t.date),
                 description=t.description,
                 amount=t.amount,
-                date=str(t.date),
+                inferred_category=None,  # Not yet categorized
                 counterparty=info.get('counterparty'),
                 account_name=info.get('name'),
-                account_subtype=info.get('subtype')
+                account_subtype=info.get('subtype'),
+                account_last_four=info.get('last_four')
             )
         )
 
     # Use Pydantic's built-in JSON serialization for the minimal list
     from pydantic import TypeAdapter
-    transactions_adapter = TypeAdapter(List[TransactionForCategorization])
+    transactions_adapter = TypeAdapter(List[TransactionView])
     transactions_json = transactions_adapter.dump_json(minimal_transactions, indent=2).decode()
 
     return prompt_template.format(
