@@ -18,7 +18,7 @@ def export_transactions_to_csv(database_path, output_path=None):
         exports_dir.mkdir(exist_ok=True)
         output_path = exports_dir / f"transactions-{datetime.now().strftime('%Y-%m-%d')}.csv"
 
-    logger.info(f"📊 Starting export to {output_path}")
+    logger.info(f"Starting export to {output_path}")
 
     db = SprigDatabase(database_path)
     transactions = db.get_transactions_for_export()
@@ -46,4 +46,4 @@ def export_transactions_to_csv(database_path, output_path=None):
         for transaction in transactions:
             writer.writerow(transaction)
 
-    logger.info(f"✅ Exported {len(transactions)} transaction(s) to {output_path}")
+    logger.info(f"Exported {len(transactions)} transaction(s) to {output_path}")
