@@ -80,7 +80,7 @@ class TestSyncParams:
         errors = exc_info.value.errors()
         assert len(errors) == 1
         assert 'from_date' in str(errors[0]['loc'])
-        assert 'future' in errors[0]['msg'].lower()
+        assert 'past' in errors[0]['msg'].lower()
 
     def test_future_date_string_raises_error(self):
         """Test that future date string raises ValidationError."""
@@ -91,12 +91,17 @@ class TestSyncParams:
         errors = exc_info.value.errors()
         assert len(errors) == 1
         assert 'from_date' in str(errors[0]['loc'])
-        assert 'future' in errors[0]['msg'].lower()
+        assert 'past' in errors[0]['msg'].lower()
 
-    def test_today_is_valid(self):
-        """Test that today's date is valid."""
-        params = SyncParams(from_date=date.today())
-        assert params.from_date == date.today()
+    def test_today_is_invalid(self):
+        """Test that today's date is invalid (PastDate requires strictly past dates)."""
+        with pytest.raises(ValidationError) as exc_info:
+            SyncParams(from_date=date.today())
+
+        errors = exc_info.value.errors()
+        assert len(errors) == 1
+        assert 'from_date' in str(errors[0]['loc'])
+        assert 'past' in errors[0]['msg'].lower()
 
     def test_past_date_is_valid(self):
         """Test that past dates are valid."""
