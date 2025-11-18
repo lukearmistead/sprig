@@ -11,15 +11,21 @@ class TransactionCategory(BaseModel):
     category: str
 
 
-class TransactionForCategorization(BaseModel):
-    """Essential transaction data for categorization and export."""
+class TransactionView(BaseModel):
+    """Essential transaction data for categorization and CSV export.
+
+    This model contains the 9 fields exported to CSV and sent to Claude for categorization.
+    Fields are ordered to match the desired CSV column order.
+    """
     id: str
+    date: str  # Keep as string for simpler JSON
     description: str
     amount: float
-    date: str  # Keep as string for simpler JSON
+    inferred_category: Optional[str] = None
     counterparty: Optional[str] = None
     account_name: Optional[str] = None
     account_subtype: Optional[str] = None
+    account_last_four: Optional[str] = None
 
 
 class ClaudeContentBlock(BaseModel):
