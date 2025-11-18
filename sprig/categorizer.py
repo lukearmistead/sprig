@@ -4,6 +4,7 @@ import time
 from typing import List
 
 import anthropic
+from anthropic import RateLimitError
 
 from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionForCategorization
@@ -130,14 +131,34 @@ class TransactionCategorizer:
             try:
                 return self._attempt_categorization(transactions, account_info or {})
             except Exception as e:
-                logger.error(f"Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
-
-                if attempt < max_retries - 1:
-                    delay = 2 ** attempt  # Exponential backoff: 1s, 2s
-                    logger.info(f"Retrying in {delay} seconds...")
-                    time.sleep(delay)
+                error_str = str(e)
+                
+                # Check if this is a rate limit error
+                if "rate_limit_error" in error_str or "rate limit" in error_str.lower():
+                    if attempt == 0:  # First time seeing rate limit
+                        logger.warning(f"⏳ Hit Claude API rate limit - this is normal with large transaction volumes")
+                        logger.info(f"   💡 Tip: Use '--days N' flag to sync fewer transactions and reduce API costs")
+                        logger.info(f"   💡 Or run sync multiple times to process transactions in chunks")
+                    
+                    if attempt < max_retries - 1:
+                        # Much longer delays for rate limits (60, 120 seconds)
+                        delay = 60 * (2 ** attempt)
+                        logger.info(f"   ⏱️  Waiting {delay} seconds for rate limit to reset...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"   ❌ Still hitting rate limits after {max_retries} attempts")
+                        logger.info(f"   💡 Try running sync again later, or use '--days 7' to sync recent transactions only")
+                        raise e  # Re-raise to stop categorization entirely
                 else:
-                    logger.error(f"Failed after {max_retries} attempts, skipping this batch")
+                    # Non-rate-limit errors (API errors, network issues, etc.)
+                    logger.error(f"Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    
+                    if attempt < max_retries - 1:
+                        delay = 2 ** attempt  # Normal exponential backoff: 1s, 2s
+                        logger.info(f"Retrying in {delay} seconds...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"Failed after {max_retries} attempts, skipping this batch")
 
         return {}
 
