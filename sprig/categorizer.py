@@ -91,20 +91,20 @@ class TransactionCategorizer:
     def categorize_batch(self, transactions: List[TellerTransaction]) -> dict:
         """Categorize a batch of transactions using Claude with retry logic."""
         max_retries = 3
-        
+
         for attempt in range(max_retries):
             try:
                 return self._attempt_categorization(transactions)
             except Exception as e:
-                print(f"ERROR: Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
-                
+                logger.error(f"Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
+
                 if attempt < max_retries - 1:
                     delay = 2 ** attempt  # Exponential backoff: 1s, 2s
-                    print(f"Retrying in {delay} seconds...")
+                    logger.info(f"Retrying in {delay} seconds...")
                     time.sleep(delay)
                 else:
-                    print(f"Failed after {max_retries} attempts, skipping this batch")
-        
+                    logger.error(f"Failed after {max_retries} attempts, skipping this batch")
+
         return {}
 
     def _attempt_categorization(self, transactions: List[TellerTransaction]) -> dict:
@@ -131,8 +131,8 @@ class TransactionCategorizer:
             categories_adapter = TypeAdapter(List[TransactionCategory])
             categories_list = categories_adapter.validate_json(complete_json)
         except Exception as e:
-            print(f"ERROR: Failed to parse Claude response as JSON: {e}")
-            print(f"Raw response: {json_text[:200]}...")
+            logger.error(f"Failed to parse Claude response as JSON: {e}")
+            logger.error(f"Raw response: {json_text[:200]}...")
             raise e
 
         return self._validate_categories(categories_list)

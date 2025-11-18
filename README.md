@@ -128,9 +128,8 @@ CLAUDE_API_KEY=sk-ant-api03-...    # From console.anthropic.com
 # Database location (default is fine)
 DATABASE_PATH=sprig.db
 
-# Optional: Logging
-LOG_LEVEL=INFO                     # Use DEBUG to see detailed logs
-# LOG_FILE=sprig.log               # Uncomment to save logs to file
+# Logging level: DEBUG, INFO, WARNING, ERROR
+# LOG_LEVEL=INFO
 ```
 
 **Tip:** Bank connections (ACCESS_TOKENS) are added automatically when you run `python sprig.py auth`. You don't need to edit them manually.
@@ -256,7 +255,7 @@ Every export includes these columns:
 | `inferred_category` | AI-assigned category (groceries, dining, etc.) |
 | `created_at` | When this record was added to your database |
 
-**Pro tip:** Set `LOG_LEVEL=DEBUG` in `.env` to see detailed logs of what Sprig is doing.
+Set `LOG_LEVEL=DEBUG` in `.env` for detailed operation logs.
 
 ---
 
