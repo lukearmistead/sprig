@@ -6,6 +6,10 @@ from datetime import date
 from pathlib import Path
 from typing import Dict
 
+from sprig.logger import get_logger
+
+logger = get_logger("sprig.database")
+
 
 class SprigDatabase:
     """SQLite database for storing Teller data."""
@@ -68,20 +72,20 @@ class SprigDatabase:
                     insert_data[key] = value.isoformat()
                 else:
                     insert_data[key] = value
-            
+
             # Build and execute INSERT statement
             with sqlite3.connect(self.db_path) as conn:
                 columns = list(insert_data.keys())
                 placeholders = ["?" for _ in columns]
                 values = list(insert_data.values())
-                
+
                 sql = f"INSERT OR REPLACE INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
                 conn.execute(sql, values)
                 conn.commit()
                 return True
-                
+
         except Exception as e:
-            print(f"Error inserting into {table_name}: {e}")
+            logger.error(f"Error inserting into {table_name}: {e}")
             return False
     
     def get_uncategorized_transactions(self):
@@ -106,7 +110,7 @@ class SprigDatabase:
                 conn.commit()
                 return True
         except Exception as e:
-            print(f"Error updating category for transaction {transaction_id}: {e}")
+            logger.error(f"Error updating category for transaction {transaction_id}: {e}")
             return False
     
     def clear_all_categories(self):

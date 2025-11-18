@@ -13,12 +13,12 @@ def test_sync_transactions_for_account():
     # Mock client and database
     mock_client = Mock()
     mock_db = Mock()
-    
+
     # Mock transaction data from API
     mock_transactions = [
         {
             "id": "txn_123",
-            "account_id": "acc_456", 
+            "account_id": "acc_456",
             "amount": 25.50,
             "description": "Test Transaction",
             "date": "2024-01-15",
@@ -29,25 +29,25 @@ def test_sync_transactions_for_account():
             "id": "txn_124",
             "account_id": "acc_456",
             "amount": -10.00,
-            "description": "Another Transaction", 
+            "description": "Another Transaction",
             "date": "2024-01-16",
             "type": "ach",
             "status": "posted"
         }
     ]
-    
+
     mock_client.get_transactions.return_value = mock_transactions
     mock_db.insert_record.return_value = True
-    
+
     # Call function
     sync_transactions_for_account(mock_client, mock_db, "test_token", "acc_456")
-    
+
     # Verify API call
     mock_client.get_transactions.assert_called_once_with("test_token", "acc_456")
-    
+
     # Verify database inserts (should have all Pydantic model fields)
     assert mock_db.insert_record.call_count == 2
-    
+
     # Check that transactions were inserted (verify the call was made with transaction data)
     calls = mock_db.insert_record.call_args_list
     assert len(calls) == 2
@@ -62,7 +62,7 @@ def test_sync_accounts_for_token():
     # Mock client and database
     mock_client = Mock()
     mock_db = Mock()
-    
+
     # Mock account data from API
     mock_accounts = [
         {
@@ -73,18 +73,18 @@ def test_sync_accounts_for_token():
             "status": "open"
         }
     ]
-    
+
     mock_client.get_accounts.return_value = mock_accounts
     mock_client.get_transactions.return_value = []  # No transactions for simplicity
     mock_db.insert_record.return_value = True
-    
+
     # Call function
     sync_accounts_for_token(mock_client, mock_db, "test_token")
-    
+
     # Verify API calls
     mock_client.get_accounts.assert_called_once_with("test_token")
     mock_client.get_transactions.assert_called_once_with("test_token", "acc_123")
-    
+
     # Verify account insert (should have all Pydantic model fields)
     account_calls = [call for call in mock_db.insert_record.call_args_list if call[0][0] == "accounts"]
     assert len(account_calls) == 1
@@ -103,38 +103,38 @@ def test_sync_all_accounts(mock_teller_client_class, mock_database_class, mock_c
     mock_config = Mock()
     mock_config.access_tokens = ["token_1", "token_2"]
     mock_config.database_path = Path("/test/path")
-    
+
     # Mock client and database instances
     mock_client = Mock()
     mock_db = Mock()
     mock_teller_client_class.return_value = mock_client
     mock_database_class.return_value = mock_db
-    
+
     # Mock API responses
     mock_client.get_accounts.return_value = [
         {
             "id": "acc_123",
             "name": "Test Account",
-            "type": "depository", 
+            "type": "depository",
             "currency": "USD",
             "status": "open"
         }
     ]
     mock_client.get_transactions.return_value = []
     mock_db.insert_record.return_value = True
-    
+
     # Call function
     sync_all_accounts(mock_config)
-    
+
     # Verify client and database were created
     mock_teller_client_class.assert_called_once_with(mock_config)
     mock_database_class.assert_called_once_with(mock_config.database_path)
-    
+
     # Verify get_accounts called for each token
     assert mock_client.get_accounts.call_count == 2
     mock_client.get_accounts.assert_any_call("token_1")
     mock_client.get_accounts.assert_any_call("token_2")
-    
+
     # Verify categorization was called
     mock_categorize.assert_called_once_with(mock_config, mock_db)
 
@@ -146,7 +146,7 @@ def test_sync_with_real_database():
         from sprig.database import SprigDatabase
         db_path = Path(temp_dir) / "test.db"
         db = SprigDatabase(db_path)
-        
+
         # Mock client
         mock_client = Mock()
         mock_client.get_accounts.return_value = [
@@ -154,7 +154,7 @@ def test_sync_with_real_database():
                 "id": "acc_integration",
                 "name": "Integration Test Account",
                 "type": "depository",
-                "currency": "USD", 
+                "currency": "USD",
                 "status": "open"
             }
         ]
@@ -169,21 +169,21 @@ def test_sync_with_real_database():
                 "status": "posted"
             }
         ]
-        
+
         # Call sync function
         sync_accounts_for_token(mock_client, db, "test_token")
-        
+
         # Verify data in database
         import sqlite3
         with sqlite3.connect(db_path) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM accounts")
             account_count = cursor.fetchone()[0]
             assert account_count == 1
-            
+
             cursor = conn.execute("SELECT COUNT(*) FROM transactions")
             transaction_count = cursor.fetchone()[0]
             assert transaction_count == 1
-            
+
             cursor = conn.execute("SELECT name FROM accounts WHERE id = 'acc_integration'")
             account_name = cursor.fetchone()[0]
             assert account_name == "Integration Test Account"
@@ -194,23 +194,23 @@ def test_sync_accounts_for_token_invalid_token():
     # Mock client and database
     mock_client = Mock()
     mock_db = Mock()
-    
+
     # Mock 401 Unauthorized error for invalid token
     mock_response = Mock()
     mock_response.status_code = 401
     error = requests.HTTPError()
     error.response = mock_response
     mock_client.get_accounts.side_effect = error
-    
+
     # Call function
     result = sync_accounts_for_token(mock_client, mock_db, "invalid_token")
-    
+
     # Should return False for invalid token
     assert not result
-    
+
     # Should not insert anything to database
     mock_db.insert_record.assert_not_called()
-    
+
     # Should have attempted to get accounts
     mock_client.get_accounts.assert_called_once_with("invalid_token")
 
@@ -220,14 +220,14 @@ def test_sync_accounts_for_token_other_http_error():
     # Mock client and database
     mock_client = Mock()
     mock_db = Mock()
-    
+
     # Mock 500 Internal Server Error
     mock_response = Mock()
     mock_response.status_code = 500
     error = requests.HTTPError()
     error.response = mock_response
     mock_client.get_accounts.side_effect = error
-    
+
     # Should re-raise the error
     try:
         sync_accounts_for_token(mock_client, mock_db, "test_token")
@@ -238,21 +238,21 @@ def test_sync_accounts_for_token_other_http_error():
 
 @patch('sprig.sync.categorize_uncategorized_transactions')
 @patch('sprig.sync.SprigDatabase')
-@patch('sprig.sync.TellerClient') 
-@patch('builtins.print')
-def test_sync_all_accounts_with_invalid_tokens(mock_print, mock_teller_client_class, mock_database_class, mock_categorize):
+@patch('sprig.sync.TellerClient')
+@patch('sprig.sync.logger')
+def test_sync_all_accounts_with_invalid_tokens(mock_logger, mock_teller_client_class, mock_database_class, mock_categorize):
     """Test sync_all_accounts handles invalid tokens and shows appropriate messages."""
     # Mock config with mix of valid and invalid tokens
     mock_config = Mock()
     mock_config.access_tokens = ["valid_token", "invalid_token_123456", "another_valid"]
     mock_config.database_path = Path("/test/path")
-    
+
     # Mock client and database instances
     mock_client = Mock()
     mock_db = Mock()
     mock_teller_client_class.return_value = mock_client
     mock_database_class.return_value = mock_db
-    
+
     # Mock API responses - second token returns 401 error
     def mock_get_accounts(token):
         if token == "invalid_token_123456":
@@ -266,45 +266,46 @@ def test_sync_all_accounts_with_invalid_tokens(mock_print, mock_teller_client_cl
                 "id": f"acc_{token[:5]}",
                 "name": "Test Account",
                 "type": "depository",
-                "currency": "USD", 
+                "currency": "USD",
                 "status": "open"
             }]
-    
+
     mock_client.get_accounts.side_effect = mock_get_accounts
     mock_client.get_transactions.return_value = []
     mock_db.insert_record.return_value = True
-    
+
     # Call function
     sync_all_accounts(mock_config)
-    
-    # Should print success message for valid tokens
-    mock_print.assert_any_call("Successfully synced 2 valid tokens")
-    
-    # Should print warning about invalid tokens
-    warning_calls = [call for call in mock_print.call_args_list if "invalid/expired tokens" in str(call)]
+
+    # Should log success message for valid tokens
+    info_calls = [call for call in mock_logger.info.call_args_list if "Successfully synced 2 valid token(s)" in str(call)]
+    assert len(info_calls) > 0
+
+    # Should log warning about invalid tokens
+    warning_calls = [call for call in mock_logger.warning.call_args_list if "invalid/expired token(s)" in str(call)]
     assert len(warning_calls) > 0
 
 
 @patch('sprig.sync.categorize_uncategorized_transactions')
 @patch('sprig.sync.SprigDatabase')
 @patch('sprig.sync.TellerClient')
-@patch('builtins.print')
-def test_sync_all_accounts_with_recategorize(mock_print, mock_teller_client_class, mock_database_class, mock_categorize):
+@patch('sprig.sync.logger')
+def test_sync_all_accounts_with_recategorize(mock_logger, mock_teller_client_class, mock_database_class, mock_categorize):
     """Test sync_all_accounts with recategorize=True clears categories before sync."""
     # Mock config
     mock_config = Mock()
     mock_config.access_tokens = ["token_1"]
     mock_config.database_path = Path("/test/path")
-    
+
     # Mock client and database instances
     mock_client = Mock()
     mock_db = Mock()
     mock_teller_client_class.return_value = mock_client
     mock_database_class.return_value = mock_db
-    
+
     # Mock clear_all_categories to return 10 rows cleared
     mock_db.clear_all_categories.return_value = 10
-    
+
     # Mock API responses
     mock_client.get_accounts.return_value = [
         {
@@ -317,16 +318,17 @@ def test_sync_all_accounts_with_recategorize(mock_print, mock_teller_client_clas
     ]
     mock_client.get_transactions.return_value = []
     mock_db.insert_record.return_value = True
-    
+
     # Call function with recategorize=True
     sync_all_accounts(mock_config, recategorize=True)
-    
+
     # Verify clear_all_categories was called
     mock_db.clear_all_categories.assert_called_once()
-    
-    # Verify message about clearing categories was printed
-    mock_print.assert_any_call("Cleared categories for 10 transactions")
-    
+
+    # Verify message about clearing categories was logged
+    info_calls = [call for call in mock_logger.info.call_args_list if "Cleared categories for 10 transaction(s)" in str(call)]
+    assert len(info_calls) > 0
+
     # Verify normal sync still happens
     mock_teller_client_class.assert_called_once_with(mock_config)
     mock_database_class.assert_called_once_with(mock_config.database_path)
@@ -343,13 +345,13 @@ def test_sync_all_accounts_without_recategorize(mock_teller_client_class, mock_d
     mock_config = Mock()
     mock_config.access_tokens = ["token_1"]
     mock_config.database_path = Path("/test/path")
-    
+
     # Mock client and database instances
     mock_client = Mock()
     mock_db = Mock()
     mock_teller_client_class.return_value = mock_client
     mock_database_class.return_value = mock_db
-    
+
     # Mock API responses
     mock_client.get_accounts.return_value = [
         {
@@ -362,13 +364,13 @@ def test_sync_all_accounts_without_recategorize(mock_teller_client_class, mock_d
     ]
     mock_client.get_transactions.return_value = []
     mock_db.insert_record.return_value = True
-    
+
     # Call function with recategorize=False (default)
     sync_all_accounts(mock_config)
-    
+
     # Verify clear_all_categories was NOT called
     mock_db.clear_all_categories.assert_not_called()
-    
+
     # Verify normal sync still happens
     mock_teller_client_class.assert_called_once_with(mock_config)
     mock_database_class.assert_called_once_with(mock_config.database_path)
