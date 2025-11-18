@@ -92,9 +92,10 @@ class SprigDatabase:
         """Get transactions that don't have an inferred category assigned."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                SELECT t.id, t.description, t.amount, t.date, t.type, 
+                SELECT t.id, t.description, t.amount, t.date, t.type,
                        t.account_id, a.name, a.subtype,
-                       json_extract(t.details, '$.counterparty.name') as counterparty
+                       json_extract(t.details, '$.counterparty.name') as counterparty,
+                       a.last_four
                 FROM transactions t
                 LEFT JOIN accounts a ON t.account_id = a.id
                 WHERE t.inferred_category IS NULL
@@ -125,7 +126,20 @@ class SprigDatabase:
             return rows_updated
     
     def get_transactions_for_export(self):
-        """Get all transactions for export."""
+        """Get all transactions for export with account details.
+
+        Returns 9 fields: id, date, description, amount, inferred_category,
+        counterparty, account_name, account_subtype, account_last_four
+        """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT * FROM transactions ORDER BY date DESC")
+            cursor = conn.execute("""
+                SELECT t.id, t.date, t.description, t.amount, t.inferred_category,
+                       json_extract(t.details, '$.counterparty.name') as counterparty,
+                       a.name as account_name,
+                       a.subtype as account_subtype,
+                       a.last_four as account_last_four
+                FROM transactions t
+                LEFT JOIN accounts a ON t.account_id = a.id
+                ORDER BY t.date DESC
+            """)
             return cursor.fetchall()

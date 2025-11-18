@@ -1,17 +1,17 @@
 """Sprig data models for API responses and configuration."""
 
 from .teller import TellerAccount, TellerTransaction
-from .claude import ClaudeResponse, ClaudeContentBlock, TransactionCategory, TransactionForCategorization
+from .claude import ClaudeResponse, ClaudeContentBlock, TransactionCategory, TransactionView
 from .runtime_config import RuntimeConfig
 from .category_config import CategoryConfig, Category
 
 __all__ = [
     "TellerAccount",
-    "TellerTransaction", 
+    "TellerTransaction",
     "ClaudeResponse",
     "ClaudeContentBlock",
     "TransactionCategory",
-    "TransactionForCategorization",
+    "TransactionView",
     "RuntimeConfig",
     "CategoryConfig",
     "Category",
