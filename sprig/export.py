@@ -16,7 +16,7 @@ def export_transactions_to_csv(database_path, output_path=None):
         # Create exports directory if it doesn't exist
         exports_dir = Path("exports")
         exports_dir.mkdir(exist_ok=True)
-        output_path = exports_dir / f"transactions-{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.csv"
+        output_path = exports_dir / f"transactions-{datetime.now().strftime('%Y-%m-%d-%H%M%S')}.csv"
 
     logger.info(f"Starting export to {output_path}")
 
