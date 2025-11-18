@@ -35,14 +35,20 @@ def main():
     # Sync command
     sync_parser = subparsers.add_parser("sync", help="Sync transaction data")
     sync_parser.add_argument(
-        "--full", 
-        action="store_true", 
+        "--full",
+        action="store_true",
         help="Perform full resync of all data"
     )
     sync_parser.add_argument(
-        "--recategorize", 
-        action="store_true", 
+        "--recategorize",
+        action="store_true",
         help="Clear and recategorize all transactions"
+    )
+    sync_parser.add_argument(
+        "--days",
+        type=int,
+        metavar="N",
+        help="Only sync transactions from the last N days (reduces API costs)"
     )
     
     # Export command
@@ -81,7 +87,7 @@ def main():
             logger.error(f"Configuration error: {e}")
             logger.error("Please check your .env file and certificate setup.")
             sys.exit(1)
-        sync_all_accounts(config, recategorize=args.recategorize)
+        sync_all_accounts(config, recategorize=args.recategorize, days=args.days)
     elif args.command == "export":
         # Load and validate full configuration for export
         try:
