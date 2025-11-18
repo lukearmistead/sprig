@@ -109,6 +109,14 @@ class SprigDatabase:
             print(f"Error updating category for transaction {transaction_id}: {e}")
             return False
     
+    def clear_all_categories(self):
+        """Clear all inferred_category values."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("UPDATE transactions SET inferred_category = NULL")
+            rows_updated = cursor.rowcount
+            conn.commit()
+            return rows_updated
+    
     def get_transactions_for_export(self):
         """Get all transactions for export."""
         with sqlite3.connect(self.db_path) as conn:

@@ -278,8 +278,99 @@ def test_sync_all_accounts_with_invalid_tokens(mock_print, mock_teller_client_cl
     sync_all_accounts(mock_config)
     
     # Should print success message for valid tokens
-    mock_print.assert_any_call("✅ Successfully synced 2 valid tokens")
+    mock_print.assert_any_call("Successfully synced 2 valid tokens")
     
     # Should print warning about invalid tokens
     warning_calls = [call for call in mock_print.call_args_list if "invalid/expired tokens" in str(call)]
     assert len(warning_calls) > 0
+
+
+@patch('sprig.sync.categorize_uncategorized_transactions')
+@patch('sprig.sync.SprigDatabase')
+@patch('sprig.sync.TellerClient')
+@patch('builtins.print')
+def test_sync_all_accounts_with_recategorize(mock_print, mock_teller_client_class, mock_database_class, mock_categorize):
+    """Test sync_all_accounts with recategorize=True clears categories before sync."""
+    # Mock config
+    mock_config = Mock()
+    mock_config.access_tokens = ["token_1"]
+    mock_config.database_path = Path("/test/path")
+    
+    # Mock client and database instances
+    mock_client = Mock()
+    mock_db = Mock()
+    mock_teller_client_class.return_value = mock_client
+    mock_database_class.return_value = mock_db
+    
+    # Mock clear_all_categories to return 10 rows cleared
+    mock_db.clear_all_categories.return_value = 10
+    
+    # Mock API responses
+    mock_client.get_accounts.return_value = [
+        {
+            "id": "acc_123",
+            "name": "Test Account",
+            "type": "depository",
+            "currency": "USD",
+            "status": "open"
+        }
+    ]
+    mock_client.get_transactions.return_value = []
+    mock_db.insert_record.return_value = True
+    
+    # Call function with recategorize=True
+    sync_all_accounts(mock_config, recategorize=True)
+    
+    # Verify clear_all_categories was called
+    mock_db.clear_all_categories.assert_called_once()
+    
+    # Verify message about clearing categories was printed
+    mock_print.assert_any_call("Cleared categories for 10 transactions")
+    
+    # Verify normal sync still happens
+    mock_teller_client_class.assert_called_once_with(mock_config)
+    mock_database_class.assert_called_once_with(mock_config.database_path)
+    mock_client.get_accounts.assert_called_once_with("token_1")
+    mock_categorize.assert_called_once_with(mock_config, mock_db)
+
+
+@patch('sprig.sync.categorize_uncategorized_transactions')
+@patch('sprig.sync.SprigDatabase')
+@patch('sprig.sync.TellerClient')
+def test_sync_all_accounts_without_recategorize(mock_teller_client_class, mock_database_class, mock_categorize):
+    """Test sync_all_accounts with recategorize=False does not clear categories."""
+    # Mock config
+    mock_config = Mock()
+    mock_config.access_tokens = ["token_1"]
+    mock_config.database_path = Path("/test/path")
+    
+    # Mock client and database instances
+    mock_client = Mock()
+    mock_db = Mock()
+    mock_teller_client_class.return_value = mock_client
+    mock_database_class.return_value = mock_db
+    
+    # Mock API responses
+    mock_client.get_accounts.return_value = [
+        {
+            "id": "acc_123",
+            "name": "Test Account",
+            "type": "depository",
+            "currency": "USD",
+            "status": "open"
+        }
+    ]
+    mock_client.get_transactions.return_value = []
+    mock_db.insert_record.return_value = True
+    
+    # Call function with recategorize=False (default)
+    sync_all_accounts(mock_config)
+    
+    # Verify clear_all_categories was NOT called
+    mock_db.clear_all_categories.assert_not_called()
+    
+    # Verify normal sync still happens
+    mock_teller_client_class.assert_called_once_with(mock_config)
+    mock_database_class.assert_called_once_with(mock_config.database_path)
+    mock_client.get_accounts.assert_called_once_with("token_1")
+    mock_categorize.assert_called_once_with(mock_config, mock_db)
