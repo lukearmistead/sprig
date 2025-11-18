@@ -10,10 +10,15 @@ from sprig.teller_client import TellerClient
 BATCH_SIZE = 20
 
 
-def sync_all_accounts(config: RuntimeConfig):
+def sync_all_accounts(config: RuntimeConfig, recategorize: bool = False):
     """Sync accounts and transactions for all access tokens."""
     client = TellerClient(config)
     db = SprigDatabase(config.database_path)
+    
+    # Clear all categories if recategorizing
+    if recategorize:
+        rows_cleared = db.clear_all_categories()
+        print(f"Cleared categories for {rows_cleared} transactions")
     
     invalid_tokens = []
     valid_tokens = 0
@@ -26,12 +31,12 @@ def sync_all_accounts(config: RuntimeConfig):
             invalid_tokens.append(token[:12] + "...")  # Show partial token for identification
     
     if invalid_tokens:
-        print(f"\n⚠️  Found {len(invalid_tokens)} invalid/expired tokens:")
+        print(f"\nFound {len(invalid_tokens)} invalid/expired tokens:")
         for token in invalid_tokens:
             print(f"   - {token}")
         print("These may be from re-authenticated accounts. Consider removing them from ACCESS_TOKENS in .env")
     
-    print(f"✅ Successfully synced {valid_tokens} valid tokens")
+    print(f"Successfully synced {valid_tokens} valid tokens")
     
     # Categorize any uncategorized transactions
     categorize_uncategorized_transactions(config, db)
@@ -86,12 +91,41 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         transactions.append(TellerTransaction(**txn_data))
     
     if not transactions:
+        print("No uncategorized transactions found")
         return
+    
+    total_transactions = len(transactions)
+    total_batches = (total_transactions + BATCH_SIZE - 1) // BATCH_SIZE
+    categorized_count = 0
+    failed_count = 0
+    
+    print(f"Starting categorization of {total_transactions} transactions in {total_batches} batches")
     
     # Process in batches
     for i in range(0, len(transactions), BATCH_SIZE):
         batch = transactions[i:i + BATCH_SIZE]
+        batch_num = (i // BATCH_SIZE) + 1
+        
+        print(f"Processing batch {batch_num} of {total_batches} ({len(batch)} transactions)...")
+        
         categories = categorizer.categorize_batch(batch)
         
+        # Update database with successful categorizations
+        batch_success_count = 0
         for txn_id, category in categories.items():
             db.update_transaction_category(txn_id, category)
+            batch_success_count += 1
+        
+        categorized_count += batch_success_count
+        failed_count += len(batch) - batch_success_count
+        
+        if batch_success_count == len(batch):
+            print(f"Batch {batch_num} completed successfully ({batch_success_count} categorized)")
+        else:
+            print(f"WARNING: Batch {batch_num} partially failed ({batch_success_count}/{len(batch)} categorized)")
+    
+    # Show final summary
+    print("\nCategorization Summary:")
+    print(f"   Categorized: {categorized_count}")
+    print(f"   Failed: {failed_count}")
+    print(f"   Success rate: {(categorized_count / total_transactions * 100):.1f}%")

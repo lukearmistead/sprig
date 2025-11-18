@@ -1,5 +1,6 @@
 """Tests for transaction categorization functionality."""
 
+from datetime import date
 from unittest.mock import Mock, patch
 
 from sprig.categorizer import (
@@ -16,7 +17,6 @@ class TestBuildCategorizationPrompt:
     
     def test_build_prompt_includes_descriptions(self):
         """Test that prompt includes category descriptions."""
-        from datetime import date
         
         transactions = [
             TellerTransaction(
@@ -198,7 +198,7 @@ class TestCategorizeBatchIntegration:
         # Verify Claude was called with proper prompt
         mock_client.messages.create.assert_called_once()
         call_args = mock_client.messages.create.call_args
-        assert "claude-3-haiku-20240307" in str(call_args)
+        assert "claude-haiku-4-5-20251001" in str(call_args)
         assert "txn_ABC123" in str(call_args)
     
     @patch('anthropic.Anthropic')

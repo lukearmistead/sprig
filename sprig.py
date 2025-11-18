@@ -35,6 +35,11 @@ def main():
         action="store_true", 
         help="Perform full resync of all data"
     )
+    sync_parser.add_argument(
+        "--recategorize", 
+        action="store_true", 
+        help="Clear and recategorize all transactions"
+    )
     
     # Export command
     export_parser = subparsers.add_parser("export", help="Export transactions to CSV")
@@ -72,7 +77,7 @@ def main():
             print(f"Configuration error: {e}")
             print("Please check your .env file and certificate setup.")
             sys.exit(1)
-        sync_all_accounts(config)
+        sync_all_accounts(config, recategorize=args.recategorize)
     elif args.command == "export":
         # Load and validate full configuration for export
         try:
