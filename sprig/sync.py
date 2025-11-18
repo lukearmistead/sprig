@@ -26,7 +26,7 @@ def sync_all_accounts(
         recategorize: Clear all existing categories before syncing
         days: Only sync transactions from the last N days (reduces API costs)
     """
-    logger.info(f"🔄 Starting sync for {len(config.access_tokens)} access token(s)")
+    logger.info(f"Starting sync for {len(config.access_tokens)} access token(s)")
 
     client = TellerClient(config)
     db = SprigDatabase(config.database_path)
@@ -54,12 +54,12 @@ def sync_all_accounts(
             invalid_tokens.append(token[:12] + "...")  # Show partial token for identification
 
     if invalid_tokens:
-        logger.warning(f"\n⚠️  Found {len(invalid_tokens)} invalid/expired token(s):")
+        logger.warning(f"\nFound {len(invalid_tokens)} invalid/expired token(s):")
         for token in invalid_tokens:
             logger.warning(f"   - {token}")
         logger.warning("These may be from re-authenticated accounts. Consider removing them from ACCESS_TOKENS in .env")
 
-    logger.info(f"✅ Successfully synced {valid_tokens} valid token(s)")
+    logger.info(f"Successfully synced {valid_tokens} valid token(s)")
 
     # Categorize any uncategorized transactions
     categorize_uncategorized_transactions(config, db)
@@ -162,7 +162,7 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     categorized_count = 0
     failed_count = 0
 
-    logger.info(f"🤖 Starting categorization of {total_transactions} transaction(s) in {total_batches} batch(es)")
+    logger.info(f"Starting categorization of {total_transactions} transaction(s) in {total_batches} batch(es)")
 
     # Process in batches
     for i in range(0, len(transactions), BATCH_SIZE):
@@ -190,7 +190,7 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
             logger.warning(f"Batch {batch_num} partially failed ({batch_success_count}/{len(batch)} categorized)")
 
     # Show final summary
-    logger.info(f"✅ Categorization complete:")
+    logger.info(f"Categorization complete:")
     logger.info(f"   Categorized: {categorized_count}")
     if failed_count > 0:
         logger.warning(f"   Failed: {failed_count}")

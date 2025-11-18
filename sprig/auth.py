@@ -86,7 +86,7 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
         return jsonify({"status": "running", "app_id": app_id, "environment": environment})
 
     url = f"http://localhost:{port}"
-    logger.info(f"🌐 Opening browser to {url}")
+    logger.info(f"Opening browser to {url}")
     logger.info("Please complete the bank authentication in your browser...")
 
     threading.Timer(1.0, lambda: webbrowser.open(url)).start()
@@ -97,7 +97,7 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
             logger.warning("\nAuthentication cancelled.")
 
     if accounts_added > 0:
-        logger.info(f"\n✅ Successfully added {accounts_added} account(s)!")
+        logger.info(f"\nSuccessfully added {accounts_added} account(s)!")
         return str(accounts_added)
     return None
 
@@ -107,11 +107,11 @@ def authenticate(environment: str = "development", port: int = 8001) -> bool:
 
     app_id = os.getenv("APP_ID")
     if not app_id:
-        logger.error("❌ Error: APP_ID not found in .env file")
+        logger.error("Error: APP_ID not found in .env file")
         logger.error("Please add your Teller APP_ID to the .env file")
         return False
 
-    logger.info(f"🔐 Starting Teller authentication (app: {app_id}, environment: {environment})")
+    logger.info(f"Starting Teller authentication (app: {app_id}, environment: {environment})")
     logger.debug(f"Authentication server will run on port {port}")
     result = run_auth_server(app_id, environment, port)
 
@@ -120,5 +120,5 @@ def authenticate(environment: str = "development", port: int = 8001) -> bool:
         logger.debug(f"Authentication completed successfully with {result} account(s)")
         return True
     else:
-        logger.error("❌ Authentication failed or cancelled.")
+        logger.error("Authentication failed or cancelled.")
         return False
