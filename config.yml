@@ -5,11 +5,11 @@ categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
   - name: groceries
-    description: "Supermarkets, food stores, household essentials, and anything you consume or use at home"
+    description: "Supermarkets, food stores, convenience store snacks, gas station food/drinks, household essentials, and items for home consumption"
   - name: transport
-    description: "Gas, fuel, parking, tolls, rideshares, public transit, car insurance, maintenance, and local transportation"
+    description: "Gas stations, fuel, auto insurance, car payments, parking, tolls, rideshares, public transit, car maintenance, and all vehicle-related expenses"
   - name: travel
-    description: "Flights, hotels, vacation rentals, car rentals, and expenses specifically for trips away from home"
+    description: "Flights, hotels, campsites, vacation rentals, car rentals, and expenses specifically for trips away from home"
   - name: shopping
     description: "Clothing, electronics, furniture, books, sporting goods, and general retail purchases of physical goods"
   - name: home
@@ -25,6 +25,8 @@ categories:
   - name: savings
     description: "Investments, retirement contributions, transfers to savings, and building wealth for the future"
   - name: general
-    description: "Bank fees, charitable donations, gifts, professional services, and anything that doesn't fit elsewhere"
+    description: "Bank fees, charitable donations, gifts, professional services (legal, tax prep), personal care (haircuts, salons), and anything that doesn't fit elsewhere"
+  - name: transfers
+    description: "Credit card payments, autopay, loan payments, transfers between accounts, interest charges, and payments to financial institutions"
   - name: undefined
-    description: "Unclassifiable transactions that defy categorization, miscellaneous charges with unclear purposes, or payments that don't align with any established spending pattern"
+    description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
