@@ -5,9 +5,11 @@ from typing import List
 
 import anthropic
 
+from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory
 from sprig.models.category_config import CategoryConfig
 
+logger = get_logger("sprig.categorizer")
 FALLBACK_CATEGORY = "undefined"
 PROMPT_TEMPLATE = """Analyze each transaction and assign it to exactly ONE category from the provided list.
 
@@ -89,20 +91,20 @@ class TransactionCategorizer:
     def categorize_batch(self, transactions: List[TellerTransaction]) -> dict:
         """Categorize a batch of transactions using Claude with retry logic."""
         max_retries = 3
-        
+
         for attempt in range(max_retries):
             try:
                 return self._attempt_categorization(transactions)
             except Exception as e:
-                print(f"ERROR: Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
-                
+                logger.error(f"Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
+
                 if attempt < max_retries - 1:
                     delay = 2 ** attempt  # Exponential backoff: 1s, 2s
-                    print(f"Retrying in {delay} seconds...")
+                    logger.info(f"Retrying in {delay} seconds...")
                     time.sleep(delay)
                 else:
-                    print(f"Failed after {max_retries} attempts, skipping this batch")
-        
+                    logger.error(f"Failed after {max_retries} attempts, skipping this batch")
+
         return {}
 
     def _attempt_categorization(self, transactions: List[TellerTransaction]) -> dict:
@@ -129,8 +131,8 @@ class TransactionCategorizer:
             categories_adapter = TypeAdapter(List[TransactionCategory])
             categories_list = categories_adapter.validate_json(complete_json)
         except Exception as e:
-            print(f"ERROR: Failed to parse Claude response as JSON: {e}")
-            print(f"Raw response: {json_text[:200]}...")
+            logger.error(f"Failed to parse Claude response as JSON: {e}")
+            logger.error(f"Raw response: {json_text[:200]}...")
             raise e
 
         return self._validate_categories(categories_list)
@@ -146,7 +148,7 @@ class TransactionCategorizer:
             if item.category in valid_names:
                 validated[item.transaction_id] = item.category
             else:
-                print(f"Warning: Invalid category '{item.category}' for {item.transaction_id}, using '{self.fallback_category}'")
+                logger.warning(f"Invalid category '{item.category}' for {item.transaction_id}, using '{self.fallback_category}'")
                 validated[item.transaction_id] = self.fallback_category
 
         return validated

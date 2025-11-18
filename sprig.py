@@ -18,8 +18,12 @@ load_dotenv()
 # Import after path setup and env loading
 from sprig.auth import authenticate
 from sprig.export import export_transactions_to_csv
+from sprig.logger import get_logger
 from sprig.models import RuntimeConfig
 from sprig.sync import sync_all_accounts
+
+# Initialize logger
+logger = get_logger()
 
 def main():
     parser = argparse.ArgumentParser(
@@ -74,8 +78,8 @@ def main():
         try:
             config = RuntimeConfig.load()
         except Exception as e:
-            print(f"Configuration error: {e}")
-            print("Please check your .env file and certificate setup.")
+            logger.error(f"Configuration error: {e}")
+            logger.error("Please check your .env file and certificate setup.")
             sys.exit(1)
         sync_all_accounts(config, recategorize=args.recategorize)
     elif args.command == "export":
@@ -83,8 +87,8 @@ def main():
         try:
             config = RuntimeConfig.load()
         except Exception as e:
-            print(f"Configuration error: {e}")
-            print("Please check your .env file and certificate setup.")
+            logger.error(f"Configuration error: {e}")
+            logger.error("Please check your .env file and certificate setup.")
             sys.exit(1)
         export_transactions_to_csv(config.database_path, args.output)
     elif args.command == "auth":
