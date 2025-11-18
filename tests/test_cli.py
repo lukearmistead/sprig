@@ -68,7 +68,19 @@ def test_auth_command_port_flag():
     result = subprocess.run([
         sys.executable, "sprig.py", "auth", "--help"
     ], capture_output=True, text=True)
-    
+
     assert result.returncode == 0
     assert "auth" in result.stdout
     assert "--port" in result.stdout
+
+
+def test_sync_from_date_flag():
+    """Test that sync command accepts --from-date flag."""
+    result = subprocess.run([
+        sys.executable, "sprig.py", "sync", "--help"
+    ], capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "--from-date" in result.stdout
+    assert "YYYY-MM-DD" in result.stdout
+    assert "Only sync transactions from this date onwards" in result.stdout

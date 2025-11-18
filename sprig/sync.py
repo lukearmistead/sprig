@@ -17,7 +17,7 @@ BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
 def sync_all_accounts(
     config: RuntimeConfig,
     recategorize: bool = False,
-    days: Optional[int] = None,
+    from_date: Optional[date] = None,
     batch_size: int = 10
 ):
     """Sync accounts and transactions for all access tokens.
@@ -25,18 +25,18 @@ def sync_all_accounts(
     Args:
         config: Runtime configuration
         recategorize: Clear all existing categories before syncing
-        days: Only sync transactions from the last N days (reduces API costs)
+        from_date: Only sync transactions from this date onwards (reduces API costs)
+        batch_size: Number of transactions to categorize per API call (default: 10)
     """
     logger.info(f"Starting sync for {len(config.access_tokens)} access token(s)")
 
     client = TellerClient(config)
     db = SprigDatabase(config.database_path)
 
-    # Calculate cutoff date if days specified
-    cutoff_date = None
-    if days:
-        cutoff_date = date.today() - timedelta(days=days)
-        logger.info(f"Filtering transactions from the last {days} days (since {cutoff_date})")
+    # Use from_date if specified
+    cutoff_date = from_date
+    if from_date:
+        logger.info(f"Filtering transactions from {from_date}")
 
     # Clear all categories if recategorizing
     if recategorize:
@@ -70,7 +70,7 @@ def sync_all_accounts(
             logger.error(f"⏱️  Categorization stopped due to Claude API rate limits")
             logger.info(f"💡 Your transactions have been synced - categorization can be resumed later")
             logger.info(f"💡 Run 'python sprig.py sync' again in a few minutes to continue categorization")
-            logger.info(f"💡 Or use 'python sprig.py sync --days 7' to categorize recent transactions only")
+            logger.info(f"💡 Or use 'python sprig.py sync --from-date YYYY-MM-DD' to categorize recent transactions only")
         else:
             logger.error(f"❌ Categorization failed: {e}")
             logger.info(f"💡 Your transactions have been synced successfully - only categorization was affected")
@@ -179,10 +179,10 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
 
     logger.info(f"🤖 Categorizing {total_transactions} uncategorized transaction(s) using Claude AI")
     logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each")
-    
+
     if total_transactions > 100:
         logger.info(f"   ⚠️  Large transaction volume may hit Claude API rate limits")
-        logger.info(f"   💡 Consider using '--days N' flag to process recent transactions first")
+        logger.info(f"   💡 Consider using '--from-date YYYY-MM-DD' flag to process recent transactions first")
 
     # Process in batches
     for i in range(0, len(transactions), batch_size):
