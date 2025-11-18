@@ -11,6 +11,17 @@ class TransactionCategory(BaseModel):
     category: str
 
 
+class TransactionForCategorization(BaseModel):
+    """Essential transaction data for categorization and export."""
+    id: str
+    description: str
+    amount: float
+    date: str  # Keep as string for simpler JSON
+    counterparty: Optional[str] = None
+    account_name: Optional[str] = None
+    account_subtype: Optional[str] = None
+
+
 class ClaudeContentBlock(BaseModel):
     """Claude API content block."""
     type: str

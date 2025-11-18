@@ -37,8 +37,8 @@ class TestErrorHandling:
         ]
     
     @patch('anthropic.Anthropic')
-    @patch('builtins.print')
-    def test_api_error_is_reported(self, mock_print, mock_anthropic):
+    @patch('sprig.categorizer.logger')
+    def test_api_error_is_reported(self, mock_logger, mock_anthropic):
         """Test that API errors are logged, not silently ignored."""
         mock_client = Mock()
         mock_anthropic.return_value = mock_client
@@ -47,18 +47,19 @@ class TestErrorHandling:
         mock_client.messages.create.side_effect = Exception("API rate limit exceeded")
         
         categorizer = TransactionCategorizer(self.runtime_config)
-        result = categorizer.categorize_batch(self.test_transactions)
+        account_info = {}  # Empty account info for test
+        result = categorizer.categorize_batch(self.test_transactions, account_info)
         
         # Should log the error
-        error_logged = any("API rate limit exceeded" in str(call) for call in mock_print.call_args_list)
-        assert error_logged, "API error should be logged to console"
+        error_logged = any("API rate limit exceeded" in str(call) for call in mock_logger.error.call_args_list)
+        assert error_logged, "API error should be logged"
         
         # Should return empty dict when batch fails
         assert result == {}
     
     @patch('anthropic.Anthropic')
-    @patch('builtins.print')
-    def test_json_parsing_error_is_reported(self, mock_print, mock_anthropic):
+    @patch('sprig.categorizer.logger')
+    def test_json_parsing_error_is_reported(self, mock_logger, mock_anthropic):
         """Test that JSON parsing errors are reported."""
         mock_client = Mock()
         mock_anthropic.return_value = mock_client
@@ -76,11 +77,12 @@ class TestErrorHandling:
         mock_client.messages.create.return_value = mock_api_response
         
         categorizer = TransactionCategorizer(self.runtime_config)
-        result = categorizer.categorize_batch(self.test_transactions)
+        account_info = {}  # Empty account info for test
+        result = categorizer.categorize_batch(self.test_transactions, account_info)
         
         # Should log parsing error
         error_logged = any("Failed to parse" in str(call) or "Invalid JSON" in str(call) 
-                          for call in mock_print.call_args_list)
+                          for call in mock_logger.error.call_args_list)
         assert error_logged, "JSON parsing error should be logged"
         
         # Should return empty dict for failed batch
@@ -109,8 +111,8 @@ class TestRetryLogic:
     
     @patch('anthropic.Anthropic')
     @patch('time.sleep')
-    @patch('builtins.print')
-    def test_retry_on_failure(self, mock_print, mock_sleep, mock_anthropic):
+    @patch('sprig.categorizer.logger')
+    def test_retry_on_failure(self, mock_logger, mock_sleep, mock_anthropic):
         """Test that failed API calls are retried up to 3 times."""
         mock_client = Mock()
         mock_anthropic.return_value = mock_client
@@ -133,7 +135,8 @@ class TestRetryLogic:
         ]
         
         categorizer = TransactionCategorizer(self.runtime_config)
-        result = categorizer.categorize_batch(self.test_transactions)
+        account_info = {}  # Empty account info for test
+        result = categorizer.categorize_batch(self.test_transactions, account_info)
         
         # Should retry 3 times
         assert mock_client.messages.create.call_count == 3
@@ -146,13 +149,13 @@ class TestRetryLogic:
         assert result == {"txn_1": "dining"}
         
         # Should log retry attempts
-        retry_logged = any("Retrying" in str(call) for call in mock_print.call_args_list)
+        retry_logged = any("Retrying" in str(call) for call in mock_logger.info.call_args_list)
         assert retry_logged, "Retry attempts should be logged"
     
     @patch('anthropic.Anthropic')
     @patch('time.sleep')
-    @patch('builtins.print')
-    def test_give_up_after_max_retries(self, mock_print, mock_sleep, mock_anthropic):
+    @patch('sprig.categorizer.logger')
+    def test_give_up_after_max_retries(self, mock_logger, mock_sleep, mock_anthropic):
         """Test that categorizer gives up after 3 failed attempts."""
         mock_client = Mock()
         mock_anthropic.return_value = mock_client
@@ -161,7 +164,8 @@ class TestRetryLogic:
         mock_client.messages.create.side_effect = Exception("Persistent error")
         
         categorizer = TransactionCategorizer(self.runtime_config)
-        result = categorizer.categorize_batch(self.test_transactions)
+        account_info = {}  # Empty account info for test
+        result = categorizer.categorize_batch(self.test_transactions, account_info)
         
         # Should try exactly 3 times
         assert mock_client.messages.create.call_count == 3
@@ -171,7 +175,7 @@ class TestRetryLogic:
         
         # Should log that it gave up
         gave_up_logged = any("Failed after" in str(call) or "attempts" in str(call) 
-                            for call in mock_print.call_args_list)
+                            for call in mock_logger.error.call_args_list)
         assert gave_up_logged, "Should log when giving up after max retries"
 
 
@@ -180,8 +184,8 @@ class TestProgressTracking:
     
     @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
-    @patch('builtins.print')
-    def test_batch_progress_is_shown(self, mock_print, mock_db, mock_categorize_batch):
+    @patch('sprig.sync.logger')
+    def test_batch_progress_is_shown(self, mock_logger, mock_db, mock_categorize_batch):
         """Test that progress is shown for each batch."""
         from sprig.sync import categorize_uncategorized_transactions
         
@@ -189,8 +193,9 @@ class TestProgressTracking:
         mock_db_instance = Mock()
         mock_db.return_value = mock_db_instance
         
-        # Create 50 mock transaction rows
-        mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit") 
+        # Create 50 mock transaction rows (including account columns and counterparty)
+        mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit", 
+                             f"acc_{i}", f"Account {i}", "checking", f"Merchant {i}") 
                             for i in range(50)]
         mock_db_instance.get_uncategorized_transactions.return_value = mock_transactions
         
@@ -206,22 +211,23 @@ class TestProgressTracking:
         progress_logged = any(
             "batch 1 of 3" in str(call).lower() or 
             "processing batch" in str(call).lower()
-            for call in mock_print.call_args_list
+            for call in mock_logger.debug.call_args_list
         )
         assert progress_logged, "Should show batch progress"
     
     @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
-    @patch('builtins.print')
-    def test_summary_shows_results(self, mock_print, mock_db, mock_categorize_batch):
+    @patch('sprig.sync.logger')
+    def test_summary_shows_results(self, mock_logger, mock_db, mock_categorize_batch):
         """Test that a summary is shown at the end."""
         from sprig.sync import categorize_uncategorized_transactions
         
         mock_db_instance = Mock()
         mock_db.return_value = mock_db_instance
         
-        # Create 30 transactions (2 batches)
-        mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit") 
+        # Create 30 transactions (2 batches) with account columns and counterparty
+        mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit",
+                             f"acc_{i}", f"Account {i}", "checking", f"Merchant {i}") 
                             for i in range(30)]
         mock_db_instance.get_uncategorized_transactions.return_value = mock_transactions
         
@@ -238,9 +244,8 @@ class TestProgressTracking:
         
         # Should show summary with success/failure counts
         summary_logged = any(
-            ("categorized 20" in str(call).lower() or 
-             "20 categorized" in str(call).lower() or
+            ("categorized: 20" in str(call).lower() or 
              "failed: 10" in str(call).lower())
-            for call in mock_print.call_args_list
+            for call in mock_logger.info.call_args_list + mock_logger.warning.call_args_list
         )
         assert summary_logged, "Should show categorization summary"
