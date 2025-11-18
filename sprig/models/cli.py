@@ -9,49 +9,29 @@ from pydantic import BaseModel, Field, field_validator
 class SyncParams(BaseModel):
     """Parameters for the sync command with validation.
 
+    Pydantic automatically handles:
+    - Parsing YYYY-MM-DD strings to date objects
+    - Rejecting invalid date formats
+    - Validating leap years and date boundaries
+
     Attributes:
         recategorize: Clear all existing categories before syncing
-        from_date: Only sync transactions from this date onwards
+        from_date: Only sync transactions from this date onwards (today or earlier)
     """
 
     recategorize: bool = Field(default=False)
-    from_date: Optional[date] = Field(default=None)
-
-    @field_validator('from_date', mode='before')
-    @classmethod
-    def parse_date_string(cls, v):
-        """Parse date string in YYYY-MM-DD format.
-
-        Args:
-            v: Date string or date object
-
-        Returns:
-            date object
-
-        Raises:
-            ValueError: If date string is invalid
-        """
-        if v is None:
-            return None
-
-        if isinstance(v, date):
-            return v
-
-        if isinstance(v, str):
-            try:
-                # Pydantic will handle the actual parsing
-                return v
-            except Exception as e:
-                raise ValueError(
-                    f"Invalid date format: {v}. Please use YYYY-MM-DD format (e.g., 2024-01-15)"
-                ) from e
-
-        raise ValueError(f"Expected date string or date object, got {type(v)}")
+    from_date: Optional[date] = Field(
+        default=None,
+        description="Only sync transactions from this date onwards"
+    )
 
     @field_validator('from_date')
     @classmethod
-    def validate_date_not_future(cls, v):
-        """Ensure from_date is not in the future.
+    def validate_date_not_future(cls, v: Optional[date]) -> Optional[date]:
+        """Ensure from_date is not in the future (allows today).
+
+        Note: We allow today's date since users may want to sync "from today onwards".
+        If you need strictly past dates, use Pydantic's built-in PastDate type instead.
 
         Args:
             v: Date to validate
