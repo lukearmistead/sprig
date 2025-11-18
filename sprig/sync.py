@@ -86,17 +86,25 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     """Categorize all uncategorized transactions."""
     categorizer = TransactionCategorizer(runtime_config)
     uncategorized = db.get_uncategorized_transactions()
-
-    # Convert to TellerTransaction objects
+    
+    # Convert to TellerTransaction objects with account info
     transactions = []
+    account_info = {}
     for row in uncategorized:
+        txn_id = row[0]
         txn_data = {
-            "id": row[0], "description": row[1], "amount": row[2],
-            "date": row[3], "type": row[4], "account_id": "unknown",
-            "status": "unknown"
+            "id": txn_id, "description": row[1], "amount": row[2], 
+            "date": row[3], "type": row[4], "account_id": row[5], 
+            "status": "posted"
         }
         transactions.append(TellerTransaction(**txn_data))
-
+        # Store account info and counterparty for later use
+        account_info[txn_id] = {
+            "name": row[6],
+            "subtype": row[7],
+            "counterparty": row[8]  # counterparty from JSON extraction
+        }
+    
     if not transactions:
         logger.debug("No uncategorized transactions found")
         return
@@ -112,11 +120,13 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     for i in range(0, len(transactions), BATCH_SIZE):
         batch = transactions[i:i + BATCH_SIZE]
         batch_num = (i // BATCH_SIZE) + 1
-
+        
         logger.debug(f"Processing batch {batch_num} of {total_batches} ({len(batch)} transactions)...")
-
-        categories = categorizer.categorize_batch(batch)
-
+        
+        # Get account info for this batch
+        batch_account_info = {t.id: account_info[t.id] for t in batch}
+        categories = categorizer.categorize_batch(batch, batch_account_info)
+        
         # Update database with successful categorizations
         batch_success_count = 0
         for txn_id, category in categories.items():
