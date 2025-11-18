@@ -11,13 +11,14 @@ from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
 
 logger = get_logger("sprig.sync")
-BATCH_SIZE = 20
+BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
 
 
 def sync_all_accounts(
     config: RuntimeConfig,
     recategorize: bool = False,
-    days: Optional[int] = None
+    days: Optional[int] = None,
+    batch_size: int = 10
 ):
     """Sync accounts and transactions for all access tokens.
 
@@ -62,7 +63,17 @@ def sync_all_accounts(
     logger.info(f"Successfully synced {valid_tokens} valid token(s)")
 
     # Categorize any uncategorized transactions
-    categorize_uncategorized_transactions(config, db)
+    try:
+        categorize_uncategorized_transactions(config, db, batch_size)
+    except Exception as e:
+        if "rate_limit_error" in str(e) or "rate limit" in str(e).lower():
+            logger.error(f"⏱️  Categorization stopped due to Claude API rate limits")
+            logger.info(f"💡 Your transactions have been synced - categorization can be resumed later")
+            logger.info(f"💡 Run 'python sprig.py sync' again in a few minutes to continue categorization")
+            logger.info(f"💡 Or use 'python sprig.py sync --days 7' to categorize recent transactions only")
+        else:
+            logger.error(f"❌ Categorization failed: {e}")
+            logger.info(f"💡 Your transactions have been synced successfully - only categorization was affected")
 
 
 def sync_accounts_for_token(
@@ -130,10 +141,12 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase):
-    """Categorize all uncategorized transactions."""
+def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10):
+    """Categorize transactions that don't have an inferred_category assigned."""
+    logger.debug("🔍 Starting categorization function")
     categorizer = TransactionCategorizer(runtime_config)
     uncategorized = db.get_uncategorized_transactions()
+    logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
     
     # Convert to TellerTransaction objects with account info
     transactions = []
@@ -154,22 +167,28 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         }
     
     if not transactions:
-        logger.debug("No uncategorized transactions found")
+        logger.info("🎉 No uncategorized transactions found - all transactions already have categories!")
         return
 
     total_transactions = len(transactions)
-    total_batches = (total_transactions + BATCH_SIZE - 1) // BATCH_SIZE
+    logger.debug(f"Converted to {total_transactions} TellerTransaction objects")
+    total_batches = (total_transactions + batch_size - 1) // batch_size
     categorized_count = 0
     failed_count = 0
 
-    logger.info(f"Starting categorization of {total_transactions} transaction(s) in {total_batches} batch(es)")
+    logger.info(f"🤖 Categorizing {total_transactions} uncategorized transaction(s) using Claude AI")
+    logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each")
+    
+    if total_transactions > 100:
+        logger.info(f"   ⚠️  Large transaction volume may hit Claude API rate limits")
+        logger.info(f"   💡 Consider using '--days N' flag to process recent transactions first")
 
     # Process in batches
-    for i in range(0, len(transactions), BATCH_SIZE):
-        batch = transactions[i:i + BATCH_SIZE]
-        batch_num = (i // BATCH_SIZE) + 1
+    for i in range(0, len(transactions), batch_size):
+        batch = transactions[i:i + batch_size]
+        batch_num = (i // batch_size) + 1
         
-        logger.debug(f"Processing batch {batch_num} of {total_batches} ({len(batch)} transactions)...")
+        logger.info(f"   📦 Processing batch {batch_num}/{total_batches} ({len(batch)} transactions)...")
         
         # Get account info for this batch
         batch_account_info = {t.id: account_info[t.id] for t in batch}
@@ -185,13 +204,13 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         failed_count += len(batch) - batch_success_count
 
         if batch_success_count == len(batch):
-            logger.debug(f"Batch {batch_num} completed successfully ({batch_success_count} categorized)")
+            logger.info(f"      ✅ Batch {batch_num} complete: {batch_success_count} categorized")
         else:
-            logger.warning(f"Batch {batch_num} partially failed ({batch_success_count}/{len(batch)} categorized)")
+            logger.warning(f"      ⚠️  Batch {batch_num} partial: {batch_success_count}/{len(batch)} categorized")
 
     # Show final summary
-    logger.info(f"Categorization complete:")
-    logger.info(f"   Categorized: {categorized_count}")
+    logger.info(f"✅ Categorization complete")
+    logger.info(f"   Successfully categorized: {categorized_count} transactions")
     if failed_count > 0:
-        logger.warning(f"   Failed: {failed_count}")
+        logger.warning(f"   Failed to categorize: {failed_count} transactions")
     logger.info(f"   Success rate: {(categorized_count / total_transactions * 100):.1f}%")

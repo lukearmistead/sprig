@@ -50,6 +50,13 @@ def main():
         metavar="N",
         help="Only sync transactions from the last N days (reduces API costs)"
     )
+    sync_parser.add_argument(
+        "--batch-size",
+        type=int,
+        metavar="SIZE",
+        default=10,
+        help="Number of transactions to categorize per API call (default: 10, lower = gentler on rate limits)"
+    )
     
     # Export command
     export_parser = subparsers.add_parser("export", help="Export transactions to CSV")
@@ -87,7 +94,7 @@ def main():
             logger.error(f"Configuration error: {e}")
             logger.error("Please check your .env file and certificate setup.")
             sys.exit(1)
-        sync_all_accounts(config, recategorize=args.recategorize, days=args.days)
+        sync_all_accounts(config, recategorize=args.recategorize, days=args.days, batch_size=args.batch_size)
     elif args.command == "export":
         # Load and validate full configuration for export
         try:
