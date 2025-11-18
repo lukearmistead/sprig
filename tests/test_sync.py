@@ -472,10 +472,10 @@ def test_sync_transactions_with_cutoff_date():
 @patch('sprig.sync.SprigDatabase')
 @patch('sprig.sync.TellerClient')
 @patch('sprig.sync.logger')
-def test_sync_all_accounts_with_days_filter(
+def test_sync_all_accounts_with_from_date_filter(
     mock_logger, mock_teller_client_class, mock_database_class, mock_categorize
 ):
-    """Test sync_all_accounts with days parameter logs info."""
+    """Test sync_all_accounts with from_date parameter logs info."""
     # Mock config
     mock_config = Mock()
     mock_config.access_tokens = ["token_1"]
@@ -500,11 +500,12 @@ def test_sync_all_accounts_with_days_filter(
     mock_client.get_transactions.return_value = []
     mock_db.insert_record.return_value = True
 
-    # Call function with days parameter
-    sync_all_accounts(mock_config, days=30)
+    # Call function with from_date parameter
+    from_date = date(2024, 1, 1)
+    sync_all_accounts(mock_config, from_date=from_date)
 
     # Verify filtering message was logged
-    info_calls = [call for call in mock_logger.info.call_args_list if "Filtering transactions from the last 30 days" in str(call)]
+    info_calls = [call for call in mock_logger.info.call_args_list if "Filtering transactions from 2024-01-01" in str(call)]
     assert len(info_calls) > 0
 
     # Verify categorization was called
