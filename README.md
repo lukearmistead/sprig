@@ -1,55 +1,35 @@
 # 🌱 Sprig
 
-**Take control of your financial data.** Sprig connects to your bank accounts, downloads your transactions, and exports them to spreadsheets with AI-powered categorization—all stored locally on your computer.
+**Actually-personal personal finance**: Sprig connects to your bank accounts, downloads your transactions locally, buckets them into customizable AI-powered categories, and exports it all into a spreadsheet so you can budget your way.
 
-## Why Use Sprig?
-
-Most budgeting apps lock your data in their platforms. Sprig gives you:
-
-- **Full ownership** - Your transaction data stays on your computer
-- **Flexible analysis** - Use Excel, Google Sheets, or any tool you prefer
-- **Automatic categorization** - Claude AI intelligently tags transactions (groceries, dining, utilities, etc.)
-- **Privacy first** - No third-party servers, no data sharing, no tracking
-
-**Perfect for:** Financial analysts, budget-conscious individuals, small business owners, or anyone who wants complete control over their financial data.
-
-## What You'll Get
 
 After running Sprig, you'll have a CSV file like this:
 
-| date | description | amount | inferred_category | account_id |
-|------|-------------|--------|-------------------|------------|
-| 2025-11-15 | WHOLE FOODS | -87.32 | groceries | acc_xyz |
-| 2025-11-14 | UBER EATS | -24.50 | dining | acc_xyz |
-| 2025-11-13 | SHELL GAS | -45.00 | fuel | acc_xyz |
-| 2025-11-12 | Paycheck Deposit | +2500.00 | income | acc_xyz |
+| id | date | description | amount | inferred_category | counterparty | account_name | account_subtype | account_last_four |
+|----|------|-------------|--------|-------------------|--------------|--------------|-----------------|-------------------|
+| tx_abc123 | 2025-11-15 | WHOLE FOODS | -87.32 | groceries | Whole Foods Market | Checking | checking | 1234 |
+| tx_abc124 | 2025-11-14 | UBER EATS | -24.50 | dining | Uber Eats | Checking | checking | 1234 |
+| tx_abc125 | 2025-11-13 | SHELL GAS | -45.00 | transport | Shell | Credit Card | credit_card | 5678 |
+| tx_abc126 | 2025-11-12 | Paycheck Deposit | +2500.00 | income | Acme Corp | Checking | checking | 1234 |
 
-Open it in Excel, Google Sheets, or any spreadsheet tool to analyze spending patterns, create budgets, or build financial reports.
+Open it in any spreadsheet or analysis tool to analyze spending patterns, create budgets, or build financial reports.
 
 ---
 
-## Quick Start
+## Setup Guide
+
 
 **Time to complete:** ~15 minutes
 
-### What You'll Need
+### Step 1: Get Your Teller Credentials
 
-**Before you start**, gather these three things:
+**You need these before you can use Sprig:**
 
-1. **Python 3.8+** ([Download here](https://www.python.org/downloads/))
-   - Check if you have it: Open terminal/command prompt and run `python --version`
+1. Go to [teller.io](https://teller.io) and create a free developer account
+2. Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
+3. Download your **certificate.pem** and **private_key.pem** files from [Certificate Settings](https://teller.io/settings/certificates)
 
-2. **Teller.io Account** ([Sign up free](https://teller.io))
-   - This service securely connects to your bank (used by fintech apps)
-   - You'll need: APP_ID and certificate files from your Teller dashboard
-
-3. **Claude API Key** ([Get one here](https://console.anthropic.com)) - *Optional*
-   - Only needed if you want AI to categorize your transactions
-   - Without it, Sprig still downloads transactions but won't auto-categorize
-
-### Step 1: Install Sprig
-
-Open your terminal or command prompt and run:
+### Step 2: Install Sprig
 
 ```bash
 # Download Sprig
@@ -64,75 +44,51 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Step 2: Configure Your Accounts
+### Step 3: Set Up Configuration
 
+1. **Move your Teller certificates** into the `certs/` folder:
+   - Move `certificate.pem` to `certs/certificate.pem`
+   - Move `private_key.pem` to `certs/private_key.pem`
+
+2. **Create your configuration file:**
 ```bash
-# Copy the example configuration file
 cp .env.example .env
-
-# Open .env in any text editor and fill in:
-# - APP_ID from your Teller dashboard
-# - CLAUDE_API_KEY from Anthropic (optional)
 ```
 
-**Important:** Download your certificate files from Teller and save them in a `certs/` folder.
+3. **Edit `.env`** and add your Teller APP_ID:
+```bash
+# Edit with any text editor
+nano .env  # or: code .env, vim .env, etc.
 
-### Step 3: Connect Your Banks
+# Add this line (replace with your actual APP_ID):
+APP_ID=app_xxxxxxxxxxxxx
+```
+
+**Optional:** Add Claude API key for automatic categorization:
+```bash
+# Get API key from console.anthropic.com, then add to .env:
+CLAUDE_API_KEY=sk-ant-api03-...
+```
+
+### Step 4: Connect Your Banks
 
 ```bash
 python sprig.py auth
 ```
 
-**What happens:** A browser window opens with Teller's secure connection flow. Select your bank, log in, and authorize access. Sprig saves your connection details automatically.
+**What happens:** A browser opens to Teller's secure login. Select your bank, log in normally, and authorize access. Sprig automatically saves your connection.
 
-### Step 4: Get Your Transactions
+### Step 5: Get Your Data
 
 ```bash
 # Download and categorize transactions
 python sprig.py sync
 
-# Export to CSV
+# Export to spreadsheet  
 python sprig.py export
 ```
 
-**Done!** Your transactions are now in `exports/transactions-YYYY-MM-DD.csv`. Open it with Excel, Google Sheets, or any spreadsheet tool.
-
----
-
-## Detailed Configuration
-
-### Getting Your Teller Credentials
-
-**Step-by-step:**
-
-1. Go to [teller.io](https://teller.io) and create a free developer account
-2. Click "Create Application" in your dashboard
-3. Copy your **APP_ID** (looks like `app_xxxxxxxxxxxxx`)
-4. Download your **certificate.pem** and **private_key.pem** files
-5. Create a folder called `certs/` in your Sprig directory
-6. Move both certificate files into the `certs/` folder
-
-### Your .env File Explained
-
-Open the `.env` file and customize these settings:
-
-```env
-# Required: Your Teller credentials
-APP_ID=app_xxxxxxxxxxxxx           # From Teller dashboard
-CERT_PATH=certs/certificate.pem    # Path to your certificate
-KEY_PATH=certs/private_key.pem     # Path to your private key
-
-# Optional: AI categorization
-CLAUDE_API_KEY=sk-ant-api03-...    # From console.anthropic.com
-
-# Database location (default is fine)
-DATABASE_PATH=sprig.db
-
-# Logging level: DEBUG, INFO, WARNING, ERROR
-# LOG_LEVEL=INFO
-```
-
-**Tip:** Bank connections (ACCESS_TOKENS) are added automatically when you run `python sprig.py auth`. You don't need to edit them manually.
+**Done!** Your transactions are in `exports/transactions-YYYY-MM-DD.csv`.
 
 ---
 
@@ -171,12 +127,22 @@ Please complete the bank authentication in your browser...
 **What you'll see:**
 ```
 🔄 Starting sync for 2 access token(s)
-🤖 Categorizing 47 transaction(s) using Claude AI
+🤖 Categorizing 47 uncategorized transaction(s) using Claude AI
+   Processing in 5 batch(es) of up to 10 transactions each
 ✅ Successfully synced 2 valid token(s)
 ✅ Categorization complete
+   Successfully categorized: 47 transactions
+   Success rate: 100.0%
 ```
 
 **Time:** Usually 10-30 seconds depending on transaction volume
+
+**Options:**
+```bash
+python sprig.py sync --days 7        # Only sync last 7 days (reduces API costs)
+python sprig.py sync --batch-size 5  # Smaller batches (gentler on rate limits)
+python sprig.py sync --recategorize  # Clear and recategorize all transactions
+```
 
 ---
 
@@ -236,24 +202,98 @@ When Claude categorizes your transactions, it uses these categories:
 
 **Plus more categories!** You can customize these by editing `config.yml` in the Sprig directory.
 
+---
+
+### Customizing Your Categories
+
+Sprig uses 13 default categories, but you can completely customize them to match your budgeting needs.
+
+#### How to Change Categories
+
+1. **Edit the config file** in your Sprig directory:
+```bash
+# Open the category configuration file
+nano config.yml  # or use any text editor
+```
+
+2. **Modify categories** using this format:
+```yaml
+categories:
+  - name: your_category_name
+    description: "Detailed description to help AI classify transactions"
+  - name: another_category  
+    description: "Another description explaining what belongs here"
+```
+
+3. **Apply your changes** by recategorizing all transactions:
+```bash
+python sprig.py sync --recategorize
+```
+
+#### Example Customizations
+
+**For Business Owners:**
+```yaml
+categories:
+  - name: office_supplies
+    description: "Pens, paper, computers, software, and business equipment"
+  - name: marketing
+    description: "Advertising, social media, website costs, and promotional materials"
+  - name: professional_services
+    description: "Legal fees, accounting, consultants, and business services"
+```
+
+**For Families:**
+```yaml
+categories:
+  - name: kids_activities
+    description: "Sports fees, music lessons, school supplies, and children's activities"
+  - name: household
+    description: "Cleaning supplies, laundry, home maintenance, and family necessities"
+  - name: education
+    description: "Tuition, books, school fees, and learning-related expenses"
+```
+
+**For Detailed Budgeters:**
+```yaml
+categories:
+  - name: coffee_drinks
+    description: "Coffee shops, Starbucks, espresso, and caffeine purchases"
+  - name: takeout_lunch
+    description: "Weekday lunch purchases and quick meal delivery"
+  - name: weekend_dining
+    description: "Restaurants, bars, and social dining experiences"
+```
+
+#### Important Notes
+
+- **Category names** should be simple, lowercase, with underscores (no spaces)
+- **Descriptions** should be detailed - Claude uses them to make categorization decisions
+- **After changes**, always run `--recategorize` to apply new categories to existing transactions
+- **Keep backups** - copy your `config.yml` before making major changes
+
+#### Why Customize?
+
+- **Match your budget structure** - align with spreadsheet categories you already use
+- **Specific tracking** - separate "coffee" from "dining" if you want to track caffeine spending
+- **Business needs** - create categories for tax deduction tracking
+- **Life changes** - add "baby_expenses" or "home_improvement" when your spending changes
+
 ### Your CSV Output
 
-Every export includes these columns:
+Every export includes these 9 columns:
 
 | Column | What It Means |
 |--------|---------------|
-| `id` | Unique transaction ID |
-| `account_id` | Which account this came from |
+| `id` | Unique transaction ID (e.g., "tx_abc123") |
+| `date` | When the transaction occurred (YYYY-MM-DD) |
+| `description` | Merchant name as shown by your bank (e.g., "WHOLE FOODS") |
 | `amount` | Dollar amount (negative = spent, positive = received) |
-| `description` | Merchant name (e.g., "WHOLE FOODS") |
-| `date` | When the transaction occurred |
-| `type` | Transaction type (card_payment, ach, wire, etc.) |
-| `status` | Transaction status (posted, pending, etc.) |
-| `details` | Additional transaction details (JSON) |
-| `running_balance` | Your balance after this transaction |
-| `links` | Related links and references (JSON) |
-| `inferred_category` | AI-assigned category (groceries, dining, etc.) |
-| `created_at` | When this record was added to your database |
+| `inferred_category` | AI-assigned category (groceries, dining, transport, etc.) |
+| `counterparty` | Clean merchant name extracted from transaction details |
+| `account_name` | Friendly account name (e.g., "Checking", "Credit Card") |
+| `account_subtype` | Account type (checking, credit_card, savings, etc.) |
+| `account_last_four` | Last 4 digits of account number for identification |
 
 Set `LOG_LEVEL=DEBUG` in `.env` for detailed operation logs.
 
@@ -273,7 +313,7 @@ ruff check .  # Linting
 - **`sprig/auth.py`** - Teller Connect authentication server
 - **`sprig/database.py`** - SQLite operations
 - **`sprig/teller_client.py`** - Teller API client with mTLS
-- **`sprig/categorizer.py`** - Claude AI categorization  
+- **`sprig/categorizer.py`** - Claude AI categorization
 - **`sprig/sync.py`** - Transaction sync orchestration
 - **`sprig/export.py`** - CSV export
 - **`sprig/models/`** - Pydantic data models
@@ -295,10 +335,8 @@ ruff check .  # Linting
 **Problem:** Sprig can't find your Teller certificate files
 
 **Solution:**
-1. Go to your [Teller dashboard](https://teller.io)
-2. Download `certificate.pem` and `private_key.pem`
-3. Create a `certs/` folder in your Sprig directory
-4. Move both files into `certs/`
+1. Download `certificate.pem` and `private_key.pem` from [Certificate Settings](https://teller.io/settings/certificates)
+2. Move both files into the `certs/` folder in your Sprig directory
 
 ---
 
@@ -351,6 +389,23 @@ pip install -r requirements.txt
 - Normal: 100-500 transactions takes 10-30 seconds
 - Large datasets: 1000+ transactions may take 1-2 minutes
 - Set `LOG_LEVEL=DEBUG` in `.env` to see progress details
+
+#### API Rate Limits
+
+**Problem:** Large transaction volumes may hit Claude API rate limits
+
+**Solutions:**
+- Use `--days 7` to process recent transactions first
+- Use `--batch-size 5` for smaller, gentler API requests  
+- Run `sync` multiple times - it only processes uncategorized transactions
+- Wait a few minutes between runs if you hit limits
+
+**What you'll see:**
+```
+⏳ Hit Claude API rate limit - this is normal with large transaction volumes
+💡 Tip: Use '--days N' flag to sync fewer transactions and reduce API costs
+⏱️  Waiting 60 seconds for rate limit to reset...
+```
 
 ---
 
@@ -419,6 +474,16 @@ Just skip adding `CLAUDE_API_KEY` to your `.env` file. Sprig will:
 ### Can I categorize old transactions?
 
 Yes. Once you add `CLAUDE_API_KEY`, run `python sprig.py sync` and Claude will automatically categorize any uncategorized transactions in your database.
+
+### Can I change the categories Sprig uses?
+
+Absolutely! Edit the `config.yml` file in your Sprig directory to customize categories for your needs. You can:
+- Rename existing categories (e.g., "transport" → "car_expenses")  
+- Add new categories (e.g., "coffee", "pet_care", "business_meals")
+- Remove categories you don't need
+- Update descriptions to improve categorization accuracy
+
+After making changes, run `python sprig.py sync --recategorize` to apply your new categories to all existing transactions.
 
 ### Where is my data stored?
 
