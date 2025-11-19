@@ -1,0 +1,9 @@
+# This file keeps the certs/ directory in git
+# Your certificate files (*.pem) will be ignored for security
+# 
+# Download certificate.pem and private_key.pem from:
+# https://teller.io/settings/certificates
+# 
+# Place them in this directory as:
+# - certs/certificate.pem
+# - certs/private_key.pem

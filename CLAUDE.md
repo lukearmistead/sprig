@@ -127,10 +127,10 @@ def fetch_with_retry(self, endpoint: str, max_retries: int = 3):
 
     raise TellerAPIError(f"Max retries exceeded for {endpoint}")
 
-# Claude API pattern (batch processing)
+# Claude API pattern (batch processing with rate limit handling)
 def categorize_transactions(self, transactions: List[TellerTransaction]) -> Dict:
-    """Categorize in batches of 25 (configurable)."""
-    batch_size = self.config.get('batch_size', 25)
+    """Categorize in configurable batches with rate limit handling."""
+    batch_size = self.config.get('batch_size', 10)  # Reduced default
     results = {}
 
     for i in range(0, len(transactions), batch_size):
@@ -138,12 +138,25 @@ def categorize_transactions(self, transactions: List[TellerTransaction]) -> Dict
         try:
             response = self.claude_client.categorize(batch)
             results.update(response)
-        except AnthropicError as e:
-            # Log but don't fail entire batch
-            logger.warning(f"Batch {i} failed: {e}")
-            # Mark as 'general' fallback
-            for txn in batch:
-                results[txn.id] = 'general'
+        except Exception as e:
+            error_str = str(e)
+            
+            # Handle rate limits with longer delays
+            if "rate_limit_error" in error_str or "rate limit" in error_str.lower():
+                logger.warning(f"⏳ Hit API rate limit - waiting 60 seconds...")
+                time.sleep(60)
+                # Retry once with longer delay
+                try:
+                    response = self.claude_client.categorize(batch)
+                    results.update(response)
+                except Exception:
+                    # Give up on this batch to preserve progress
+                    logger.error(f"Rate limit persists, skipping batch {i}")
+            else:
+                # Non-rate-limit errors: mark as 'general'
+                logger.warning(f"Batch {i} failed: {e}")
+                for txn in batch:
+                    results[txn.id] = 'general'
 
     return results
 ```
@@ -198,16 +211,27 @@ def test_fetch_accounts_handles_rate_limit(mock_get):
     assert mock_get.call_count == 2  # Retried once
     assert accounts == []
 
-# Mock Claude API
+# Mock Claude API with rate limit handling
 @patch('sprig.categorizer.anthropic.Anthropic')
-def test_categorize_handles_api_errors(mock_claude):
-    mock_claude.return_value.messages.create.side_effect = AnthropicError()
+def test_categorize_handles_rate_limits(mock_claude):
+    # Simulate rate limit error
+    mock_claude.return_value.messages.create.side_effect = Exception("rate_limit_error: Too many requests")
 
     categorizer = Categorizer(config)
-    result = categorizer.categorize([transaction])
+    
+    # Should raise exception to stop categorization (not fallback)
+    with pytest.raises(Exception, match="rate_limit_error"):
+        categorizer.categorize_batch([transaction])
 
-    # Should fallback to 'general' on error
-    assert result[transaction.id] == 'general'
+@patch('sprig.categorizer.anthropic.Anthropic')  
+def test_categorize_handles_other_api_errors(mock_claude):
+    mock_claude.return_value.messages.create.side_effect = Exception("Network error")
+
+    categorizer = Categorizer(config)
+    result = categorizer.categorize_batch([transaction])
+
+    # Should return empty dict on non-rate-limit errors
+    assert result == {}
 
 # Use real SQLite for database tests
 def test_database_prevents_duplicates(tmp_path):
@@ -232,6 +256,7 @@ def sample_teller_account():
         "institution": {"id": "chase", "name": "Chase"},
         "name": "Checking",
         "type": "checking",
+        "subtype": "checking",
         "last_four": "1234",
         "balance": {"current": 1000.00}
     }
@@ -244,8 +269,39 @@ def sample_transaction():
         "description": "COFFEE SHOP SF",
         "date": "2024-01-15",
         "type": "card_payment",
-        "status": "posted"
+        "status": "posted",
+        "details": {"counterparty": {"name": "Corner Coffee"}}
     }
+
+def sample_transaction_view():
+    """Complete transaction data for categorization."""
+    from sprig.models import TransactionView
+    return TransactionView(
+        id="tx_test456",
+        date="2024-01-15",
+        description="COFFEE SHOP SF", 
+        amount=-25.50,
+        inferred_category=None,
+        counterparty="Corner Coffee",
+        account_name="Checking",
+        account_subtype="checking",
+        account_last_four="1234"
+    )
+
+def sample_uncategorized_db_row():
+    """Database row format from get_uncategorized_transactions()."""
+    return (
+        "tx_test456",      # id
+        "COFFEE SHOP SF",  # description
+        -25.50,            # amount
+        "2024-01-15",      # date
+        "card_payment",    # type
+        "acc_test123",     # account_id
+        "Checking",        # account name
+        "checking",        # account subtype
+        "Corner Coffee",   # counterparty
+        "1234"             # last_four
+    )
 ```
 
 ## Current Implementation Status
@@ -254,22 +310,33 @@ def sample_transaction():
 - Teller OAuth flow via browser
 - mTLS authentication with certificates
 - Transaction sync with duplicate prevention
-- Claude categorization with batch processing
-- CSV export with timestamps
+- Claude categorization with batch processing and rate limit handling
+- CSV export with timestamps and account details
+- Configurable batch sizes for API cost management
+- Date-filtered syncing with --days parameter
 
 ### Active Problems 🔧
 1. **Duplicate Accounts**: Re-authentication creates new account IDs
    - Solution: Fingerprinting with (institution_id, type, last4)
    - Status: Design documented, implementation pending
 
-2. **Category Optimization**: Improving prompt for better accuracy
+2. **Category Optimization**: Ongoing improvements to categorization accuracy
    - Current: 14 categories in `config.yml`
-   - Testing: Different prompt templates
+   - Recent: Added account context (name, subtype, last4) to categorization
+   - Recent: Enhanced TransactionView model with all relevant fields
+
+### Recent Improvements ✨
+- **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
+- **Configurable Batch Sizes**: `--batch-size` parameter for API cost management  
+- **Enhanced Context**: Account details (name, subtype, last4) included in categorization
+- **Better Logging**: Clear rate limit messages and user guidance
+- **Progress Preservation**: Sync succeeds even if categorization hits limits
 
 ### Not Implemented Yet ❌
 - `--full` flag for complete resync
 - Transaction search/filtering
 - Category override/training
+- Account fingerprinting for duplicate prevention
 
 ## Clean Code Principles Applied
 
@@ -413,8 +480,16 @@ ruff check .                          # Linting and code formatting
 # Usage
 python sprig.py auth                 # Authenticate banks
 python sprig.py sync                 # Sync + categorize
-python sprig.py export               # Export to CSV
+python sprig.py sync --days 7        # Sync recent transactions only
+python sprig.py sync --batch-size 5  # Gentler API usage (default: 10)
+python sprig.py sync --recategorize  # Clear and recategorize all
+python sprig.py export               # Export to CSV with account context
 python sprig.py sync && python sprig.py export  # Full workflow
+
+# Rate limit management strategies
+python sprig.py sync --days 1 --batch-size 5   # Very conservative
+python sprig.py sync --days 7                  # Recent transactions
+python sprig.py sync                           # Resume categorization
 
 # Debugging
 sqlite3 sprig.db "SELECT * FROM transactions LIMIT 10;"

@@ -1,6 +1,9 @@
 # Secrets
 .env
-certs/
+certs/*.pem
+certs/*.key
+certs/*.crt
+certs/*.p12
 
 # Python
 venv/
