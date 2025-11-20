@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Dict, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TransactionCategory(BaseModel):
@@ -32,6 +32,11 @@ class ClaudeContentBlock(BaseModel):
     """Claude API content block."""
     type: str
     text: str
+
+
+class ClaudeAPIKey(BaseModel):
+    """Validated Claude API key."""
+    key: str = Field(..., pattern=r'^sk-ant-api03-[A-Za-z0-9\-]{95}$', description="Claude API keys start with 'sk-ant-api03-' followed by exactly 95 alphanumeric characters and dashes")
 
 
 class ClaudeResponse(BaseModel):

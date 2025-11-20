@@ -10,15 +10,15 @@ from pydantic import BaseModel, Field, field_validator
 
 class TellerAccessToken(BaseModel):
     """Validated Teller access token."""
-    token: str = Field(..., pattern=r'^token_[a-z0-9]+$')
+    token: str = Field(..., pattern=r'^token_[a-z0-9]{26}$', description="Teller access tokens start with 'token_' followed by exactly 26 lowercase alphanumeric characters")
 
 
 class RuntimeConfig(BaseModel):
     """Runtime configuration for Sprig (API keys, paths, certificates)."""
 
-    app_id: str = Field(..., min_length=1)
-    access_tokens: List[str] = Field(..., min_length=1)
-    claude_api_key: str = Field(..., min_length=1)
+    app_id: str = Field(..., pattern=r'^app_[a-z0-9]{21}$', description="Teller APP_ID should start with 'app_' followed by exactly 21 lowercase alphanumeric characters")
+    access_tokens: List[TellerAccessToken] = Field(..., min_length=1)
+    claude_api_key: str = Field(..., pattern=r'^sk-ant-api03-[A-Za-z0-9\-]{95}$', description="Claude API keys start with 'sk-ant-api03-' followed by exactly 95 alphanumeric characters and dashes")
     environment: str = "development"
     cert_path: Path
     key_path: Path
@@ -39,7 +39,7 @@ class RuntimeConfig(BaseModel):
 
         return cls(
             app_id=os.getenv("APP_ID"),
-            access_tokens=[token for token in os.getenv("ACCESS_TOKENS").split(",") if token],
+            access_tokens=[TellerAccessToken(token=token) for token in os.getenv("ACCESS_TOKENS").split(",") if token],
             claude_api_key=os.getenv("CLAUDE_API_KEY"),
             environment=os.getenv("ENVIRONMENT", "development"),
             cert_path=project_root / os.getenv("CERT_PATH"),

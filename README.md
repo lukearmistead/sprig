@@ -3,7 +3,7 @@
 **Actually-personal personal finance**: Sprig connects to your bank accounts, downloads your transactions locally, buckets them into customizable AI-powered categories, and exports it all into a spreadsheet so you can budget your way.
 
 
-After running Sprig, you'll have a CSV file like this:
+You can use Sprig to download a CSV like this:
 
 | id | date | description | amount | inferred_category | counterparty | account_name | account_subtype | account_last_four |
 |----|------|-------------|--------|-------------------|--------------|--------------|-----------------|-------------------|
@@ -12,24 +12,13 @@ After running Sprig, you'll have a CSV file like this:
 | tx_abc125 | 2025-11-13 | SHELL GAS | -45.00 | transport | Shell | Credit Card | credit_card | 5678 |
 | tx_abc126 | 2025-11-12 | Paycheck Deposit | +2500.00 | income | Acme Corp | Checking | checking | 1234 |
 
-Open it in any spreadsheet or analysis tool to analyze spending patterns, create budgets, or build financial reports.
-
 ---
 
-## Setup Guide
+## Quick Setup Guide
 
+**This is a quickstart guide to get you running quickly. More detailed instructions, troubleshooting, and customization options are available in the sections below.**
 
-**Time to complete:** ~15 minutes
-
-### Step 1: Get Your Teller Credentials
-
-**You need these before you can use Sprig:**
-
-1. Go to [teller.io](https://teller.io) and create a free developer account
-2. Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
-3. Download your **certificate.pem** and **private_key.pem** files from [Certificate Settings](https://teller.io/settings/certificates)
-
-### Step 2: Install Sprig
+### Step 1: Install Sprig
 
 ```bash
 # Download Sprig
@@ -38,39 +27,67 @@ cd sprig
 
 # Create isolated environment (recommended)
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Activate the environment
+source venv/bin/activate
+# On Windows, use: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### Step 3: Set Up Configuration
+### Step 2: Get Your Bank Connection Credentials
 
-1. **Move your Teller certificates** into the `certs/` folder:
-   - Move `certificate.pem` to `certs/certificate.pem`
-   - Move `private_key.pem` to `certs/private_key.pem`
+**What is Teller.io?** Teller is a secure, bank-grade service that safely connects to your bank accounts. Your login credentials are only entered on your bank's official website - Teller and Sprig never see your passwords.
 
-2. **Create your configuration file:**
+**Setting up your Teller account:**
+
+1. Go to [teller.io](https://teller.io) and create a free developer account
+2. **Create a new application:**
+   - Click "Create Application"
+   - For "Company": enter "Personal Project"
+   - You can skip the webhook field
+3. Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
+   - Copy this APP_ID - you'll add it to your `.env` file in Step 4
+4. **Create new certificates:**
+   - Go to [Certificate Settings](https://teller.io/settings/certificates)
+   - Click "Create Certificate" to generate new ones
+   - Download the zip file containing your certificates
+   - **Extract the zip file** to get the individual certificate files
+   - Move only the extracted `certificate.pem` and `private_key.pem` files into your `certs/` folder
+   - You can delete the zip file after extracting
+
+### Step 3: Get Your AI Categorization Key
+
+**What is Claude?** Claude is Anthropic's AI that automatically categorizes your transactions (groceries, dining, transport, etc.). This saves you from manually categorizing hundreds of transactions.
+
+**Cost**: Typically ~$0.10-0.50 per 1000 transactions categorized. For most users, this means $1-5 per month. You can minimize costs by using `--from-date` to process recent transactions first.
+
+1. Go to [console.anthropic.com](https://console.anthropic.com) and create an account
+2. Navigate to "API Keys" in your dashboard
+3. Create a new API key and copy it (starts with `sk-ant-`)
+   - Copy this API key - you'll add it to your `.env` file in Step 4
+
+### Step 4: Set Up Configuration
+
+1. **Create your configuration file:**
 ```bash
 cp .env.example .env
 ```
 
-3. **Edit `.env`** and add your Teller APP_ID:
-```bash
-# Edit with any text editor
-nano .env  # or: code .env, vim .env, etc.
+2. **Edit your `.env` file** with any text editor (TextEdit, VS Code, vim, etc.):
+   - Find the line `APP_ID=your_teller_app_id_here`
+   - Replace `your_teller_app_id_here` with your actual APP_ID from Step 2
+   - Find the line `CLAUDE_API_KEY=your_claude_api_key_here`
+   - Replace `your_claude_api_key_here` with your Claude API key from Step 3
 
-# Add this line (replace with your actual APP_ID):
-APP_ID=app_xxxxxxxxxxxxx
+Your `.env` file should look like this:
+```bash
+APP_ID=app_abc123xyz789
+CLAUDE_API_KEY=sk-ant-api03-abc123...
 ```
 
-**Optional:** Add Claude API key for automatic categorization:
-```bash
-# Get API key from console.anthropic.com, then add to .env:
-CLAUDE_API_KEY=sk-ant-api03-...
-```
-
-### Step 4: Connect Your Banks
+### Step 5: Connect Your Banks
 
 ```bash
 python sprig.py auth
@@ -78,17 +95,21 @@ python sprig.py auth
 
 **What happens:** A browser opens to Teller's secure login. Select your bank, log in normally, and authorize access. Sprig automatically saves your connection.
 
-### Step 5: Get Your Data
+**To stop:** Press Control-C in your terminal when finished.
+
+### Step 6: Get Your Data
 
 ```bash
-# Download and categorize transactions
-python sprig.py sync
+# Download and categorize recent transactions (last 30 days to start)
+python sprig.py sync --from-date 2024-10-20
 
-# Export to spreadsheet  
+# Export to spreadsheet
 python sprig.py export
 ```
 
 **Done!** Your transactions are in `exports/transactions-YYYY-MM-DD.csv`.
+
+**Want to customize categories?** You can edit `config.yml` to create your own categories (business expenses, coffee, etc.) and then run `python sprig.py sync --recategorize` to apply them. [See customization guide below](#customizing-your-categories).
 
 ---
 
@@ -107,10 +128,10 @@ python sprig.py export
 
 **What you'll see:**
 ```
-🔐 Starting Teller authentication (app: app_abc123, environment: development)
-🌐 Opening browser to http://localhost:8001
+Starting Teller authentication (app: app_abc123, environment: development)
+Opening browser to http://localhost:8001
 Please complete the bank authentication in your browser...
-✅ Successfully added 2 account(s)!
+Successfully added 2 account(s)!
 ```
 
 ---
@@ -126,11 +147,16 @@ Please complete the bank authentication in your browser...
 
 **What you'll see:**
 ```
-🔄 Starting sync for 2 access token(s)
-🤖 Categorizing 47 uncategorized transaction(s) using Claude AI
+Starting sync for 2 access token(s)
+Categorizing 47 uncategorized transaction(s) using Claude AI
    Processing in 5 batch(es) of up to 10 transactions each
-✅ Successfully synced 2 valid token(s)
-✅ Categorization complete
+   Processing batch 1/5 (10 transactions)...
+      Batch 1 complete: 10 categorized
+   Processing batch 2/5 (10 transactions)...
+      Batch 2 complete: 10 categorized
+   [... continues for remaining batches ...]
+Successfully synced 2 valid token(s)
+Categorization complete
    Successfully categorized: 47 transactions
    Success rate: 100.0%
 ```
@@ -139,9 +165,9 @@ Please complete the bank authentication in your browser...
 
 **Options:**
 ```bash
-python sprig.py sync --days 7        # Only sync last 7 days (reduces API costs)
-python sprig.py sync --batch-size 5  # Smaller batches (gentler on rate limits)
-python sprig.py sync --recategorize  # Clear and recategorize all transactions
+python sprig.py sync --from-date 2024-11-01  # Only sync from this date onwards (reduces API costs)
+python sprig.py sync --batch-size 5          # Smaller batches (gentler on rate limits)
+python sprig.py sync --recategorize          # Clear and recategorize all transactions
 ```
 
 ---
@@ -157,8 +183,8 @@ python sprig.py sync --recategorize  # Clear and recategorize all transactions
 
 **What you'll see:**
 ```
-📊 Starting export to exports/transactions-2025-11-17.csv
-✅ Exported 347 transaction(s) to exports/transactions-2025-11-17.csv
+Starting export to exports/transactions-2025-11-17.csv
+Exported 347 transaction(s) to exports/transactions-2025-11-17.csv
 ```
 
 **Optional:** Export to a custom location:
@@ -184,7 +210,7 @@ python sprig.py sync --recategorize
 
 ---
 
-### Understanding Transaction Categories
+### Default Transaction Categories
 
 When Claude categorizes your transactions, it uses these categories:
 
@@ -211,17 +237,14 @@ Sprig uses 13 default categories, but you can completely customize them to match
 #### How to Change Categories
 
 1. **Edit the config file** in your Sprig directory:
-```bash
-# Open the category configuration file
-nano config.yml  # or use any text editor
-```
+   - Open `config.yml` with any text editor
 
 2. **Modify categories** using this format:
 ```yaml
 categories:
   - name: your_category_name
     description: "Detailed description to help AI classify transactions"
-  - name: another_category  
+  - name: another_category
     description: "Another description explaining what belongs here"
 ```
 
@@ -395,16 +418,16 @@ pip install -r requirements.txt
 **Problem:** Large transaction volumes may hit Claude API rate limits
 
 **Solutions:**
-- Use `--days 7` to process recent transactions first
-- Use `--batch-size 5` for smaller, gentler API requests  
+- Use `--from-date YYYY-MM-DD` to process recent transactions first
+- Use `--batch-size 5` for smaller, gentler API requests
 - Run `sync` multiple times - it only processes uncategorized transactions
 - Wait a few minutes between runs if you hit limits
 
 **What you'll see:**
 ```
-⏳ Hit Claude API rate limit - this is normal with large transaction volumes
-💡 Tip: Use '--days N' flag to sync fewer transactions and reduce API costs
-⏱️  Waiting 60 seconds for rate limit to reset...
+Hit Claude API rate limit - this is normal with large transaction volumes
+Tip: Use '--from-date YYYY-MM-DD' flag to sync fewer transactions and reduce API costs
+Waiting 60 seconds for rate limit to reset...
 ```
 
 ---
@@ -430,17 +453,22 @@ Your bank login credentials are only entered on your bank's official website, ne
 ### How much does it cost?
 
 - **Sprig:** Free and open source
-- **Teller.io:** Free tier includes 100 transactions/month. [See pricing](https://teller.io/pricing)
+- **Teller.io:** Free tier includes 100 bank connections (accounts). [See teller.io](https://teller.io) for current pricing
 - **Claude API:** Optional. ~$0.10-0.50 per 1000 transactions categorized. [See pricing](https://anthropic.com/pricing)
 
 ### Do I need to be technical to use this?
 
-You need basic comfort with:
+**For technical users:** You'll be able to figure out the setup without much trouble.
+
+**For non-technical users:** You'll need basic comfort with:
 - Running terminal/command line commands
 - Editing text files (like .env)
+- Creating accounts on websites (Teller, Anthropic)
 - Installing software
 
-If you can install Python and copy/paste commands, you can use Sprig. The Quick Start guide walks you through everything.
+If you can install Python and copy/paste commands, you can use Sprig. The most involved step is getting the credentials set up in your .env file. The Quick Start guide walks you through everything step-by-step.
+
+**Note:** Non-technical users may find the credential setup (Teller and Claude accounts) to be the most challenging part, but it's a one-time setup.
 
 ### What banks are supported?
 
@@ -449,7 +477,7 @@ Teller.io supports 5,000+ banks including:
 - Credit unions
 - Online banks: Ally, Marcus, Discover
 
-Check [Teller's bank list](https://teller.io/institutions) for your specific bank.
+Check teller.io for supported banks and institutions.
 
 ### Can I use this for business accounts?
 
@@ -462,7 +490,7 @@ Up to you! Common patterns:
 - **Weekly:** Sunday night to review the week's spending
 - **Monthly:** End of month for budgeting and reports
 
-Teller.io's free tier limits you to 100 transactions per month of syncing.
+Teller.io's free tier includes 100 bank connections (individual accounts you can connect).
 
 ### What if I don't want AI categorization?
 
@@ -478,7 +506,7 @@ Yes. Once you add `CLAUDE_API_KEY`, run `python sprig.py sync` and Claude will a
 ### Can I change the categories Sprig uses?
 
 Absolutely! Edit the `config.yml` file in your Sprig directory to customize categories for your needs. You can:
-- Rename existing categories (e.g., "transport" → "car_expenses")  
+- Rename existing categories (e.g., "transport" → "car_expenses")
 - Add new categories (e.g., "coffee", "pet_care", "business_meals")
 - Remove categories you don't need
 - Update descriptions to improve categorization accuracy

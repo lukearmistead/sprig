@@ -4,7 +4,6 @@ import time
 from typing import List
 
 import anthropic
-from anthropic import RateLimitError
 
 from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
@@ -138,9 +137,9 @@ class TransactionCategorizer:
                 # Check if this is a rate limit error
                 if "rate_limit_error" in error_str or "rate limit" in error_str.lower():
                     if attempt == 0:  # First time seeing rate limit
-                        logger.warning(f"⏳ Hit Claude API rate limit - this is normal with large transaction volumes")
-                        logger.info(f"   💡 Tip: Use '--days N' flag to sync fewer transactions and reduce API costs")
-                        logger.info(f"   💡 Or run sync multiple times to process transactions in chunks")
+                        logger.warning("⏳ Hit Claude API rate limit - this is normal with large transaction volumes")
+                        logger.info("   💡 Tip: Use '--days N' flag to sync fewer transactions and reduce API costs")
+                        logger.info("   💡 Or run sync multiple times to process transactions in chunks")
                     
                     if attempt < max_retries - 1:
                         # Much longer delays for rate limits (60, 120 seconds)
@@ -149,7 +148,7 @@ class TransactionCategorizer:
                         time.sleep(delay)
                     else:
                         logger.error(f"   ❌ Still hitting rate limits after {max_retries} attempts")
-                        logger.info(f"   💡 Try running sync again later, or use '--days 7' to sync recent transactions only")
+                        logger.info("   💡 Try running sync again later, or use '--days 7' to sync recent transactions only")
                         raise e  # Re-raise to stop categorization entirely
                 else:
                     # Non-rate-limit errors (API errors, network issues, etc.)

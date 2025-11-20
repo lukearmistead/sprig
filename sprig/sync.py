@@ -1,6 +1,6 @@
 """Transaction synchronization logic for Sprig."""
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Optional
 import requests
 
@@ -46,13 +46,13 @@ def sync_all_accounts(
     invalid_tokens = []
     valid_tokens = 0
 
-    for i, token in enumerate(config.access_tokens, 1):
+    for i, token_obj in enumerate(config.access_tokens, 1):
         logger.debug(f"Processing token {i}/{len(config.access_tokens)}")
-        success = sync_accounts_for_token(client, db, token, cutoff_date)
+        success = sync_accounts_for_token(client, db, token_obj.token, cutoff_date)
         if success:
             valid_tokens += 1
         else:
-            invalid_tokens.append(token[:12] + "...")  # Show partial token for identification
+            invalid_tokens.append(token_obj.token[:12] + "...")  # Show partial token for identification
 
     if invalid_tokens:
         logger.warning(f"\nFound {len(invalid_tokens)} invalid/expired token(s):")
@@ -67,13 +67,13 @@ def sync_all_accounts(
         categorize_uncategorized_transactions(config, db, batch_size)
     except Exception as e:
         if "rate_limit_error" in str(e) or "rate limit" in str(e).lower():
-            logger.error(f"⏱️  Categorization stopped due to Claude API rate limits")
-            logger.info(f"💡 Your transactions have been synced - categorization can be resumed later")
-            logger.info(f"💡 Run 'python sprig.py sync' again in a few minutes to continue categorization")
-            logger.info(f"💡 Or use 'python sprig.py sync --from-date YYYY-MM-DD' to categorize recent transactions only")
+            logger.error("Categorization stopped due to Claude API rate limits")
+            logger.info("Your transactions have been synced - categorization can be resumed later")
+            logger.info("Run 'python sprig.py sync' again in a few minutes to continue categorization")
+            logger.info("Or use 'python sprig.py sync --from-date YYYY-MM-DD' to categorize recent transactions only")
         else:
-            logger.error(f"❌ Categorization failed: {e}")
-            logger.info(f"💡 Your transactions have been synced successfully - only categorization was affected")
+            logger.error(f"Categorization failed: {e}")
+            logger.info("Your transactions have been synced successfully - only categorization was affected")
 
 
 def sync_accounts_for_token(
@@ -143,7 +143,7 @@ def sync_transactions_for_account(
 
 def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10):
     """Categorize transactions that don't have an inferred_category assigned."""
-    logger.debug("🔍 Starting categorization function")
+    logger.debug("Starting categorization function")
     categorizer = TransactionCategorizer(runtime_config)
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
@@ -168,7 +168,7 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         }
     
     if not transactions:
-        logger.info("🎉 No uncategorized transactions found - all transactions already have categories!")
+        logger.info("No uncategorized transactions found - all transactions already have categories!")
         return
 
     total_transactions = len(transactions)
@@ -177,19 +177,19 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     categorized_count = 0
     failed_count = 0
 
-    logger.info(f"🤖 Categorizing {total_transactions} uncategorized transaction(s) using Claude AI")
+    logger.info(f"Categorizing {total_transactions} uncategorized transaction(s) using Claude AI")
     logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each")
 
     if total_transactions > 100:
-        logger.info(f"   ⚠️  Large transaction volume may hit Claude API rate limits")
-        logger.info(f"   💡 Consider using '--from-date YYYY-MM-DD' flag to process recent transactions first")
+        logger.info("   Large transaction volume may hit Claude API rate limits")
+        logger.info("   Consider using '--from-date YYYY-MM-DD' flag to process recent transactions first")
 
     # Process in batches
     for i in range(0, len(transactions), batch_size):
         batch = transactions[i:i + batch_size]
         batch_num = (i // batch_size) + 1
         
-        logger.info(f"   📦 Processing batch {batch_num}/{total_batches} ({len(batch)} transactions)...")
+        logger.info(f"   Processing batch {batch_num}/{total_batches} ({len(batch)} transactions)...")
         
         # Get account info for this batch
         batch_account_info = {t.id: account_info[t.id] for t in batch}
@@ -205,12 +205,12 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         failed_count += len(batch) - batch_success_count
 
         if batch_success_count == len(batch):
-            logger.info(f"      ✅ Batch {batch_num} complete: {batch_success_count} categorized")
+            logger.info(f"      Batch {batch_num} complete: {batch_success_count} categorized")
         else:
-            logger.warning(f"      ⚠️  Batch {batch_num} partial: {batch_success_count}/{len(batch)} categorized")
+            logger.warning(f"      Batch {batch_num} partial: {batch_success_count}/{len(batch)} categorized")
 
     # Show final summary
-    logger.info(f"✅ Categorization complete")
+    logger.info("Categorization complete")
     logger.info(f"   Successfully categorized: {categorized_count} transactions")
     if failed_count > 0:
         logger.warning(f"   Failed to categorize: {failed_count} transactions")
