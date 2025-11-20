@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sprig.auth import authenticate
 from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
-from sprig.models import Config, SyncParams
+from sprig.models import SyncParams
 from sprig.sync import sync_all_accounts
 from sprig import credentials
 
@@ -139,13 +139,6 @@ def main():
 
     if args.command == "sync":
         try:
-            config = Config.load()
-        except Exception as e:
-            logger.error(f"Configuration error: {e}")
-            logger.error("Please run 'sprig auth' to set up credentials.")
-            sys.exit(1)
-
-        try:
             sync_params = SyncParams(
                 recategorize=args.recategorize,
                 from_date=args.from_date
@@ -158,20 +151,25 @@ def main():
                 logger.error(f"  {field}: {msg}")
             sys.exit(1)
 
-        sync_all_accounts(
-            config,
-            recategorize=sync_params.recategorize,
-            from_date=sync_params.from_date,
-            batch_size=args.batch_size
-        )
-    elif args.command == "export":
         try:
-            config = Config.load()
-        except Exception as e:
+            sync_all_accounts(
+                recategorize=sync_params.recategorize,
+                from_date=sync_params.from_date,
+                batch_size=args.batch_size
+            )
+        except ValueError as e:
             logger.error(f"Configuration error: {e}")
             logger.error("Please run 'sprig auth' to set up credentials.")
             sys.exit(1)
-        export_transactions_to_csv(config.database_path, args.output)
+    elif args.command == "export":
+        db_path = credentials.get_database_path()
+        if not db_path:
+            logger.error("Database path not found in keyring")
+            logger.error("Please run 'sprig auth' to set up credentials.")
+            sys.exit(1)
+
+        project_root = Path(__file__).parent
+        export_transactions_to_csv(project_root / db_path.value, args.output)
     elif args.command == "auth":
         app_id = credentials.get(credentials.KEY_APP_ID)
         if not app_id:

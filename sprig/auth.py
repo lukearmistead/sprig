@@ -12,7 +12,7 @@ from flask import Flask, request, render_template, jsonify
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
-from sprig.models.config import TellerAccessToken
+from sprig.models.teller import TellerAccessToken
 from sprig import credentials
 
 logger = get_logger("sprig.auth")

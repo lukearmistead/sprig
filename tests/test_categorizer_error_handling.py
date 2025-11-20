@@ -2,19 +2,26 @@
 
 from datetime import date
 from unittest.mock import Mock, patch, call
+import pytest
 
 from sprig.categorizer import TransactionCategorizer
-from sprig.models import Config, TellerTransaction
+from sprig.models import TellerTransaction
+from sprig.models.credentials import ClaudeAPIKey
+
+
+@pytest.fixture(autouse=True)
+def mock_credentials():
+    """Mock credentials for all tests."""
+    with patch('sprig.categorizer.credentials.get_claude_api_key') as mock:
+        mock.return_value = ClaudeAPIKey(value="sk-ant-api03-" + "a" * 95)
+        yield mock
 
 
 class TestErrorHandling:
     """Test that errors are properly reported, not silently swallowed."""
-    
+
     def setup_method(self):
-        """Set up test categorizer instance."""
-        self.runtime_config = Mock(spec=Config)
-        self.runtime_config.claude_api_key = "test_key"
-        
+        """Set up test transactions."""
         self.test_transactions = [
             TellerTransaction(
                 id="txn_1",
@@ -46,7 +53,7 @@ class TestErrorHandling:
         # Simulate API error
         mock_client.messages.create.side_effect = Exception("API rate limit exceeded")
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = TransactionCategorizer()
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -76,7 +83,7 @@ class TestErrorHandling:
         }
         mock_client.messages.create.return_value = mock_api_response
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = TransactionCategorizer()
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -91,12 +98,9 @@ class TestErrorHandling:
 
 class TestRetryLogic:
     """Test that failed batches are retried with exponential backoff."""
-    
+
     def setup_method(self):
-        """Set up test categorizer instance."""
-        self.runtime_config = Mock(spec=Config)
-        self.runtime_config.claude_api_key = "test_key"
-        
+        """Set up test transactions."""
         self.test_transactions = [
             TellerTransaction(
                 id="txn_1",
@@ -134,7 +138,7 @@ class TestRetryLogic:
             mock_api_response
         ]
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = TransactionCategorizer()
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -163,7 +167,7 @@ class TestRetryLogic:
         # Always fail
         mock_client.messages.create.side_effect = Exception("Persistent error")
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = TransactionCategorizer()
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -201,11 +205,8 @@ class TestProgressTracking:
         
         # Mock successful categorization
         mock_categorize_batch.return_value = {f"txn_{i}": "dining" for i in range(20)}
-        
-        runtime_config = Mock()
-        runtime_config.claude_api_key = "test_key"
-        
-        categorize_uncategorized_transactions(runtime_config, mock_db_instance)
+
+        categorize_uncategorized_transactions(mock_db_instance)
         
         # Should show batch progress (50 transactions = 3 batches with batch size 20)
         progress_logged = any(
@@ -236,11 +237,8 @@ class TestProgressTracking:
             {f"txn_{i}": "dining" for i in range(20)},  # First batch succeeds
             {}  # Second batch fails
         ]
-        
-        runtime_config = Mock()
-        runtime_config.claude_api_key = "test_key"
-        
-        categorize_uncategorized_transactions(runtime_config, mock_db_instance)
+
+        categorize_uncategorized_transactions(mock_db_instance)
         
         # Should show summary with success/failure counts
         summary_logged = any(

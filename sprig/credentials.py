@@ -1,7 +1,18 @@
 """Credential management using system keyring."""
 
+from pathlib import Path
+from typing import Optional, List
 import keyring
-from typing import Optional
+
+from sprig.models.credentials import (
+    TellerAppId,
+    ClaudeAPIKey,
+    CertPath,
+    KeyPath,
+    DatabasePath,
+    Environment,
+)
+from sprig.models.teller import TellerAccessToken
 
 
 class Credentials:
@@ -55,15 +66,59 @@ class Credentials:
 
         return "*" * (len(value) - show_chars) + value[-show_chars:]
 
+    def get_app_id(self) -> Optional[TellerAppId]:
+        """Get validated Teller APP_ID."""
+        raw = self.get(self.KEY_APP_ID)
+        return TellerAppId(value=raw) if raw else None
+
+    def get_claude_api_key(self) -> Optional[ClaudeAPIKey]:
+        """Get validated Claude API key."""
+        raw = self.get(self.KEY_CLAUDE_API_KEY)
+        return ClaudeAPIKey(value=raw) if raw else None
+
+    def get_access_tokens(self) -> List[TellerAccessToken]:
+        """Get validated access tokens."""
+        raw = self.get(self.KEY_ACCESS_TOKENS)
+        if not raw:
+            return []
+        return [TellerAccessToken(token=t) for t in raw.split(",") if t]
+
+    def get_cert_path(self) -> Optional[CertPath]:
+        """Get validated certificate path."""
+        raw = self.get(self.KEY_CERT_PATH)
+        return CertPath(value=Path(raw)) if raw else None
+
+    def get_key_path(self) -> Optional[KeyPath]:
+        """Get validated private key path."""
+        raw = self.get(self.KEY_KEY_PATH)
+        return KeyPath(value=Path(raw)) if raw else None
+
+    def get_database_path(self) -> Optional[DatabasePath]:
+        """Get validated database path."""
+        raw = self.get(self.KEY_DATABASE_PATH)
+        return DatabasePath(value=Path(raw)) if raw else None
+
+    def get_environment(self) -> Environment:
+        """Get validated environment setting."""
+        raw = self.get(self.KEY_ENVIRONMENT)
+        return Environment(value=raw if raw else "development")
+
 
 # Module-level singleton
 _instance = Credentials()
 
-# Expose instance methods at module level for backwards compatibility
+# Expose instance methods at module level
 get = _instance.get
 set = _instance.set
 append_token = _instance.append_token
 mask = _instance.mask
+get_app_id = _instance.get_app_id
+get_claude_api_key = _instance.get_claude_api_key
+get_access_tokens = _instance.get_access_tokens
+get_cert_path = _instance.get_cert_path
+get_key_path = _instance.get_key_path
+get_database_path = _instance.get_database_path
+get_environment = _instance.get_environment
 
 # Expose keys at module level
 KEY_APP_ID = Credentials.KEY_APP_ID

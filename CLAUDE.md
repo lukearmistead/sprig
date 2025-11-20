@@ -496,5 +496,5 @@ python sprig.py sync                           # Resume categorization
 # Debugging
 sqlite3 sprig.db "SELECT * FROM transactions LIMIT 10;"
 sqlite3 sprig.db "SELECT DISTINCT inferred_category FROM transactions;"
-python -c "from sprig.config import Config; Config().validate()"
+python -c "from sprig import credentials; print(credentials.get_app_id())"
 ```

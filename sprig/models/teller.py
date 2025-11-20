@@ -23,7 +23,7 @@ class TellerAccount(BaseModel):
 
 class TellerTransaction(BaseModel):
     """Teller API transaction response."""
-    
+
     id: str
     account_id: str
     amount: float
@@ -34,3 +34,8 @@ class TellerTransaction(BaseModel):
     details: Optional[Dict[str, Any]] = None
     running_balance: Optional[float] = None
     links: Optional[Dict[str, Any]] = None
+
+
+class TellerAccessToken(BaseModel):
+    """Validated Teller access token."""
+    token: str = Field(..., pattern=r'^token_[a-z0-9]{26}$', description="Teller access tokens start with 'token_' followed by exactly 26 lowercase alphanumeric characters")

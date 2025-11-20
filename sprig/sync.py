@@ -6,16 +6,16 @@ import requests
 
 from sprig.categorizer import TransactionCategorizer
 from sprig.logger import get_logger
-from sprig.models import Config, TellerAccount, TellerTransaction
+from sprig.models import TellerAccount, TellerTransaction
 from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
+from sprig import credentials
 
 logger = get_logger("sprig.sync")
 BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
 
 
 def sync_all_accounts(
-    config: Config,
     recategorize: bool = False,
     from_date: Optional[date] = None,
     batch_size: int = 10
@@ -23,15 +23,22 @@ def sync_all_accounts(
     """Sync accounts and transactions for all access tokens.
 
     Args:
-        config: Runtime configuration
         recategorize: Clear all existing categories before syncing
         from_date: Only sync transactions from this date onwards (reduces API costs)
         batch_size: Number of transactions to categorize per API call (default: 10)
     """
-    logger.info(f"Starting sync for {len(config.access_tokens)} access token(s)")
+    access_tokens = credentials.get_access_tokens()
+    logger.info(f"Starting sync for {len(access_tokens)} access token(s)")
 
-    client = TellerClient(config)
-    db = SprigDatabase(config.database_path)
+    client = TellerClient()
+
+    db_path = credentials.get_database_path()
+    if not db_path:
+        raise ValueError("Database path not found in keyring")
+
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent
+    db = SprigDatabase(project_root / db_path.value)
 
     # Use from_date if specified
     cutoff_date = from_date
@@ -46,8 +53,8 @@ def sync_all_accounts(
     invalid_tokens = []
     valid_tokens = 0
 
-    for i, token_obj in enumerate(config.access_tokens, 1):
-        logger.debug(f"Processing token {i}/{len(config.access_tokens)}")
+    for i, token_obj in enumerate(access_tokens, 1):
+        logger.debug(f"Processing token {i}/{len(access_tokens)}")
         success = sync_accounts_for_token(client, db, token_obj.token, cutoff_date)
         if success:
             valid_tokens += 1
@@ -64,7 +71,7 @@ def sync_all_accounts(
 
     # Categorize any uncategorized transactions
     try:
-        categorize_uncategorized_transactions(config, db, batch_size)
+        categorize_uncategorized_transactions(db, batch_size)
     except Exception as e:
         if "rate_limit_error" in str(e) or "rate limit" in str(e).lower():
             logger.error("Categorization stopped due to Claude API rate limits")
@@ -141,10 +148,10 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def categorize_uncategorized_transactions(runtime_config: Config, db: SprigDatabase, batch_size: int = 10):
+def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int = 10):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
-    categorizer = TransactionCategorizer(runtime_config)
+    categorizer = TransactionCategorizer()
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
     

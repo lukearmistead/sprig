@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from sprig.auth import append_token_to_credentials, authenticate
-from sprig.models.config import TellerAccessToken
+from sprig.models.teller import TellerAccessToken
 from pydantic import ValidationError
 
 
