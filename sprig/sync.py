@@ -7,6 +7,7 @@ import requests
 from sprig.categorizer import TransactionCategorizer
 from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
+from sprig.models.category_config import CategoryConfig
 from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
 
@@ -141,14 +142,38 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10):
+def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10, category_config: CategoryConfig = None):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
-    categorizer = TransactionCategorizer(runtime_config)
+
+    # Load category config to get manual overrides
+    if category_config is None:
+        category_config = CategoryConfig.load()
+    manual_override_map = {override.transaction_id: override.category
+                          for override in category_config.manual_overrides}
+
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
-    
-    # Convert to TellerTransaction objects with account info
+
+    # Apply manual overrides first
+    manual_override_count = 0
+    if manual_override_map:
+        logger.info(f"Applying {len(manual_override_map)} manual category override(s) from config.yml")
+        for row in uncategorized:
+            txn_id = row[0]
+            if txn_id in manual_override_map:
+                category = manual_override_map[txn_id]
+                db.update_transaction_category(txn_id, category)
+                manual_override_count += 1
+                logger.debug(f"   Applied manual override: {txn_id} → {category}")
+
+        if manual_override_count > 0:
+            logger.info(f"   Applied {manual_override_count} manual override(s)")
+
+        # Refresh uncategorized list after applying manual overrides
+        uncategorized = db.get_uncategorized_transactions()
+
+    # Convert remaining uncategorized to TellerTransaction objects with account info
     transactions = []
     account_info = {}
     for row in uncategorized:
@@ -166,10 +191,15 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
             "counterparty": row[8],  # counterparty from JSON extraction
             "last_four": row[9]  # account last four digits
         }
-    
+
     if not transactions:
-        logger.info("No uncategorized transactions found - all transactions already have categories!")
+        if manual_override_count > 0:
+            logger.info("All remaining transactions have been manually overridden - no Claude categorization needed!")
+        else:
+            logger.info("No uncategorized transactions found - all transactions already have categories!")
         return
+
+    categorizer = TransactionCategorizer(runtime_config)
 
     total_transactions = len(transactions)
     logger.debug(f"Converted to {total_transactions} TellerTransaction objects")
