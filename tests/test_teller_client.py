@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
-from sprig.models import RuntimeConfig
+from sprig.models import Config
 from sprig.teller_client import TellerClient
 
 
@@ -20,7 +20,7 @@ def create_test_config():
     cert_path.write_text("dummy cert content")
     key_path.write_text("dummy key content")
     
-    config = RuntimeConfig(
+    config = Config(
         app_id="test_app_id",
         access_tokens=["test_token_1", "test_token_2"],
         claude_api_key="test_claude_key",
@@ -143,7 +143,7 @@ def test_client_without_certificates():
     temp_dir = Path(tempfile.mkdtemp())
     
     try:
-        RuntimeConfig(
+        Config(
             app_id="test_app_id",
             access_tokens=["test_token"],
             environment="development", 

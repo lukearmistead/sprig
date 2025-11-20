@@ -2,13 +2,13 @@
 
 import requests
 
-from sprig.models import RuntimeConfig
+from sprig.models import Config
 
 
 class TellerClient:
     """Basic Teller API client."""
     
-    def __init__(self, config: RuntimeConfig):
+    def __init__(self, config: Config):
         self.config = config
         self.base_url = "https://api.teller.io"
         self.session = requests.Session()

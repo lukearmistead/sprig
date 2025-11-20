@@ -4,7 +4,7 @@ from datetime import date
 from unittest.mock import Mock, patch, call
 
 from sprig.categorizer import TransactionCategorizer
-from sprig.models import RuntimeConfig, TellerTransaction
+from sprig.models import Config, TellerTransaction
 
 
 class TestErrorHandling:
@@ -12,7 +12,7 @@ class TestErrorHandling:
     
     def setup_method(self):
         """Set up test categorizer instance."""
-        self.runtime_config = Mock(spec=RuntimeConfig)
+        self.runtime_config = Mock(spec=Config)
         self.runtime_config.claude_api_key = "test_key"
         
         self.test_transactions = [
@@ -94,7 +94,7 @@ class TestRetryLogic:
     
     def setup_method(self):
         """Set up test categorizer instance."""
-        self.runtime_config = Mock(spec=RuntimeConfig)
+        self.runtime_config = Mock(spec=Config)
         self.runtime_config.claude_api_key = "test_key"
         
         self.test_transactions = [

@@ -4,6 +4,7 @@ Sprig - Teller.io transaction data collection tool.
 """
 
 import argparse
+import getpass
 import sys
 from pathlib import Path
 
@@ -16,11 +17,63 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sprig.auth import authenticate
 from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, SyncParams
+from sprig.models import Config, SyncParams
 from sprig.sync import sync_all_accounts
+from sprig import credential_manager
 
 # Initialize logger
 logger = get_logger()
+
+
+def prompt_for_value(prompt_text: str, secret: bool = False) -> str:
+    """Prompt user for a single value."""
+    if secret:
+        return getpass.getpass(prompt_text).strip()
+    return input(prompt_text).strip()
+
+
+def store_credential(key: str, value: str, required: bool = True) -> bool:
+    """Store a credential and handle errors."""
+    if not credential_manager.set_credential(key, value):
+        if required:
+            logger.error(f"Failed to store {key}")
+        return False
+    return True
+
+
+def setup_credentials() -> bool:
+    """Prompt for and store all required credentials."""
+    logger.info("First-time setup: Please enter your credentials")
+    logger.info("=" * 50)
+
+    # Required credentials
+    app_id = prompt_for_value("Teller APP_ID (app_xxx): ")
+    if not app_id:
+        logger.error("APP_ID is required")
+        return False
+
+    claude_key = prompt_for_value("Claude API Key (sk-ant-api03-xxx): ", secret=True)
+    if not claude_key:
+        logger.error("Claude API Key is required")
+        return False
+
+    # Optional credentials with defaults
+    cert_path = prompt_for_value("Certificate path (e.g., certs/certificate.pem): ") or "certs/certificate.pem"
+    key_path = prompt_for_value("Private key path (e.g., certs/private_key.pem): ") or "certs/private_key.pem"
+
+    # Store all credentials
+    if not store_credential(credential_manager.KEY_APP_ID, app_id):
+        return False
+    if not store_credential(credential_manager.KEY_CLAUDE_API_KEY, claude_key):
+        return False
+
+    store_credential(credential_manager.KEY_CERT_PATH, cert_path, required=False)
+    store_credential(credential_manager.KEY_KEY_PATH, key_path, required=False)
+    store_credential(credential_manager.KEY_ENVIRONMENT, "development", required=False)
+    store_credential(credential_manager.KEY_DATABASE_PATH, "sprig.db", required=False)
+
+    logger.info("Credentials saved to keyring")
+    return True
 
 
 def main():
@@ -87,7 +140,7 @@ def main():
     if args.command == "sync":
         # Load and validate full configuration for sync
         try:
-            config = RuntimeConfig.load()
+            config = Config.load()
         except Exception as e:
             logger.error(f"Configuration error: {e}")
             logger.error("Please run 'sprig auth' to set up credentials.")
@@ -116,14 +169,22 @@ def main():
     elif args.command == "export":
         # Load and validate full configuration for export
         try:
-            config = RuntimeConfig.load()
+            config = Config.load()
         except Exception as e:
             logger.error(f"Configuration error: {e}")
             logger.error("Please run 'sprig auth' to set up credentials.")
             sys.exit(1)
         export_transactions_to_csv(config.database_path, args.output)
     elif args.command == "auth":
-        authenticate(args.environment, args.port)
+        # Check if credentials are set up
+        app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID)
+        if not app_id:
+            if not setup_credentials():
+                sys.exit(1)
+            app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID)
+
+        # Run OAuth flow
+        authenticate(app_id, args.environment, args.port)
 
 if __name__ == "__main__":
     main()

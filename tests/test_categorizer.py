@@ -7,7 +7,7 @@ from sprig.categorizer import (
     TransactionCategorizer,
     build_categorization_prompt
 )
-from sprig.models import RuntimeConfig, TellerTransaction, TransactionCategory
+from sprig.models import Config, TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
 
 
@@ -49,7 +49,7 @@ class TestTransactionCategorizerParsing:
     def setup_method(self):
         """Set up test categorizer instance."""
         # Mock runtime config
-        self.runtime_config = Mock(spec=RuntimeConfig)
+        self.runtime_config = Mock(spec=Config)
         self.runtime_config.claude_api_key = "test_key"
         
         # Create categorizer instance
@@ -127,7 +127,7 @@ class TestCategorizeBatchIntegration:
     def setup_method(self):
         """Set up test categorizer instance."""
         # Mock runtime config
-        self.runtime_config = Mock(spec=RuntimeConfig)
+        self.runtime_config = Mock(spec=Config)
         self.runtime_config.claude_api_key = "test_key"
     
     @patch('anthropic.Anthropic')
@@ -262,7 +262,7 @@ class TestEdgeCases:
     
     def setup_method(self):
         """Set up test categorizer instance."""
-        self.runtime_config = Mock(spec=RuntimeConfig)
+        self.runtime_config = Mock(spec=Config)
         self.runtime_config.claude_api_key = "test_key"
         self.categorizer = TransactionCategorizer(self.runtime_config)
     

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from sprig.auth import append_token_to_credentials, authenticate
-from sprig.models.runtime_config import TellerAccessToken
+from sprig.models.config import TellerAccessToken
 from pydantic import ValidationError
 
 
@@ -58,51 +58,30 @@ class TestAuthenticate:
 
     def test_authenticate_success(self):
         """Should successfully authenticate when server returns account count."""
-        with patch('sprig.auth.credential_manager.get_credential') as mock_get_cred, \
-             patch('sprig.auth.run_auth_server') as mock_run_auth:
-
-            mock_get_cred.return_value = "test_app_id"
+        with patch('sprig.auth.run_auth_server') as mock_run_auth:
             mock_run_auth.return_value = "1"  # One account added
 
-            result = authenticate("development", 8001)
+            result = authenticate("test_app_id", "development", 8001)
 
             assert result is True
             mock_run_auth.assert_called_once_with("test_app_id", "development", 8001)
 
     def test_authenticate_multiple_accounts_via_ui(self):
         """Should handle multiple accounts added via UI."""
-        with patch('sprig.auth.credential_manager.get_credential') as mock_get_cred, \
-             patch('sprig.auth.run_auth_server') as mock_run_auth:
-
-            mock_get_cred.return_value = "test_app_id"
+        with patch('sprig.auth.run_auth_server') as mock_run_auth:
             mock_run_auth.return_value = "3"  # Three accounts added via UI
 
-            result = authenticate("development", 8001)
+            result = authenticate("test_app_id", "development", 8001)
 
             assert result is True
             mock_run_auth.assert_called_once()
 
-    def test_authenticate_missing_app_id(self):
-        """Should prompt for credentials if APP_ID is not set."""
-        with patch('sprig.auth.credential_manager.get_credential') as mock_get_cred, \
-             patch('sprig.auth.prompt_for_credentials') as mock_prompt:
-            mock_get_cred.return_value = None
-            mock_prompt.return_value = False  # User cancels setup
-
-            result = authenticate("development", 8001)
-
-            assert result is False
-            mock_prompt.assert_called_once()
-
     def test_authenticate_cancelled(self):
         """Should return False if authentication is cancelled."""
-        with patch('sprig.auth.credential_manager.get_credential') as mock_get_cred, \
-             patch('sprig.auth.run_auth_server') as mock_run_auth:
-
-            mock_get_cred.return_value = "test_app_id"
+        with patch('sprig.auth.run_auth_server') as mock_run_auth:
             mock_run_auth.return_value = None  # No accounts added
 
-            result = authenticate("development", 8001)
+            result = authenticate("test_app_id", "development", 8001)
 
             assert result is False
             mock_run_auth.assert_called_once()

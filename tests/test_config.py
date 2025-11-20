@@ -4,11 +4,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from sprig.models import RuntimeConfig
+from sprig.models import Config
 from sprig import credential_manager
 
 
-@patch('sprig.models.runtime_config.credential_manager.get_credential')
+@patch('sprig.models.config.credential_manager.get_credential')
 def test_config_load(mock_get_credential):
     """Test that Config.load() works correctly with mocked credentials."""
     # Mock credential responses
@@ -37,7 +37,7 @@ def test_config_load(mock_get_credential):
 
     mock_get_credential.side_effect = mock_get
 
-    config = RuntimeConfig.load()
+    config = Config.load()
 
     assert config.app_id == "app_test12345678901234567"
     assert len(config.access_tokens) > 0

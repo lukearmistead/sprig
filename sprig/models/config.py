@@ -1,4 +1,4 @@
-"""Runtime configuration loading for Sprig."""
+"""Configuration loading for Sprig."""
 
 from pathlib import Path
 from typing import List
@@ -13,8 +13,8 @@ class TellerAccessToken(BaseModel):
     token: str = Field(..., pattern=r'^token_[a-z0-9]{26}$', description="Teller access tokens start with 'token_' followed by exactly 26 lowercase alphanumeric characters")
 
 
-class RuntimeConfig(BaseModel):
-    """Runtime configuration for Sprig (API keys, paths, certificates)."""
+class Config(BaseModel):
+    """Configuration for Sprig (API keys, paths, certificates)."""
 
     app_id: str = Field(..., pattern=r'^app_[a-z0-9]{21}$', description="Teller APP_ID should start with 'app_' followed by exactly 21 lowercase alphanumeric characters")
     access_tokens: List[TellerAccessToken] = Field(..., min_length=1)

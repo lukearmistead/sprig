@@ -6,7 +6,7 @@ import requests
 
 from sprig.categorizer import TransactionCategorizer
 from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
+from sprig.models import Config, TellerAccount, TellerTransaction
 from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
 
@@ -15,7 +15,7 @@ BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
 
 
 def sync_all_accounts(
-    config: RuntimeConfig,
+    config: Config,
     recategorize: bool = False,
     from_date: Optional[date] = None,
     batch_size: int = 10
@@ -141,7 +141,7 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10):
+def categorize_uncategorized_transactions(runtime_config: Config, db: SprigDatabase, batch_size: int = 10):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
     categorizer = TransactionCategorizer(runtime_config)

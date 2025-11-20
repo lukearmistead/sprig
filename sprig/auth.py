@@ -12,7 +12,7 @@ from flask import Flask, request, render_template, jsonify
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
-from sprig.models.runtime_config import TellerAccessToken
+from sprig.models.config import TellerAccessToken
 from sprig import credential_manager
 
 logger = get_logger("sprig.auth")
@@ -88,55 +88,8 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
     return None
 
 
-def prompt_for_credentials() -> bool:
-    """Prompt user to set up credentials if not configured."""
-    import getpass
-
-    logger.info("First-time setup: Please enter your credentials")
-    logger.info("=" * 50)
-
-    app_id = input("Teller APP_ID (app_xxx): ").strip()
-    if not app_id:
-        logger.error("APP_ID is required")
-        return False
-
-    claude_key = getpass.getpass("Claude API Key (sk-ant-api03-xxx): ").strip()
-    if not claude_key:
-        logger.error("Claude API Key is required")
-        return False
-
-    cert_path = input("Certificate path (e.g., certs/certificate.pem): ").strip() or "certs/certificate.pem"
-    key_path = input("Private key path (e.g., certs/private_key.pem): ").strip() or "certs/private_key.pem"
-
-    # Store credentials
-    if not credential_manager.set_credential(credential_manager.KEY_APP_ID, app_id):
-        logger.error("Failed to store APP_ID")
-        return False
-
-    if not credential_manager.set_credential(credential_manager.KEY_CLAUDE_API_KEY, claude_key):
-        logger.error("Failed to store Claude API Key")
-        return False
-
-    credential_manager.set_credential(credential_manager.KEY_CERT_PATH, cert_path)
-    credential_manager.set_credential(credential_manager.KEY_KEY_PATH, key_path)
-    credential_manager.set_credential(credential_manager.KEY_ENVIRONMENT, "development")
-    credential_manager.set_credential(credential_manager.KEY_DATABASE_PATH, "sprig.db")
-
-    logger.info("Credentials saved to keyring")
-    return True
-
-
-def authenticate(environment: str = "development", port: int = 8001) -> bool:
-    """Authenticate with Teller. Prompts for credentials on first run."""
-
-    app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID)
-
-    # First-time setup
-    if not app_id:
-        if not prompt_for_credentials():
-            return False
-        app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID)
-
+def authenticate(app_id: str, environment: str = "development", port: int = 8001) -> bool:
+    """Run Teller OAuth flow. Returns True if successful."""
     logger.info(f"Starting Teller authentication (app: {app_id}, environment: {environment})")
     logger.debug(f"Authentication server will run on port {port}")
     result = run_auth_server(app_id, environment, port)

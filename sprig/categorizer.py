@@ -6,7 +6,7 @@ from typing import List
 import anthropic
 
 from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
+from sprig.models import Config, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
 from sprig.models.category_config import CategoryConfig
 
 logger = get_logger("sprig.categorizer")
@@ -119,7 +119,7 @@ def build_categorization_prompt(
 class TransactionCategorizer:
     """Claude-based transaction categorization."""
 
-    def __init__(self, runtime_config: RuntimeConfig):
+    def __init__(self, runtime_config: Config):
         self.runtime_config = runtime_config
         self.category_config = CategoryConfig.load()
         self.client = anthropic.Anthropic(api_key=runtime_config.claude_api_key)
