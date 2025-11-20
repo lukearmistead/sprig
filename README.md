@@ -5,12 +5,12 @@
 
 You can use Sprig to download a CSV like this:
 
-| id | date | description | amount | inferred_category | counterparty | account_name | account_subtype | account_last_four |
-|----|------|-------------|--------|-------------------|--------------|--------------|-----------------|-------------------|
-| tx_abc123 | 2025-11-15 | WHOLE FOODS | -87.32 | groceries | Whole Foods Market | Checking | checking | 1234 |
-| tx_abc124 | 2025-11-14 | UBER EATS | -24.50 | dining | Uber Eats | Checking | checking | 1234 |
-| tx_abc125 | 2025-11-13 | SHELL GAS | -45.00 | transport | Shell | Credit Card | credit_card | 5678 |
-| tx_abc126 | 2025-11-12 | Paycheck Deposit | +2500.00 | income | Acme Corp | Checking | checking | 1234 |
+| id | date | description | amount | inferred_category | confidence | counterparty | account_name | account_subtype | account_last_four |
+|----|------|-------------|--------|-------------------|------------|--------------|--------------|-----------------|-------------------|
+| tx_abc123 | 2025-11-15 | WHOLE FOODS | -87.32 | groceries | 0.95 | Whole Foods Market | Checking | checking | 1234 |
+| tx_abc124 | 2025-11-14 | UBER EATS | -24.50 | dining | 0.92 | Uber Eats | Checking | checking | 1234 |
+| tx_abc125 | 2025-11-13 | SHELL GAS | -45.00 | transport | 0.88 | Shell | Credit Card | credit_card | 5678 |
+| tx_abc126 | 2025-11-12 | Paycheck Deposit | +2500.00 | income | 0.98 | Acme Corp | Checking | checking | 1234 |
 
 ---
 
@@ -304,7 +304,7 @@ categories:
 
 ### Your CSV Output
 
-Every export includes these 9 columns:
+Every export includes these 10 columns:
 
 | Column | What It Means |
 |--------|---------------|
@@ -313,10 +313,13 @@ Every export includes these 9 columns:
 | `description` | Merchant name as shown by your bank (e.g., "WHOLE FOODS") |
 | `amount` | Dollar amount (negative = spent, positive = received) |
 | `inferred_category` | AI-assigned category (groceries, dining, transport, etc.) |
+| `confidence` | AI confidence score from 0 to 1 (e.g., 0.95 = very confident, 0.45 = uncertain) |
 | `counterparty` | Clean merchant name extracted from transaction details |
 | `account_name` | Friendly account name (e.g., "Checking", "Credit Card") |
 | `account_subtype` | Account type (checking, credit_card, savings, etc.) |
 | `account_last_four` | Last 4 digits of account number for identification |
+
+**Tip:** Sort by confidence in your spreadsheet to review transactions where the AI was less certain about the category.
 
 Set `LOG_LEVEL=DEBUG` in `.env` for detailed operation logs.
 

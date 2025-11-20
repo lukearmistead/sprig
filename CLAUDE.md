@@ -129,7 +129,12 @@ def fetch_with_retry(self, endpoint: str, max_retries: int = 3):
 
 # Claude API pattern (batch processing with rate limit handling)
 def categorize_transactions(self, transactions: List[TellerTransaction]) -> Dict:
-    """Categorize in configurable batches with rate limit handling."""
+    """Categorize in configurable batches with rate limit handling.
+
+    Returns:
+        dict: Maps transaction_id to (category, confidence) tuple
+              e.g., {"txn_123": ("dining", 0.95), "txn_124": ("groceries", 0.88)}
+    """
     batch_size = self.config.get('batch_size', 10)  # Reduced default
     results = {}
 
@@ -140,7 +145,7 @@ def categorize_transactions(self, transactions: List[TellerTransaction]) -> Dict
             results.update(response)
         except Exception as e:
             error_str = str(e)
-            
+
             # Handle rate limits with longer delays
             if "rate_limit_error" in error_str or "rate limit" in error_str.lower():
                 logger.warning(f"⏳ Hit API rate limit - waiting 60 seconds...")
@@ -153,10 +158,10 @@ def categorize_transactions(self, transactions: List[TellerTransaction]) -> Dict
                     # Give up on this batch to preserve progress
                     logger.error(f"Rate limit persists, skipping batch {i}")
             else:
-                # Non-rate-limit errors: mark as 'general'
+                # Non-rate-limit errors: mark as ('general', low confidence)
                 logger.warning(f"Batch {i} failed: {e}")
                 for txn in batch:
-                    results[txn.id] = 'general'
+                    results[txn.id] = ('general', 0.5)
 
     return results
 ```
@@ -279,9 +284,10 @@ def sample_transaction_view():
     return TransactionView(
         id="tx_test456",
         date="2024-01-15",
-        description="COFFEE SHOP SF", 
+        description="COFFEE SHOP SF",
         amount=-25.50,
         inferred_category=None,
+        confidence=None,  # Set after categorization
         counterparty="Corner Coffee",
         account_name="Checking",
         account_subtype="checking",
@@ -324,8 +330,10 @@ def sample_uncategorized_db_row():
    - Current: 14 categories in `config.yml`
    - Recent: Added account context (name, subtype, last4) to categorization
    - Recent: Enhanced TransactionView model with all relevant fields
+   - Recent: Added confidence scoring (0-1) to identify uncertain categorizations
 
 ### Recent Improvements ✨
+- **Confidence Scoring**: AI provides 0-1 confidence score for each categorization; sort by confidence in CSV to review uncertain transactions
 - **Category Overrides**: Override miscategorized transactions in `config.yml` for persistence across syncs
 - **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
 - **Configurable Batch Sizes**: `--batch-size` parameter for API cost management
