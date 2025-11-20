@@ -8,7 +8,7 @@ import anthropic
 from sprig.logger import get_logger
 from sprig.models import TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
 from sprig.models.category_config import CategoryConfig
-from sprig import credentials
+from sprig.credentials import credentials
 
 logger = get_logger("sprig.categorizer")
 

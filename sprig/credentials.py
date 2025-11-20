@@ -114,18 +114,5 @@ class Credentials:
         return Environment(value=raw if raw else "development")
 
 
-# Module-level singleton
-_instance = Credentials()
-
-# Expose instance methods at module level
-get = _instance.get
-set = _instance.set
-append_token = _instance.append_token
-mask = _instance.mask
-get_app_id = _instance.get_app_id
-get_claude_api_key = _instance.get_claude_api_key
-get_access_tokens = _instance.get_access_tokens
-get_cert_path = _instance.get_cert_path
-get_key_path = _instance.get_key_path
-get_database_path = _instance.get_database_path
-get_environment = _instance.get_environment
+# Shared instance - import and use this
+credentials = Credentials()

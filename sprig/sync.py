@@ -9,7 +9,7 @@ from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
-from sprig import credentials
+from sprig.credentials import credentials
 
 logger = get_logger("sprig.sync")
 BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
