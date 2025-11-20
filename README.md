@@ -312,14 +312,14 @@ Every export includes these 10 columns:
 | `date` | When the transaction occurred (YYYY-MM-DD) |
 | `description` | Merchant name as shown by your bank (e.g., "WHOLE FOODS") |
 | `amount` | Dollar amount (negative = spent, positive = received) |
-| `inferred_category` | AI-assigned category (groceries, dining, transport, etc.) |
-| `confidence` | AI confidence score from 0 to 1 (e.g., 0.95 = very confident, 0.45 = uncertain) |
+| `inferred_category` | LLM-assigned category (groceries, dining, transport, etc.) |
+| `confidence` | LLM confidence score for the inferred_category from 0 to 1 (e.g., 0.95 = very confident, 0.45 = uncertain) |
 | `counterparty` | Clean merchant name extracted from transaction details |
 | `account_name` | Friendly account name (e.g., "Checking", "Credit Card") |
 | `account_subtype` | Account type (checking, credit_card, savings, etc.) |
 | `account_last_four` | Last 4 digits of account number for identification |
 
-**Tip:** Sort by confidence in your spreadsheet to review transactions where the AI was less certain about the category.
+**Tip:** Sort by confidence in your spreadsheet to review transactions where the LLM was less certain about the categorization.
 
 Set `LOG_LEVEL=DEBUG` in `.env` for detailed operation logs.
 
