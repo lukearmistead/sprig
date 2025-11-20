@@ -9,32 +9,18 @@ from pathlib import Path
 from typing import Optional
 
 from flask import Flask, request, render_template, jsonify
-from dotenv import set_key
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
 from sprig.models.runtime_config import TellerAccessToken
+from sprig import credential_manager
 
 logger = get_logger("sprig.auth")
 
 
-def append_token_to_env(new_token: str) -> bool:
-    """Add new access token to .env file."""
-    env_path = Path(__file__).parent.parent / ".env"
-    
-    if not env_path.exists():
-        return False
-    
-    existing_tokens = os.getenv("ACCESS_TOKENS", "")
-    current_tokens = [token.strip() for token in existing_tokens.split(",") if token.strip()]
-    
-    if new_token not in current_tokens:
-        current_tokens.append(new_token)
-    
-    updated_token_string = ",".join(current_tokens)
-    set_key(env_path, "ACCESS_TOKENS", updated_token_string)
-    
-    return True
+def append_token_to_credentials(new_token: str) -> bool:
+    """Add new access token to keyring."""
+    return credential_manager.append_access_token(new_token)
 
 
 def run_auth_server(app_id: str, environment: str = "development", port: int = 8001) -> Optional[str]:
@@ -62,7 +48,7 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
         except ValidationError:
             return jsonify({"success": False, "error": "Invalid token format"}), 400
 
-        if append_token_to_env(token):
+        if append_token_to_credentials(token):
             accounts_added += 1
             return jsonify({
                 "success": True,
@@ -105,10 +91,10 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
 def authenticate(environment: str = "development", port: int = 8001) -> bool:
     """Main authentication function that supports adding multiple accounts via browser UI."""
 
-    app_id = os.getenv("APP_ID")
+    app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID, fallback_to_env=True)
     if not app_id:
-        logger.error("Error: APP_ID not found in .env file")
-        logger.error("Please add your Teller APP_ID to the .env file")
+        logger.error("Error: APP_ID not found in keyring or .env file")
+        logger.error("Please set your Teller APP_ID using: sprig credentials set")
         return False
 
     logger.info(f"Starting Teller authentication (app: {app_id}, environment: {environment})")

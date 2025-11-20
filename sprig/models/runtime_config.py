@@ -7,6 +7,8 @@ from typing import List
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
+from sprig import credential_manager
+
 
 class TellerAccessToken(BaseModel):
     """Validated Teller access token."""
@@ -33,16 +35,37 @@ class RuntimeConfig(BaseModel):
 
     @classmethod
     def load(cls):
-        """Load configuration from .env file."""
+        """
+        Load configuration from keyring or .env file.
+
+        Credentials are loaded from the system keyring first, with fallback
+        to .env file for backward compatibility.
+        """
         project_root = Path(__file__).parent.parent.parent
+
+        # Load .env file as fallback (credential_manager will use it if keyring is empty)
         load_dotenv(project_root / ".env")
 
+        # Get credentials from keyring (with .env fallback)
+        app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID, fallback_to_env=True)
+        access_tokens_str = credential_manager.get_credential(credential_manager.KEY_ACCESS_TOKENS, fallback_to_env=True)
+        claude_api_key = credential_manager.get_credential(credential_manager.KEY_CLAUDE_API_KEY, fallback_to_env=True)
+        environment = credential_manager.get_credential(credential_manager.KEY_ENVIRONMENT, fallback_to_env=True) or "development"
+        cert_path_str = credential_manager.get_credential(credential_manager.KEY_CERT_PATH, fallback_to_env=True)
+        key_path_str = credential_manager.get_credential(credential_manager.KEY_KEY_PATH, fallback_to_env=True)
+        database_path_str = credential_manager.get_credential(credential_manager.KEY_DATABASE_PATH, fallback_to_env=True) or "sprig.db"
+
+        # Parse access tokens
+        access_tokens = []
+        if access_tokens_str:
+            access_tokens = [TellerAccessToken(token=token) for token in access_tokens_str.split(",") if token]
+
         return cls(
-            app_id=os.getenv("APP_ID"),
-            access_tokens=[TellerAccessToken(token=token) for token in os.getenv("ACCESS_TOKENS").split(",") if token],
-            claude_api_key=os.getenv("CLAUDE_API_KEY"),
-            environment=os.getenv("ENVIRONMENT", "development"),
-            cert_path=project_root / os.getenv("CERT_PATH"),
-            key_path=project_root / os.getenv("KEY_PATH"),
-            database_path=project_root / os.getenv("DATABASE_PATH", "sprig.db"),
+            app_id=app_id,
+            access_tokens=access_tokens,
+            claude_api_key=claude_api_key,
+            environment=environment,
+            cert_path=project_root / cert_path_str,
+            key_path=project_root / key_path_str,
+            database_path=project_root / database_path_str,
         )

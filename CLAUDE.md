@@ -25,7 +25,8 @@ This file guides Claude when working on Sprig - "Actually-personal personal fina
 
 | Feature | Primary Module | Secondary | Test File | When to Extend Here |
 |---------|---------------|-----------|-----------|---------------------|
-| Bank OAuth | `auth.py` | - | `test_auth.py` | Teller Connect, token management |
+| Credentials | `credential_manager.py` | - | `test_credential_manager.py` | Keyring storage, migration, credential access |
+| Bank OAuth | `auth.py` | `credential_manager.py` | `test_auth.py` | Teller Connect, token management |
 | API calls | `teller_client.py` | - | `test_teller_client.py` | mTLS, HTTP requests, retries |
 | Data storage | `database.py` | - | `test_database.py` | Schema, CRUD, SQL queries |
 | Sync logic | `sync.py` | `database.py` | `test_sync.py` | Orchestration, duplicate detection |
@@ -307,6 +308,7 @@ def sample_uncategorized_db_row():
 ## Current Implementation Status
 
 ### Working Features ✅
+- Secure credential storage via system keyring (with .env fallback)
 - Teller OAuth flow via browser
 - mTLS authentication with certificates
 - Transaction sync with duplicate prevention
@@ -326,8 +328,9 @@ def sample_uncategorized_db_row():
    - Recent: Enhanced TransactionView model with all relevant fields
 
 ### Recent Improvements ✨
+- **Keyring Credential Storage**: Secure OS-level credential management replacing plain-text .env files (with backward compatibility)
 - **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
-- **Configurable Batch Sizes**: `--batch-size` parameter for API cost management  
+- **Configurable Batch Sizes**: `--batch-size` parameter for API cost management
 - **Enhanced Context**: Account details (name, subtype, last4) included in categorization
 - **Better Logging**: Clear rate limit messages and user guidance
 - **Progress Preservation**: Sync succeeds even if categorization hits limits
@@ -382,21 +385,60 @@ def _validate_category(self, category: str) -> str:
 
 ## Configuration & Secrets
 
-### Required `.env` Structure
+### Credential Storage (Keyring Recommended)
+
+Sprig stores credentials in the system keyring for enhanced security. The keyring uses your operating system's secure credential storage:
+- **macOS**: Keychain
+- **Linux**: Secret Service (e.g., GNOME Keyring, KWallet)
+- **Windows**: Credential Locker
+
+#### Managing Credentials
+
+```bash
+# Set credentials interactively (recommended)
+python sprig.py credentials set
+
+# Migrate from .env to keyring
+python sprig.py credentials migrate
+
+# Show current credentials (masked)
+python sprig.py credentials show
+
+# Clear all credentials from keyring
+python sprig.py credentials clear
+```
+
+#### Backward Compatibility with `.env`
+
+Sprig automatically falls back to `.env` if credentials are not in keyring. This maintains compatibility with existing setups.
+
+**Legacy `.env` Structure** (still supported):
 ```bash
 # Teller Configuration
 APP_ID=app_xxx
-ACCESS_TOKENS=test_tok_xxx,test_tok_yyy  # Comma-separated
+ACCESS_TOKENS=token_xxx,token_yyy  # Comma-separated
 CERT_PATH=certs/certificate.pem
 KEY_PATH=certs/private_key.pem
 
 # Claude Configuration
-ANTHROPIC_API_KEY=sk-ant-xxx
+CLAUDE_API_KEY=sk-ant-api03-xxx
 
 # Optional
 DATABASE_PATH=sprig.db  # Defaults to ./sprig.db
-EXPORT_DIR=exports      # Defaults to ./exports
+ENVIRONMENT=development  # development or production
 ```
+
+**Migration Path**:
+1. Keep existing `.env` file as backup
+2. Run `python sprig.py credentials migrate` to copy credentials to keyring
+3. Verify with `python sprig.py credentials show`
+4. Optionally backup and remove `.env`: `mv .env .env.backup`
+
+**Security Notes**:
+- Keyring credentials are encrypted by your OS
+- New access tokens from `sprig auth` are automatically stored in keyring
+- `.env` is only used as fallback if keyring is empty
+- Never commit `.env` to version control (already in .gitignore)
 
 ### Category Configuration (`config.yml`)
 ```yaml
@@ -476,6 +518,12 @@ python -m pytest tests/ -v           # Run all tests verbose
 python -m pytest tests/ -k "category" # Run tests matching "category"
 python -m pytest --cov=sprig         # Coverage report
 ruff check .                          # Linting and code formatting
+
+# Credential Management
+python sprig.py credentials set      # Set credentials interactively
+python sprig.py credentials migrate  # Migrate from .env to keyring
+python sprig.py credentials show     # Show current credentials (masked)
+python sprig.py credentials clear    # Clear keyring credentials
 
 # Usage
 python sprig.py auth                 # Authenticate banks
