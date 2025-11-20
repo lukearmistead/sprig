@@ -1,7 +1,7 @@
-"""Transaction categorization using Claude."""
+"""Transaction categorization using Claude and manual overrides."""
 
 import time
-from typing import List
+from typing import Dict, List
 
 import anthropic
 
@@ -114,6 +114,37 @@ def build_categorization_prompt(
         categories=", ".join(categories_with_descriptions),
         transactions=transactions_json
     )
+
+
+class ManualCategorizer:
+    """Applies manual category overrides from config."""
+
+    def __init__(self, category_config: CategoryConfig):
+        """Initialize with category configuration.
+
+        Args:
+            category_config: CategoryConfig containing category_overrides
+        """
+        self.category_config = category_config
+        self.override_map = {
+            override.transaction_id: override.category
+            for override in category_config.category_overrides
+        }
+
+    def get_overrides(self, transaction_ids: List[str]) -> Dict[str, str]:
+        """Get category overrides for given transaction IDs.
+
+        Args:
+            transaction_ids: List of transaction IDs to check for overrides
+
+        Returns:
+            Dict mapping transaction_id to category for transactions that have overrides
+        """
+        return {
+            txn_id: self.override_map[txn_id]
+            for txn_id in transaction_ids
+            if txn_id in self.override_map
+        }
 
 
 class TransactionCategorizer:

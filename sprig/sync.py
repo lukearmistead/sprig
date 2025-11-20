@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import TransactionCategorizer
+from sprig.categorizer import ManualCategorizer, TransactionCategorizer
 from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
 from sprig.models.category_config import CategoryConfig
@@ -142,35 +142,6 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def apply_category_overrides(db: SprigDatabase, uncategorized_rows: list, category_config: CategoryConfig) -> int:
-    """Apply category overrides from config to uncategorized transactions.
-
-    Returns:
-        Number of overrides applied
-    """
-    override_map = {override.transaction_id: override.category
-                   for override in category_config.category_overrides}
-
-    if not override_map:
-        return 0
-
-    logger.info(f"Applying {len(override_map)} category override(s) from config.yml")
-
-    applied_count = 0
-    for row in uncategorized_rows:
-        txn_id = row[0]
-        if txn_id in override_map:
-            category = override_map[txn_id]
-            db.update_transaction_category(txn_id, category)
-            applied_count += 1
-            logger.debug(f"   Applied override: {txn_id} → {category}")
-
-    if applied_count > 0:
-        logger.info(f"   Applied {applied_count} override(s)")
-
-    return applied_count
-
-
 def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10, category_config: CategoryConfig = None):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
@@ -183,9 +154,17 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
 
     # Apply category overrides from config
-    override_count = apply_category_overrides(db, uncategorized, category_config)
+    manual_categorizer = ManualCategorizer(category_config)
+    transaction_ids = [row[0] for row in uncategorized]
+    overrides = manual_categorizer.get_overrides(transaction_ids)
 
-    if override_count > 0:
+    if overrides:
+        logger.info(f"Applying {len(overrides)} category override(s) from config.yml")
+        for txn_id, category in overrides.items():
+            db.update_transaction_category(txn_id, category)
+            logger.debug(f"   Applied override: {txn_id} → {category}")
+        logger.info(f"   Applied {len(overrides)} override(s)")
+
         # Refresh uncategorized list after applying overrides
         uncategorized = db.get_uncategorized_transactions()
 
@@ -209,7 +188,7 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         }
 
     if not transactions:
-        if override_count > 0:
+        if overrides:
             logger.info("All remaining transactions have category overrides - no Claude categorization needed!")
         else:
             logger.info("No uncategorized transactions found - all transactions already have categories!")
