@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import yaml
 
 from sprig.database import SprigDatabase
-from sprig.models import RuntimeConfig, TellerTransaction
+from sprig.models import RuntimeConfig
 from sprig.models.category_config import CategoryConfig
 from sprig.sync import categorize_uncategorized_transactions
 
