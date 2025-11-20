@@ -3,7 +3,7 @@
 from datetime import date
 from unittest.mock import Mock, patch, call
 
-from sprig.categorizer import TransactionCategorizer
+from sprig.categorizer import ClaudeCategorizer
 from sprig.models import RuntimeConfig, TellerTransaction
 
 
@@ -46,7 +46,7 @@ class TestErrorHandling:
         # Simulate API error
         mock_client.messages.create.side_effect = Exception("API rate limit exceeded")
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -76,7 +76,7 @@ class TestErrorHandling:
         }
         mock_client.messages.create.return_value = mock_api_response
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -134,7 +134,7 @@ class TestRetryLogic:
             mock_api_response
         ]
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -163,7 +163,7 @@ class TestRetryLogic:
         # Always fail
         mock_client.messages.create.side_effect = Exception("Persistent error")
         
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
         
@@ -182,7 +182,7 @@ class TestRetryLogic:
 class TestProgressTracking:
     """Test that progress is reported during categorization."""
     
-    @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
+    @patch('sprig.categorizer.ClaudeCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
     @patch('sprig.sync.logger')
     def test_batch_progress_is_shown(self, mock_logger, mock_db, mock_categorize_batch):
@@ -215,7 +215,7 @@ class TestProgressTracking:
         )
         assert progress_logged, "Should show batch progress"
     
-    @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
+    @patch('sprig.categorizer.ClaudeCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
     @patch('sprig.sync.logger')
     def test_summary_shows_results(self, mock_logger, mock_db, mock_categorize_batch):

@@ -1,7 +1,7 @@
-"""Transaction categorization using Claude."""
+"""Transaction categorization using Claude and manual overrides."""
 
 import time
-from typing import List
+from typing import Dict, List
 
 import anthropic
 
@@ -116,7 +116,39 @@ def build_categorization_prompt(
     )
 
 
-class TransactionCategorizer:
+class ManualCategorizer:
+    """Applies manual categorization from config."""
+
+    def __init__(self, category_config: CategoryConfig):
+        """Initialize with category configuration.
+
+        Args:
+            category_config: CategoryConfig containing manual_categories
+        """
+        self.category_config = category_config
+        self.manual_map = {
+            manual_cat.transaction_id: manual_cat.category
+            for manual_cat in category_config.manual_categories
+        }
+
+    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> Dict[str, str]:
+        """Categorize transactions using manual categories from config.
+
+        Args:
+            transactions: List of transactions to categorize
+            account_info: Unused, for interface compatibility with ClaudeCategorizer
+
+        Returns:
+            Dict mapping transaction_id to category for manually categorized transactions
+        """
+        return {
+            txn.id: self.manual_map[txn.id]
+            for txn in transactions
+            if txn.id in self.manual_map
+        }
+
+
+class ClaudeCategorizer:
     """Claude-based transaction categorization."""
 
     def __init__(self, runtime_config: RuntimeConfig):

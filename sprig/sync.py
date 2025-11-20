@@ -4,9 +4,10 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import TransactionCategorizer
+from sprig.categorizer import ClaudeCategorizer, ManualCategorizer
 from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
+from sprig.models.category_config import CategoryConfig
 from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
 
@@ -141,14 +142,22 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10):
+def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10, category_config: CategoryConfig = None):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
-    categorizer = TransactionCategorizer(runtime_config)
+
+    # Load category config
+    if category_config is None:
+        category_config = CategoryConfig.load()
+
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
-    
-    # Convert to TellerTransaction objects with account info
+
+    if not uncategorized:
+        logger.info("No uncategorized transactions found - all transactions already have categories!")
+        return
+
+    # Convert all uncategorized to TellerTransaction objects with account info
     transactions = []
     account_info = {}
     for row in uncategorized:
@@ -166,10 +175,26 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
             "counterparty": row[8],  # counterparty from JSON extraction
             "last_four": row[9]  # account last four digits
         }
-    
+
+    # Apply manual categorization from config
+    manual_categorizer = ManualCategorizer(category_config)
+    manual_categories = manual_categorizer.categorize_batch(transactions, account_info)
+
+    if manual_categories:
+        logger.info(f"Applying {len(manual_categories)} manual categorization(s) from config.yml")
+        for txn_id, category in manual_categories.items():
+            db.update_transaction_category(txn_id, category)
+            logger.debug(f"   Applied manual category: {txn_id} → {category}")
+        logger.info(f"   Applied {len(manual_categories)} manual categorization(s)")
+
+        # Filter out manually categorized transactions
+        transactions = [txn for txn in transactions if txn.id not in manual_categories]
+
     if not transactions:
-        logger.info("No uncategorized transactions found - all transactions already have categories!")
+        logger.info("All transactions have manual categories - no Claude categorization needed!")
         return
+
+    categorizer = ClaudeCategorizer(runtime_config)
 
     total_transactions = len(transactions)
     logger.debug(f"Converted to {total_transactions} TellerTransaction objects")

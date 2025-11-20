@@ -326,16 +326,15 @@ def sample_uncategorized_db_row():
    - Recent: Enhanced TransactionView model with all relevant fields
 
 ### Recent Improvements ✨
+- **Category Overrides**: Override miscategorized transactions in `config.yml` for persistence across syncs
 - **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
-- **Configurable Batch Sizes**: `--batch-size` parameter for API cost management  
+- **Configurable Batch Sizes**: `--batch-size` parameter for API cost management
 - **Enhanced Context**: Account details (name, subtype, last4) included in categorization
 - **Better Logging**: Clear rate limit messages and user guidance
 - **Progress Preservation**: Sync succeeds even if categorization hits limits
 
 ### Not Implemented Yet ❌
 - `--full` flag for complete resync
-- Transaction search/filtering
-- Category override/training
 - Account fingerprinting for duplicate prevention
 
 ## Clean Code Principles Applied
@@ -485,6 +484,12 @@ python sprig.py sync --batch-size 5  # Gentler API usage (default: 10)
 python sprig.py sync --recategorize  # Clear and recategorize all
 python sprig.py export               # Export to CSV with account context
 python sprig.py sync && python sprig.py export  # Full workflow
+
+# Category overrides (edit config.yml):
+# category_overrides:
+#   - transaction_id: txn_abc123
+#     category: dining
+# Then run: python sprig.py sync
 
 # Rate limit management strategies
 python sprig.py sync --days 1 --batch-size 5   # Very conservative

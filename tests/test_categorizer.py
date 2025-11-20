@@ -4,7 +4,7 @@ from datetime import date
 from unittest.mock import Mock, patch
 
 from sprig.categorizer import (
-    TransactionCategorizer,
+    ClaudeCategorizer,
     build_categorization_prompt
 )
 from sprig.models import RuntimeConfig, TellerTransaction, TransactionCategory
@@ -43,17 +43,17 @@ class TestBuildCategorizationPrompt:
         assert "Restaurant" in prompt
 
 
-class TestTransactionCategorizerParsing:
-    """Test parsing functionality of TransactionCategorizer."""
-    
+class TestClaudeCategorizerParsing:
+    """Test parsing functionality of ClaudeCategorizer."""
+
     def setup_method(self):
         """Set up test categorizer instance."""
         # Mock runtime config
         self.runtime_config = Mock(spec=RuntimeConfig)
         self.runtime_config.claude_api_key = "test_key"
-        
+
         # Create categorizer instance
-        self.categorizer = TransactionCategorizer(self.runtime_config)
+        self.categorizer = ClaudeCategorizer(self.runtime_config)
     
     def test_validate_categories_valid_response(self):
         """Test validating valid response from Claude."""
@@ -186,7 +186,7 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with account info
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {
             "txn_ABC123": {"name": "Checking", "subtype": "checking"},
             "txn_DEF456": {"name": "Checking", "subtype": "checking"},
@@ -245,7 +245,7 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with empty account info
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {}
         result = categorizer.categorize_batch(transactions, account_info)
         
@@ -264,7 +264,7 @@ class TestEdgeCases:
         """Set up test categorizer instance."""
         self.runtime_config = Mock(spec=RuntimeConfig)
         self.runtime_config.claude_api_key = "test_key"
-        self.categorizer = TransactionCategorizer(self.runtime_config)
+        self.categorizer = ClaudeCategorizer(self.runtime_config)
     
     def test_response_with_numeric_transaction_ids(self):
         """Test transaction IDs that are numeric strings."""
