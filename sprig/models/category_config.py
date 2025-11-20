@@ -13,8 +13,8 @@ class Category(BaseModel):
     description: str
 
 
-class ManualOverride(BaseModel):
-    """Manual category override for a specific transaction."""
+class CategoryOverride(BaseModel):
+    """Category override for a specific transaction."""
     transaction_id: str
     category: str
 
@@ -22,9 +22,9 @@ class ManualOverride(BaseModel):
 class CategoryConfig(BaseModel):
     """Transaction category configuration from config.yml."""
     categories: List[Category]
-    manual_overrides: List[ManualOverride] = []
+    category_overrides: List[CategoryOverride] = []
 
-    @field_validator('manual_overrides')
+    @field_validator('category_overrides')
     @classmethod
     def validate_override_categories(cls, overrides, info):
         """Validate that override categories match valid category names."""
@@ -39,7 +39,7 @@ class CategoryConfig(BaseModel):
         for override in overrides:
             if override.category not in valid_categories:
                 raise ValueError(
-                    f"Invalid category '{override.category}' in manual override for "
+                    f"Invalid category '{override.category}' in category override for "
                     f"transaction '{override.transaction_id}'. Valid categories: {', '.join(sorted(valid_categories))}"
                 )
 

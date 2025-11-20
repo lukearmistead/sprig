@@ -326,10 +326,7 @@ def sample_uncategorized_db_row():
    - Recent: Enhanced TransactionView model with all relevant fields
 
 ### Recent Improvements ✨
-- **Manual Category Overrides**: Two ways to correct miscategorized transactions:
-  - CLI command: `sprig override <transaction_id> <category>` for one-off fixes
-  - Config-based: Add to `config.yml` for persistent overrides across syncs
-- **Transaction Browsing**: `sprig list` command to view and filter transactions
+- **Category Overrides**: Override miscategorized transactions in `config.yml` for persistence across syncs
 - **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
 - **Configurable Batch Sizes**: `--batch-size` parameter for API cost management
 - **Enhanced Context**: Account details (name, subtype, last4) included in categorization
@@ -488,15 +485,8 @@ python sprig.py sync --recategorize  # Clear and recategorize all
 python sprig.py export               # Export to CSV with account context
 python sprig.py sync && python sprig.py export  # Full workflow
 
-# Transaction browsing and manual category overrides
-python sprig.py list                 # Show recent 20 transactions
-python sprig.py list --limit 50      # Show more transactions
-python sprig.py list --category dining # Filter by category
-python sprig.py list --uncategorized # Show only uncategorized
-python sprig.py override txn_abc123 dining  # Override single transaction
-
-# Config-based manual overrides (edit config.yml):
-# manual_overrides:
+# Category overrides (edit config.yml):
+# category_overrides:
 #   - transaction_id: txn_abc123
 #     category: dining
 # Then run: python sprig.py sync

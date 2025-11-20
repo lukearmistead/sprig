@@ -2,18 +2,18 @@
 # This file defines the categories used for transaction classification.
 # Categories are based on Teller's official category list with enhanced descriptions.
 
-# MANUAL CATEGORY OVERRIDES
-# You can manually override the AI-inferred category for specific transactions.
+# CATEGORY OVERRIDES
+# You can override the AI-inferred category for specific transactions.
 # After exporting to CSV and finding miscategorized transactions, add them here:
 #
-# manual_overrides:
+# category_overrides:
 #   - transaction_id: txn_abc123xyz
 #     category: dining
 #   - transaction_id: txn_def456uvw
 #     category: groceries
 #
 # On next sync, these overrides will be applied instead of calling Claude AI.
-# The manual_overrides section is optional - remove or leave empty if not needed.
+# The category_overrides section is optional - leave empty if not needed.
 
 categories:
   - name: dining
