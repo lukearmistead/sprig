@@ -32,15 +32,15 @@ categories:
   - name: undefined
     description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
 
-# CATEGORY OVERRIDES
+# MANUAL CATEGORIES
 # You can override the AI-inferred category for specific transactions.
 # After exporting to CSV and finding miscategorized transactions, add them here:
 #
-# category_overrides:
+# manual_categories:
 #   - transaction_id: txn_abc123xyz
 #     category: dining
 #   - transaction_id: txn_def456uvw
 #     category: groceries
 #
-# On next sync, these overrides will be applied instead of calling Claude AI.
-# The category_overrides section is optional - leave empty if not needed.
+# On next sync, these manual categories will be applied instead of calling Claude AI.
+# The manual_categories section is optional - leave empty if not needed.

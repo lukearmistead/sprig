@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import ManualCategorizer, TransactionCategorizer
+from sprig.categorizer import ClaudeCategorizer, ManualCategorizer
 from sprig.logger import get_logger
 from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
 from sprig.models.category_config import CategoryConfig
@@ -194,7 +194,7 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
             logger.info("No uncategorized transactions found - all transactions already have categories!")
         return
 
-    categorizer = TransactionCategorizer(runtime_config)
+    categorizer = ClaudeCategorizer(runtime_config)
 
     total_transactions = len(transactions)
     logger.debug(f"Converted to {total_transactions} TellerTransaction objects")

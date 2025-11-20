@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
 
 
 class Category(BaseModel):
@@ -22,28 +22,31 @@ class CategoryOverride(BaseModel):
 class CategoryConfig(BaseModel):
     """Transaction category configuration from config.yml."""
     categories: List[Category]
-    category_overrides: List[CategoryOverride] = []
+    manual_categories: List[CategoryOverride] = []
 
-    @field_validator('category_overrides')
-    @classmethod
-    def validate_override_categories(cls, overrides, info):
+    @model_validator(mode='after')
+    def validate_override_categories(self):
         """Validate that override categories match valid category names."""
-        if not overrides:
-            return overrides
+        if not self.manual_categories:
+            return self
 
-        # Get valid category names from the data being validated
-        categories = info.data.get('categories', [])
-        valid_categories = {cat.name for cat in categories}
+        valid_categories = {cat.name for cat in self.categories}
+        invalid_overrides = [
+            override for override in self.manual_categories
+            if override.category not in valid_categories
+        ]
 
-        # Validate each override
-        for override in overrides:
-            if override.category not in valid_categories:
-                raise ValueError(
-                    f"Invalid category '{override.category}' in category override for "
-                    f"transaction '{override.transaction_id}'. Valid categories: {', '.join(sorted(valid_categories))}"
-                )
+        if invalid_overrides:
+            invalid_items = [
+                f"{override.transaction_id} -> '{override.category}'"
+                for override in invalid_overrides
+            ]
+            raise ValueError(
+                f"Invalid categories in overrides: {', '.join(invalid_items)}. "
+                f"Valid categories: {', '.join(sorted(valid_categories))}"
+            )
 
-        return overrides
+        return self
 
     @classmethod
     def load(cls, config_path: Path = None):

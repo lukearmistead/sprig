@@ -123,12 +123,12 @@ class ManualCategorizer:
         """Initialize with category configuration.
 
         Args:
-            category_config: CategoryConfig containing category_overrides
+            category_config: CategoryConfig containing manual_categories
         """
         self.category_config = category_config
         self.override_map = {
             override.transaction_id: override.category
-            for override in category_config.category_overrides
+            for override in category_config.manual_categories
         }
 
     def get_overrides(self, transaction_ids: List[str]) -> Dict[str, str]:
@@ -147,7 +147,7 @@ class ManualCategorizer:
         }
 
 
-class TransactionCategorizer:
+class ClaudeCategorizer:
     """Claude-based transaction categorization."""
 
     def __init__(self, runtime_config: RuntimeConfig):

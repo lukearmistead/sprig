@@ -13,8 +13,8 @@ from sprig.models.category_config import CategoryConfig
 from sprig.sync import categorize_uncategorized_transactions
 
 
-def test_category_config_loads_category_overrides():
-    """Test that CategoryConfig can load category_overrides from YAML."""
+def test_category_config_loads_manual_categories():
+    """Test that CategoryConfig can load manual_categories from YAML."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
@@ -24,7 +24,7 @@ def test_category_config_loads_category_overrides():
                 {"name": "dining", "description": "Restaurants and food"},
                 {"name": "groceries", "description": "Supermarkets"}
             ],
-            "category_overrides": [
+            "manual_categories": [
                 {"transaction_id": "txn_123", "category": "dining"},
                 {"transaction_id": "txn_456", "category": "groceries"}
             ]
@@ -37,16 +37,16 @@ def test_category_config_loads_category_overrides():
         category_config = CategoryConfig.load(config_path)
 
         # Verify overrides were loaded
-        assert category_config.category_overrides is not None
-        assert len(category_config.category_overrides) == 2
-        assert category_config.category_overrides[0].transaction_id == "txn_123"
-        assert category_config.category_overrides[0].category == "dining"
-        assert category_config.category_overrides[1].transaction_id == "txn_456"
-        assert category_config.category_overrides[1].category == "groceries"
+        assert category_config.manual_categories is not None
+        assert len(category_config.manual_categories) == 2
+        assert category_config.manual_categories[0].transaction_id == "txn_123"
+        assert category_config.manual_categories[0].category == "dining"
+        assert category_config.manual_categories[1].transaction_id == "txn_456"
+        assert category_config.manual_categories[1].category == "groceries"
 
 
-def test_category_config_allows_empty_category_overrides():
-    """Test that CategoryConfig works without category_overrides section."""
+def test_category_config_allows_empty_manual_categories():
+    """Test that CategoryConfig works without manual_categories section."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
@@ -65,10 +65,10 @@ def test_category_config_allows_empty_category_overrides():
         category_config = CategoryConfig.load(config_path)
 
         # Verify overrides is empty list
-        assert category_config.category_overrides == []
+        assert category_config.manual_categories == []
 
 
-def test_category_overrides_applied_before_claude_categorization():
+def test_manual_categories_applied_before_claude_categorization():
     """Test that category overrides from config are applied before calling Claude."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test.db"
@@ -133,7 +133,7 @@ def test_category_overrides_applied_before_claude_categorization():
                 {"name": "groceries", "description": "Supermarkets"},
                 {"name": "transport", "description": "Gas and fuel"}
             ],
-            "category_overrides": [
+            "manual_categories": [
                 {"transaction_id": "txn_override_1", "category": "dining"},
                 {"transaction_id": "txn_override_2", "category": "groceries"}
             ]
@@ -152,7 +152,7 @@ def test_category_overrides_applied_before_claude_categorization():
         test_category_config = CategoryConfig.load(config_path)
 
         # Mock the categorizer to verify it only receives non-overridden transactions
-        with patch('sprig.sync.TransactionCategorizer') as mock_categorizer_class:
+        with patch('sprig.sync.ClaudeCategorizer') as mock_categorizer_class:
             mock_categorizer = Mock()
             mock_categorizer_class.return_value = mock_categorizer
 
@@ -197,7 +197,7 @@ def test_category_override_validates_category():
                 {"name": "dining", "description": "Restaurants"},
                 {"name": "groceries", "description": "Supermarkets"}
             ],
-            "category_overrides": [
+            "manual_categories": [
                 {"transaction_id": "txn_123", "category": "invalid_category"}
             ]
         }
@@ -210,7 +210,7 @@ def test_category_override_validates_category():
             category_config = CategoryConfig.load(config_path)
             # If we get here, validation should have caught the invalid category
             valid_categories = [cat.name for cat in category_config.categories]
-            for override in category_config.category_overrides:
+            for override in category_config.manual_categories:
                 assert override.category in valid_categories, \
                     f"Invalid category '{override.category}' in category override"
         except Exception:
