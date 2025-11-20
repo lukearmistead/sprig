@@ -20,7 +20,7 @@ logger = get_logger("sprig.auth")
 
 def append_token_to_credentials(new_token: str) -> bool:
     """Add new access token to keyring."""
-    return credentials.append_access_token(new_token)
+    return credentials.append_token(new_token)
 
 
 def run_auth_server(app_id: str, environment: str = "development", port: int = 8001) -> Optional[str]:

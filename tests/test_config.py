@@ -8,7 +8,7 @@ from sprig.models import Config
 from sprig import credentials
 
 
-@patch('sprig.models.config.credentials.get_credential')
+@patch('sprig.models.config.credentials.get')
 def test_config_load(mock_get_credential):
     """Test that Config.load() works correctly with mocked credentials."""
     # Mock credential responses

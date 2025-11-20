@@ -34,7 +34,7 @@ def prompt_for_value(prompt_text: str, secret: bool = False) -> str:
 
 def store_credential(key: str, value: str, required: bool = True) -> bool:
     """Store a credential and handle errors."""
-    if not credentials.set_credential(key, value):
+    if not credentials.set(key, value):
         if required:
             logger.error(f"Failed to store {key}")
         return False
@@ -173,11 +173,11 @@ def main():
             sys.exit(1)
         export_transactions_to_csv(config.database_path, args.output)
     elif args.command == "auth":
-        app_id = credentials.get_credential(credentials.KEY_APP_ID)
+        app_id = credentials.get(credentials.KEY_APP_ID)
         if not app_id:
             if not setup_credentials():
                 sys.exit(1)
-            app_id = credentials.get_credential(credentials.KEY_APP_ID)
+            app_id = credentials.get(credentials.KEY_APP_ID)
 
         authenticate(app_id, args.environment, args.port)
 

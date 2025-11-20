@@ -46,7 +46,7 @@ class Config(BaseModel):
             'database_path_str': credentials.KEY_DATABASE_PATH,
         }
 
-        values = {name: credentials.get_credential(key) for name, key in creds.items()}
+        values = {name: credentials.get(key) for name, key in creds.items()}
 
         access_tokens = []
         if values['access_tokens_str']:

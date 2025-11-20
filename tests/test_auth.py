@@ -37,7 +37,7 @@ class TestAppendTokenToCredentials:
 
     def test_append_token_success(self):
         """Should successfully append token to credentials."""
-        with patch('sprig.auth.credentials.append_access_token') as mock_append:
+        with patch('sprig.auth.credentials.append_token') as mock_append:
             mock_append.return_value = True
 
             result = append_token_to_credentials("token_abc123")
@@ -46,7 +46,7 @@ class TestAppendTokenToCredentials:
 
     def test_append_token_failure(self):
         """Should return False if append fails."""
-        with patch('sprig.auth.credentials.append_access_token') as mock_append:
+        with patch('sprig.auth.credentials.append_token') as mock_append:
             mock_append.return_value = False
 
             result = append_token_to_credentials("token_abc123")
