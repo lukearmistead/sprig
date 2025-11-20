@@ -5,10 +5,10 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from sprig.models import Config
-from sprig import credential_manager
+from sprig import credentials
 
 
-@patch('sprig.models.config.credential_manager.get_credential')
+@patch('sprig.models.config.credentials.get_credential')
 def test_config_load(mock_get_credential):
     """Test that Config.load() works correctly with mocked credentials."""
     # Mock credential responses
@@ -25,13 +25,13 @@ def test_config_load(mock_get_credential):
 
     def mock_get(key):
         mock_values = {
-            credential_manager.KEY_APP_ID: "app_test12345678901234567",
-            credential_manager.KEY_ACCESS_TOKENS: "token_abcdefghijklmnopqrstuvwxyz",
-            credential_manager.KEY_CLAUDE_API_KEY: "sk-ant-api03-" + "a" * 95,
-            credential_manager.KEY_ENVIRONMENT: "development",
-            credential_manager.KEY_CERT_PATH: "certs/certificate.pem",
-            credential_manager.KEY_KEY_PATH: "certs/private_key.pem",
-            credential_manager.KEY_DATABASE_PATH: "sprig.db",
+            credentials.KEY_APP_ID: "app_test12345678901234567",
+            credentials.KEY_ACCESS_TOKENS: "token_abcdefghijklmnopqrstuvwxyz",
+            credentials.KEY_CLAUDE_API_KEY: "sk-ant-api03-" + "a" * 95,
+            credentials.KEY_ENVIRONMENT: "development",
+            credentials.KEY_CERT_PATH: "certs/certificate.pem",
+            credentials.KEY_KEY_PATH: "certs/private_key.pem",
+            credentials.KEY_DATABASE_PATH: "sprig.db",
         }
         return mock_values.get(key)
 

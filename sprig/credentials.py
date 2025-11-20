@@ -3,10 +3,8 @@
 import keyring
 from typing import Optional
 
-# Service name for keyring
 SERVICE_NAME = "sprig"
 
-# Credential keys
 KEY_APP_ID = "app_id"
 KEY_ACCESS_TOKENS = "access_tokens"
 KEY_CLAUDE_API_KEY = "claude_api_key"

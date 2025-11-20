@@ -5,7 +5,7 @@ from typing import List
 
 from pydantic import BaseModel, Field, field_validator
 
-from sprig import credential_manager
+from sprig import credentials
 
 
 class TellerAccessToken(BaseModel):
@@ -36,20 +36,18 @@ class Config(BaseModel):
         """Load configuration from keyring."""
         project_root = Path(__file__).parent.parent.parent
 
-        # Get credentials from keyring using a loop
         creds = {
-            'app_id': credential_manager.KEY_APP_ID,
-            'access_tokens_str': credential_manager.KEY_ACCESS_TOKENS,
-            'claude_api_key': credential_manager.KEY_CLAUDE_API_KEY,
-            'environment': credential_manager.KEY_ENVIRONMENT,
-            'cert_path_str': credential_manager.KEY_CERT_PATH,
-            'key_path_str': credential_manager.KEY_KEY_PATH,
-            'database_path_str': credential_manager.KEY_DATABASE_PATH,
+            'app_id': credentials.KEY_APP_ID,
+            'access_tokens_str': credentials.KEY_ACCESS_TOKENS,
+            'claude_api_key': credentials.KEY_CLAUDE_API_KEY,
+            'environment': credentials.KEY_ENVIRONMENT,
+            'cert_path_str': credentials.KEY_CERT_PATH,
+            'key_path_str': credentials.KEY_KEY_PATH,
+            'database_path_str': credentials.KEY_DATABASE_PATH,
         }
 
-        values = {name: credential_manager.get_credential(key) for name, key in creds.items()}
+        values = {name: credentials.get_credential(key) for name, key in creds.items()}
 
-        # Parse access tokens
         access_tokens = []
         if values['access_tokens_str']:
             access_tokens = [TellerAccessToken(token=token) for token in values['access_tokens_str'].split(",") if token]

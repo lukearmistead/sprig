@@ -25,8 +25,8 @@ This file guides Claude when working on Sprig - "Actually-personal personal fina
 
 | Feature | Primary Module | Secondary | Test File | When to Extend Here |
 |---------|---------------|-----------|-----------|---------------------|
-| Credentials | `credential_manager.py` | - | `test_credential_manager.py` | Keyring storage, migration, credential access |
-| Bank OAuth | `auth.py` | `credential_manager.py` | `test_auth.py` | Teller Connect, token management |
+| Credentials | `credentials.py` | - | `test_credentials.py` | Keyring storage, migration, credential access |
+| Bank OAuth | `auth.py` | `credentials.py` | `test_auth.py` | Teller Connect, token management |
 | API calls | `teller_client.py` | - | `test_teller_client.py` | mTLS, HTTP requests, retries |
 | Data storage | `database.py` | - | `test_database.py` | Schema, CRUD, SQL queries |
 | Sync logic | `sync.py` | `database.py` | `test_sync.py` | Orchestration, duplicate detection |

@@ -36,68 +36,44 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 2: Get Your Bank Connection Credentials
+### Step 2: Set Up Your Accounts
 
-**What is Teller.io?** Teller is a secure, bank-grade service that safely connects to your bank accounts. Your login credentials are only entered on your bank's official website - Teller and Sprig never see your passwords.
+You'll need accounts with two services (both free to start):
 
-**Setting up your Teller account:**
+1. **Teller.io** - Connects securely to your bank accounts
+   - Go to [teller.io](https://teller.io) and create a free developer account
+   - Create a new application (use "Personal Project" for company name)
+   - Download your certificates:
+     - Go to [Certificate Settings](https://teller.io/settings/certificates)
+     - Click "Create Certificate" and download the zip file
+     - Extract it and move `certificate.pem` and `private_key.pem` to the `certs/` folder in Sprig
+   - Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
+   - **Save these** - you'll enter them when you run `sprig auth` in Step 3
 
-1. Go to [teller.io](https://teller.io) and create a free developer account
-2. **Create a new application:**
-   - Click "Create Application"
-   - For "Company": enter "Personal Project"
-   - You can skip the webhook field
-3. Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
-   - Copy this APP_ID - you'll add it to your `.env` file in Step 4
-4. **Create new certificates:**
-   - Go to [Certificate Settings](https://teller.io/settings/certificates)
-   - Click "Create Certificate" to generate new ones
-   - Download the zip file containing your certificates
-   - **Extract the zip file** to get the individual certificate files
-   - Move only the extracted `certificate.pem` and `private_key.pem` files into your `certs/` folder
-   - You can delete the zip file after extracting
+2. **Anthropic** - Powers AI transaction categorization (optional but recommended)
+   - Go to [console.anthropic.com](https://console.anthropic.com) and create an account
+   - Create an API key (starts with `sk-ant-`)
+   - **Cost:** ~$0.10-0.50 per 1000 transactions (~$1-5/month for most users)
+   - **Save this** - you'll enter it when you run `sprig auth` in Step 3
 
-### Step 3: Get Your AI Categorization Key
-
-**What is Claude?** Claude is Anthropic's AI that automatically categorizes your transactions (groceries, dining, transport, etc.). This saves you from manually categorizing hundreds of transactions.
-
-**Cost**: Typically ~$0.10-0.50 per 1000 transactions categorized. For most users, this means $1-5 per month. You can minimize costs by using `--from-date` to process recent transactions first.
-
-1. Go to [console.anthropic.com](https://console.anthropic.com) and create an account
-2. Navigate to "API Keys" in your dashboard
-3. Create a new API key and copy it (starts with `sk-ant-`)
-   - Copy this API key - you'll add it to your `.env` file in Step 4
-
-### Step 4: Set Up Configuration
-
-1. **Create your configuration file:**
-```bash
-cp .env.example .env
-```
-
-2. **Edit your `.env` file** with any text editor (TextEdit, VS Code, vim, etc.):
-   - Find the line `APP_ID=your_teller_app_id_here`
-   - Replace `your_teller_app_id_here` with your actual APP_ID from Step 2
-   - Find the line `CLAUDE_API_KEY=your_claude_api_key_here`
-   - Replace `your_claude_api_key_here` with your Claude API key from Step 3
-
-Your `.env` file should look like this:
-```bash
-APP_ID=app_abc123xyz789
-CLAUDE_API_KEY=sk-ant-api03-abc123...
-```
-
-### Step 5: Connect Your Banks
+### Step 3: Set Up and Connect Your Banks
 
 ```bash
 python sprig.py auth
 ```
 
-**What happens:** A browser opens to Teller's secure login. Select your bank, log in normally, and authorize access. Sprig automatically saves your connection.
+**What happens:**
+1. **First run:** You'll be prompted to enter:
+   - Your Teller APP_ID
+   - Your Claude API key
+   - Certificate paths (defaults to `certs/certificate.pem` and `certs/private_key.pem`)
+2. **Then:** A browser opens to Teller's secure login
+3. Select your bank, log in normally, and authorize access
+4. Sprig automatically saves your bank connection
 
 **To stop:** Press Control-C in your terminal when finished.
 
-### Step 6: Get Your Data
+### Step 4: Get Your Data
 
 ```bash
 # Download and categorize recent transactions (last 30 days to start)
@@ -368,8 +344,7 @@ ruff check .  # Linting
 **Problem:** Your bank connection expired or was revoked
 
 **Solution:**
-1. Run `python sprig.py auth` again to reconnect
-2. Or, remove old tokens from `.env` (the ACCESS_TOKENS line)
+1. Run `python sprig.py auth` again to reconnect your banks
 
 **Why this happens:** Bank connections can expire for security, or if you changed your bank password
 
@@ -393,14 +368,14 @@ pip install -r requirements.txt
 
 ---
 
-#### "Configuration error: APP_ID not found"
+#### "Configuration error" or "APP_ID not found"
 
-**Problem:** Your `.env` file is missing or incomplete
+**Problem:** Credentials not set up
 
 **Solution:**
-1. Make sure `.env` exists in your Sprig folder
-2. Open it and add your `APP_ID=app_xxxxx` from Teller
-3. Check that there are no extra spaces or quotes
+1. Run `python sprig.py auth` - it will prompt you to enter credentials
+2. Make sure you enter your Teller APP_ID and Claude API key correctly
+3. Your credentials are stored securely in your system keyring
 
 ---
 
@@ -494,14 +469,16 @@ Teller.io's free tier includes 100 bank connections (individual accounts you can
 
 ### What if I don't want AI categorization?
 
-Just skip adding `CLAUDE_API_KEY` to your `.env` file. Sprig will:
+When running `python sprig.py auth` for the first time, press Enter when prompted for the Claude API key (leaving it blank). Sprig will:
 - Still download all your transactions
 - Still export to CSV
 - Leave the `inferred_category` column empty (you can categorize manually in Excel)
 
+You can add the Claude API key later by running `python sprig.py auth` again.
+
 ### Can I categorize old transactions?
 
-Yes. Once you add `CLAUDE_API_KEY`, run `python sprig.py sync` and Claude will automatically categorize any uncategorized transactions in your database.
+Yes. Once you add your Claude API key (via `python sprig.py auth`), run `python sprig.py sync` and Claude will automatically categorize any uncategorized transactions in your database.
 
 ### Can I change the categories Sprig uses?
 
@@ -517,8 +494,9 @@ After making changes, run `python sprig.py sync --recategorize` to apply your ne
 
 - **Transactions:** `sprig.db` (SQLite database in your Sprig folder)
 - **Exports:** `exports/` folder (CSV files)
-- **Configuration:** `.env` file
+- **Credentials:** Secure system keyring (macOS Keychain, Windows Credential Locker, Linux Secret Service)
 - **Certificates:** `certs/` folder
+- **Category config:** `config.yml` file
 
 To backup your data, just copy the `sprig.db` file.
 

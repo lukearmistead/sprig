@@ -19,7 +19,7 @@ from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
 from sprig.models import Config, SyncParams
 from sprig.sync import sync_all_accounts
-from sprig import credential_manager
+from sprig import credentials
 
 # Initialize logger
 logger = get_logger()
@@ -34,7 +34,7 @@ def prompt_for_value(prompt_text: str, secret: bool = False) -> str:
 
 def store_credential(key: str, value: str, required: bool = True) -> bool:
     """Store a credential and handle errors."""
-    if not credential_manager.set_credential(key, value):
+    if not credentials.set_credential(key, value):
         if required:
             logger.error(f"Failed to store {key}")
         return False
@@ -62,15 +62,15 @@ def setup_credentials() -> bool:
     key_path = prompt_for_value("Private key path (e.g., certs/private_key.pem): ") or "certs/private_key.pem"
 
     # Store all credentials
-    if not store_credential(credential_manager.KEY_APP_ID, app_id):
+    if not store_credential(credentials.KEY_APP_ID, app_id):
         return False
-    if not store_credential(credential_manager.KEY_CLAUDE_API_KEY, claude_key):
+    if not store_credential(credentials.KEY_CLAUDE_API_KEY, claude_key):
         return False
 
-    store_credential(credential_manager.KEY_CERT_PATH, cert_path, required=False)
-    store_credential(credential_manager.KEY_KEY_PATH, key_path, required=False)
-    store_credential(credential_manager.KEY_ENVIRONMENT, "development", required=False)
-    store_credential(credential_manager.KEY_DATABASE_PATH, "sprig.db", required=False)
+    store_credential(credentials.KEY_CERT_PATH, cert_path, required=False)
+    store_credential(credentials.KEY_KEY_PATH, key_path, required=False)
+    store_credential(credentials.KEY_ENVIRONMENT, "development", required=False)
+    store_credential(credentials.KEY_DATABASE_PATH, "sprig.db", required=False)
 
     logger.info("Credentials saved to keyring")
     return True
@@ -138,7 +138,6 @@ def main():
         return
 
     if args.command == "sync":
-        # Load and validate full configuration for sync
         try:
             config = Config.load()
         except Exception as e:
@@ -146,7 +145,6 @@ def main():
             logger.error("Please run 'sprig auth' to set up credentials.")
             sys.exit(1)
 
-        # Validate sync parameters with Pydantic
         try:
             sync_params = SyncParams(
                 recategorize=args.recategorize,
@@ -167,7 +165,6 @@ def main():
             batch_size=args.batch_size
         )
     elif args.command == "export":
-        # Load and validate full configuration for export
         try:
             config = Config.load()
         except Exception as e:
@@ -176,14 +173,12 @@ def main():
             sys.exit(1)
         export_transactions_to_csv(config.database_path, args.output)
     elif args.command == "auth":
-        # Check if credentials are set up
-        app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID)
+        app_id = credentials.get_credential(credentials.KEY_APP_ID)
         if not app_id:
             if not setup_credentials():
                 sys.exit(1)
-            app_id = credential_manager.get_credential(credential_manager.KEY_APP_ID)
+            app_id = credentials.get_credential(credentials.KEY_APP_ID)
 
-        # Run OAuth flow
         authenticate(app_id, args.environment, args.port)
 
 if __name__ == "__main__":
