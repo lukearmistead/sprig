@@ -83,13 +83,16 @@ class TestAuthenticate:
             mock_run_auth.assert_called_once()
 
     def test_authenticate_missing_app_id(self):
-        """Should return False if APP_ID is not set."""
-        with patch('sprig.auth.credential_manager.get_credential') as mock_get_cred:
+        """Should prompt for credentials if APP_ID is not set."""
+        with patch('sprig.auth.credential_manager.get_credential') as mock_get_cred, \
+             patch('sprig.auth.prompt_for_credentials') as mock_prompt:
             mock_get_cred.return_value = None
+            mock_prompt.return_value = False  # User cancels setup
 
             result = authenticate("development", 8001)
 
             assert result is False
+            mock_prompt.assert_called_once()
 
     def test_authenticate_cancelled(self):
         """Should return False if authentication is cancelled."""

@@ -9,8 +9,7 @@ from sprig import credential_manager
 
 
 @patch('sprig.models.runtime_config.credential_manager.get_credential')
-@patch('sprig.models.runtime_config.load_dotenv')
-def test_config_load(mock_load_dotenv, mock_get_credential):
+def test_config_load(mock_get_credential):
     """Test that Config.load() works correctly with mocked credentials."""
     # Mock credential responses
     project_root = Path(__file__).parent.parent
@@ -24,7 +23,7 @@ def test_config_load(mock_load_dotenv, mock_get_credential):
     if not key_path.exists():
         key_path.touch()
 
-    def mock_get(key, fallback_to_env=True):
+    def mock_get(key):
         mock_values = {
             credential_manager.KEY_APP_ID: "app_test12345678901234567",
             credential_manager.KEY_ACCESS_TOKENS: "token_abcdefghijklmnopqrstuvwxyz",
