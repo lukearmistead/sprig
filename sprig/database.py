@@ -21,7 +21,7 @@ class SprigDatabase:
     def _initialize_database(self):
         """Create database file and tables if they don't exist."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with sqlite3.connect(self.db_path) as conn:
             # Create accounts table
             conn.execute("""
@@ -39,7 +39,7 @@ class SprigDatabase:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             # Create transactions table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS transactions (
@@ -54,10 +54,11 @@ class SprigDatabase:
                     running_balance REAL,
                     links TEXT,
                     inferred_category TEXT,
+                    confidence REAL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             conn.commit()
     
     def insert_record(self, table_name: str, data: Dict) -> bool:
@@ -103,13 +104,19 @@ class SprigDatabase:
             """)
             return cursor.fetchall()
     
-    def update_transaction_category(self, transaction_id: str, category: str) -> bool:
-        """Update the inferred category for a specific transaction."""
+    def update_transaction_category(self, transaction_id: str, category: str, confidence: float = None) -> bool:
+        """Update the inferred category and confidence for a specific transaction.
+
+        Args:
+            transaction_id: Transaction ID
+            category: Category name
+            confidence: Confidence score from 0 to 1
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
-                    "UPDATE transactions SET inferred_category = ? WHERE id = ?",
-                    (category, transaction_id)
+                    "UPDATE transactions SET inferred_category = ?, confidence = ? WHERE id = ?",
+                    (category, confidence, transaction_id)
                 )
                 conn.commit()
                 return True
@@ -118,9 +125,9 @@ class SprigDatabase:
             return False
     
     def clear_all_categories(self):
-        """Clear all inferred_category values."""
+        """Clear all inferred_category and confidence values."""
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("UPDATE transactions SET inferred_category = NULL")
+            cursor = conn.execute("UPDATE transactions SET inferred_category = NULL, confidence = NULL")
             rows_updated = cursor.rowcount
             conn.commit()
             return rows_updated
@@ -128,12 +135,13 @@ class SprigDatabase:
     def get_transactions_for_export(self):
         """Get all transactions for export with account details.
 
-        Returns 9 fields: id, date, description, amount, inferred_category,
-        counterparty, account_name, account_subtype, account_last_four
+        Returns 10 fields: id, date, description, amount, inferred_category,
+        confidence, counterparty, account_name, account_subtype, account_last_four
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
                 SELECT t.id, t.date, t.description, t.amount, t.inferred_category,
+                       t.confidence,
                        json_extract(t.details, '$.counterparty.name') as counterparty,
                        a.name as account_name,
                        a.subtype as account_subtype,

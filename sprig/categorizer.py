@@ -1,7 +1,7 @@
-"""Transaction categorization using Claude."""
+"""Transaction categorization using Claude and manual overrides."""
 
 import time
-from typing import List
+from typing import Dict, List
 
 import anthropic
 
@@ -49,6 +49,11 @@ CATEGORIZATION PROCESS:
 6. Match to the MOST SPECIFIC applicable category based on all available information
 7. Avoid over-using "general" - it should be rare. Most transactions have a logical category
 8. Only use "undefined" when the merchant and purpose are genuinely unclear
+9. CONFIDENCE SCORING (0 to 1):
+   - Assign a confidence score to each categorization based on how certain you are
+   - High confidence (0.8-1.0): Clear merchant name, obvious category (e.g., "Starbucks" → dining)
+   - Medium confidence (0.5-0.79): Some ambiguity but likely correct (e.g., gas station with small amount could be snacks or fuel)
+   - Low confidence (0-0.49): Unclear merchant, vague description, or multiple possible categories
 
 CRITICAL REQUIREMENTS:
 - You MUST use ONLY the exact category names listed above
@@ -63,8 +68,8 @@ Before returning your response, verify that EVERY category you used appears in t
 
 OUTPUT FORMAT:
 [
-  {{"transaction_id": "txn_example1", "category": "category_name"}},
-  {{"transaction_id": "txn_example2", "category": "category_name"}}
+  {{"transaction_id": "txn_example1", "category": "category_name", "confidence": 0.95}},
+  {{"transaction_id": "txn_example2", "category": "category_name", "confidence": 0.60}}
 ]"""
 
 
@@ -117,7 +122,39 @@ def build_categorization_prompt(
     )
 
 
-class TransactionCategorizer:
+class ManualCategorizer:
+    """Applies manual categorization from config."""
+
+    def __init__(self, category_config: CategoryConfig):
+        """Initialize with category configuration.
+
+        Args:
+            category_config: CategoryConfig containing manual_categories
+        """
+        self.category_config = category_config
+        self.manual_map = {
+            manual_cat.transaction_id: manual_cat.category
+            for manual_cat in category_config.manual_categories
+        }
+
+    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> Dict[str, str]:
+        """Categorize transactions using manual categories from config.
+
+        Args:
+            transactions: List of transactions to categorize
+            account_info: Unused, for interface compatibility with ClaudeCategorizer
+
+        Returns:
+            Dict mapping transaction_id to category for manually categorized transactions
+        """
+        return {
+            txn.id: self.manual_map[txn.id]
+            for txn in transactions
+            if txn.id in self.manual_map
+        }
+
+
+class ClaudeCategorizer:
     """Claude-based transaction categorization."""
 
     def __init__(self):
@@ -197,7 +234,11 @@ class TransactionCategorizer:
         return self._validate_categories(categories_list)
 
     def _validate_categories(self, categories_list: List[TransactionCategory]) -> dict:
-        """Validate Claude's categorization response against allowed categories."""
+        """Validate Claude's categorization response against allowed categories.
+
+        Returns:
+            dict: Maps transaction_id to tuple of (category, confidence)
+        """
         # Pydantic has already converted these to TransactionCategory objects
 
         # Validate categories and set to None if invalid
@@ -205,9 +246,9 @@ class TransactionCategorizer:
         validated = {}
         for item in categories_list:
             if item.category in valid_names:
-                validated[item.transaction_id] = item.category
+                validated[item.transaction_id] = (item.category, item.confidence)
             else:
                 logger.warning(f"Invalid category '{item.category}' for {item.transaction_id}, setting to None")
-                validated[item.transaction_id] = None
+                validated[item.transaction_id] = (None, item.confidence)
 
         return validated

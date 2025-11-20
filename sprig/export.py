@@ -27,9 +27,9 @@ def export_transactions_to_csv(database_path, output_path=None):
         logger.warning("No transactions found to export.")
         return
 
-    # Column names matching the 9-field export query
+    # Column names matching the 10-field export query
     column_names = [
-        'id', 'date', 'description', 'amount', 'inferred_category',
+        'id', 'date', 'description', 'amount', 'inferred_category', 'confidence',
         'counterparty', 'account_name', 'account_subtype', 'account_last_four'
     ]
 

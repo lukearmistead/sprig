@@ -8,20 +8,43 @@ from sprig.models.claude import ClaudeResponse, ClaudeContentBlock, TransactionC
 
 class TestTransactionCategory:
     """Test TransactionCategory model."""
-    
+
     def test_valid_transaction_category(self):
-        """Should create valid TransactionCategory objects."""
-        category = TransactionCategory(transaction_id="txn_123", category="dining")
+        """Should create valid TransactionCategory objects with confidence."""
+        category = TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.85)
         assert category.transaction_id == "txn_123"
         assert category.category == "dining"
-    
+        assert category.confidence == 0.85
+
+    def test_confidence_validation(self):
+        """Should validate confidence is between 0 and 1."""
+        # Valid confidence values
+        category = TransactionCategory(transaction_id="txn_123", category="dining", confidence=0)
+        assert category.confidence == 0
+
+        category = TransactionCategory(transaction_id="txn_123", category="dining", confidence=1)
+        assert category.confidence == 1
+
+        category = TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.5)
+        assert category.confidence == 0.5
+
+        # Invalid confidence values
+        with pytest.raises(ValidationError):
+            TransactionCategory(transaction_id="txn_123", category="dining", confidence=-0.1)
+
+        with pytest.raises(ValidationError):
+            TransactionCategory(transaction_id="txn_123", category="dining", confidence=1.01)
+
     def test_missing_fields(self):
         """Should raise ValidationError for missing required fields."""
         with pytest.raises(ValidationError):
-            TransactionCategory(transaction_id="txn_123")  # missing category
-        
+            TransactionCategory(transaction_id="txn_123", category="dining")  # missing confidence
+
         with pytest.raises(ValidationError):
-            TransactionCategory(category="dining")  # missing transaction_id
+            TransactionCategory(transaction_id="txn_123", confidence=0.85)  # missing category
+
+        with pytest.raises(ValidationError):
+            TransactionCategory(category="dining", confidence=0.85)  # missing transaction_id
 
 
 class TestClaudeContentBlock:

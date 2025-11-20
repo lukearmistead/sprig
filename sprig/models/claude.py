@@ -9,12 +9,13 @@ class TransactionCategory(BaseModel):
     """Single transaction categorization item."""
     transaction_id: str
     category: str
+    confidence: float = Field(..., ge=0, le=1, description="Confidence score from 0 to 1")
 
 
 class TransactionView(BaseModel):
     """Essential transaction data for categorization and CSV export.
 
-    This model contains the 9 fields exported to CSV and sent to Claude for categorization.
+    This model contains the 10 fields exported to CSV and sent to Claude for categorization.
     Fields are ordered to match the desired CSV column order.
     """
     id: str
@@ -22,6 +23,7 @@ class TransactionView(BaseModel):
     description: str
     amount: float
     inferred_category: Optional[str] = None
+    confidence: Optional[float] = Field(None, ge=0, le=1, description="Confidence score from 0 to 1")
     counterparty: Optional[str] = None
     account_name: Optional[str] = None
     account_subtype: Optional[str] = None

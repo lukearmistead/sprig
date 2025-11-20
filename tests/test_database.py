@@ -37,9 +37,9 @@ def test_database_initialization():
             cursor = conn.execute("PRAGMA table_info(transactions)")
             transactions_columns = {row[1] for row in cursor.fetchall()}
             expected_transactions_columns = {
-                "id", "account_id", "amount", "description", "date", 
-                "type", "status", "details", "running_balance", 
-                "links", "inferred_category", "created_at"
+                "id", "account_id", "amount", "description", "date",
+                "type", "status", "details", "running_balance",
+                "links", "inferred_category", "confidence", "created_at"
             }
             assert transactions_columns == expected_transactions_columns
 
@@ -184,7 +184,50 @@ def test_clear_all_categories():
             cursor = conn.execute("SELECT COUNT(*) FROM transactions WHERE inferred_category IS NOT NULL")
             categorized_count = cursor.fetchone()[0]
             assert categorized_count == 0
-            
+
             cursor = conn.execute("SELECT COUNT(*) FROM transactions WHERE inferred_category IS NULL")
             uncategorized_count = cursor.fetchone()[0]
             assert uncategorized_count == 2
+
+
+def test_update_transaction_category_with_confidence():
+    """Test updating transaction category with confidence score."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+
+        # Insert test account
+        account_data = {
+            "id": "acc_1",
+            "name": "Test Checking",
+            "type": "depository",
+            "subtype": "checking",
+            "institution": "Chase",
+            "currency": "USD",
+            "status": "open"
+        }
+        db.insert_record("accounts", account_data)
+
+        # Insert test transaction
+        transaction_data = {
+            "id": "txn_1",
+            "account_id": "acc_1",
+            "amount": -25.50,
+            "description": "COFFEE SHOP",
+            "date": "2024-01-15",
+            "type": "card_payment",
+            "status": "posted"
+        }
+        db.insert_record("transactions", transaction_data)
+
+        # Update category with confidence
+        result = db.update_transaction_category("txn_1", "dining", 0.85)
+        assert result is True
+
+        # Verify category and confidence were set
+        import sqlite3
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute("SELECT inferred_category, confidence FROM transactions WHERE id = ?", ("txn_1",))
+            category, confidence = cursor.fetchone()
+            assert category == "dining"
+            assert confidence == 0.85
