@@ -17,11 +17,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 load_dotenv()
 
 # Import after path setup and env loading
-from sprig.auth import authenticate
-from sprig.export import export_transactions_to_csv
-from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, SyncParams
-from sprig.sync import sync_all_accounts
+from sprig.auth import authenticate  # noqa: E402
+from sprig.export import export_transactions_to_csv  # noqa: E402
+from sprig.logger import get_logger  # noqa: E402
+from sprig.models import RuntimeConfig, SyncParams  # noqa: E402
+from sprig.sync import sync_all_accounts  # noqa: E402
 
 # Initialize logger
 logger = get_logger()

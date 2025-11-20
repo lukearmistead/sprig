@@ -222,8 +222,8 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         
         # Update database with successful categorizations
         batch_success_count = 0
-        for txn_id, category in categories.items():
-            db.update_transaction_category(txn_id, category)
+        for txn_id, (category, confidence) in categories.items():
+            db.update_transaction_category(txn_id, category, confidence)
             batch_success_count += 1
 
         categorized_count += batch_success_count
