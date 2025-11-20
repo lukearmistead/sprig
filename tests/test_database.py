@@ -188,3 +188,178 @@ def test_clear_all_categories():
             cursor = conn.execute("SELECT COUNT(*) FROM transactions WHERE inferred_category IS NULL")
             uncategorized_count = cursor.fetchone()[0]
             assert uncategorized_count == 2
+
+
+def test_get_recent_transactions():
+    """Test retrieving recent transactions."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+
+        # Insert test account
+        account_data = {
+            "id": "acc_123",
+            "name": "Test Checking",
+            "type": "depository",
+            "subtype": "checking",
+            "currency": "USD",
+            "status": "open",
+            "last_four": "1234"
+        }
+        db.insert_record("accounts", account_data)
+
+        # Insert test transactions
+        transactions = [
+            {
+                "id": "txn_1",
+                "account_id": "acc_123",
+                "amount": -25.50,
+                "description": "Coffee Shop",
+                "date": date(2024, 1, 15),
+                "type": "card_payment",
+                "status": "posted",
+                "details": {"counterparty": {"name": "Starbucks"}}
+            },
+            {
+                "id": "txn_2",
+                "account_id": "acc_123",
+                "amount": -50.00,
+                "description": "Gas Station",
+                "date": date(2024, 1, 16),
+                "type": "card_payment",
+                "status": "posted",
+                "details": {"counterparty": {"name": "Shell"}}
+            },
+            {
+                "id": "txn_3",
+                "account_id": "acc_123",
+                "amount": 1000.00,
+                "description": "Paycheck",
+                "date": date(2024, 1, 17),
+                "type": "ach",
+                "status": "posted",
+                "details": {"counterparty": {"name": "Employer"}}
+            }
+        ]
+
+        for txn in transactions:
+            db.insert_record("transactions", txn)
+
+        # Add categories
+        db.update_transaction_category("txn_1", "dining")
+        db.update_transaction_category("txn_2", "transport")
+        db.update_transaction_category("txn_3", "income")
+
+        # Test: Get all recent transactions (default limit)
+        results = db.get_recent_transactions(limit=10)
+        assert len(results) == 3
+
+        # Verify ordering (most recent first)
+        assert results[0][0] == "txn_3"  # ID field
+        assert results[1][0] == "txn_2"
+        assert results[2][0] == "txn_1"
+
+        # Test: Get with limit
+        results = db.get_recent_transactions(limit=2)
+        assert len(results) == 2
+        assert results[0][0] == "txn_3"
+        assert results[1][0] == "txn_2"
+
+        # Test: Filter by category
+        results = db.get_recent_transactions(limit=10, category="dining")
+        assert len(results) == 1
+        assert results[0][0] == "txn_1"
+        assert results[0][4] == "dining"  # category field
+
+
+def test_get_transaction_by_id():
+    """Test retrieving a specific transaction by ID."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+
+        # Insert test account
+        account_data = {
+            "id": "acc_123",
+            "name": "Test Checking",
+            "type": "depository",
+            "subtype": "checking",
+            "currency": "USD",
+            "status": "open",
+            "last_four": "1234"
+        }
+        db.insert_record("accounts", account_data)
+
+        # Insert test transaction
+        transaction_data = {
+            "id": "txn_test",
+            "account_id": "acc_123",
+            "amount": -25.50,
+            "description": "Coffee Shop",
+            "date": date(2024, 1, 15),
+            "type": "card_payment",
+            "status": "posted",
+            "details": {"counterparty": {"name": "Starbucks"}}
+        }
+        db.insert_record("transactions", transaction_data)
+        db.update_transaction_category("txn_test", "dining")
+
+        # Test: Get existing transaction
+        result = db.get_transaction_by_id("txn_test")
+        assert result is not None
+        assert result[0] == "txn_test"  # id
+        assert result[1] == "2024-01-15"  # date
+        assert result[2] == "Coffee Shop"  # description
+        assert result[3] == -25.50  # amount
+        assert result[4] == "dining"  # inferred_category
+        assert result[5] == "Starbucks"  # counterparty
+        assert result[6] == "Test Checking"  # account_name
+        assert result[7] == "checking"  # account_subtype
+        assert result[8] == "1234"  # account_last_four
+
+        # Test: Get non-existent transaction
+        result = db.get_transaction_by_id("txn_nonexistent")
+        assert result is None
+
+
+def test_update_transaction_category():
+    """Test updating transaction category."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+
+        # Insert test transaction
+        transaction_data = {
+            "id": "txn_123",
+            "account_id": "acc_123",
+            "amount": -25.50,
+            "description": "Test Transaction",
+            "date": date(2024, 1, 15),
+            "type": "card_payment",
+            "status": "posted"
+        }
+        db.insert_record("transactions", transaction_data)
+
+        # Test: Update category
+        result = db.update_transaction_category("txn_123", "dining")
+        assert result is True
+
+        # Verify category was updated
+        import sqlite3
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT inferred_category FROM transactions WHERE id = 'txn_123'"
+            )
+            category = cursor.fetchone()[0]
+            assert category == "dining"
+
+        # Test: Update to different category
+        result = db.update_transaction_category("txn_123", "groceries")
+        assert result is True
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT inferred_category FROM transactions WHERE id = 'txn_123'"
+            )
+            category = cursor.fetchone()[0]
+            assert category == "groceries"
