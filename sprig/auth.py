@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from sprig.logger import get_logger
 from sprig.models.teller import TellerAccessToken
-from sprig.credentials import credentials
+import sprig.credentials as credentials
 
 logger = get_logger("sprig.auth")
 

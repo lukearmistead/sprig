@@ -3,7 +3,7 @@
 from pathlib import Path
 import requests
 
-from sprig.credentials import credentials
+import sprig.credentials as credentials
 
 
 class TellerClient:
