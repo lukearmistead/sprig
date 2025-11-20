@@ -1,7 +1,7 @@
 """Individual credential models for validation."""
 
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, FilePath
 
 
 class TellerAppId(BaseModel):
@@ -16,17 +16,17 @@ class ClaudeAPIKey(BaseModel):
 
 class CertPath(BaseModel):
     """Certificate file path."""
-    value: Path
+    value: FilePath
 
 
 class KeyPath(BaseModel):
     """Private key file path."""
-    value: Path
+    value: FilePath
 
 
 class DatabasePath(BaseModel):
-    """Database file path."""
-    value: Path
+    """Database file path (may not exist yet)."""
+    value: str
 
 
 class Environment(BaseModel):

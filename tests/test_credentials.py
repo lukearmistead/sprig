@@ -62,7 +62,7 @@ class TestAppendAccessToken:
 
         assert result is True
         call_args = mock_keyring.set_password.call_args[0]
-        assert call_args[1] == credentials.KEY_ACCESS_TOKENS
+        assert call_args[1] == credentials.Credentials.KEY_ACCESS_TOKENS
         assert "token_existing123456789012345678" in call_args[2]
         assert "token_new456789012345678901234" in call_args[2]
 

@@ -20,11 +20,8 @@ class TellerClient:
         key_path = credentials.get_key_path()
 
         if cert_path and key_path:
-            # Get project root and resolve paths
-            project_root = Path(__file__).parent.parent
-            cert_full = project_root / cert_path.value
-            key_full = project_root / key_path.value
-            self.session.cert = (str(cert_full), str(key_full))
+            # Paths are already validated and resolved in credentials.get_*_path()
+            self.session.cert = (str(cert_path.value), str(key_path.value))
     
     def _make_request(self, access_token: str, endpoint: str):
         """Make authenticated request to Teller API."""

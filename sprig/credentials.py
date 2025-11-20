@@ -86,12 +86,22 @@ class Credentials:
     def get_cert_path(self) -> Optional[CertPath]:
         """Get validated certificate path."""
         raw = self.get(self.KEY_CERT_PATH)
-        return CertPath(value=Path(raw)) if raw else None
+        if not raw:
+            return None
+        # Resolve relative to project root
+        project_root = Path(__file__).parent.parent
+        full_path = project_root / raw
+        return CertPath(value=full_path)
 
     def get_key_path(self) -> Optional[KeyPath]:
         """Get validated private key path."""
         raw = self.get(self.KEY_KEY_PATH)
-        return KeyPath(value=Path(raw)) if raw else None
+        if not raw:
+            return None
+        # Resolve relative to project root
+        project_root = Path(__file__).parent.parent
+        full_path = project_root / raw
+        return KeyPath(value=full_path)
 
     def get_database_path(self) -> Optional[DatabasePath]:
         """Get validated database path."""
@@ -119,12 +129,3 @@ get_cert_path = _instance.get_cert_path
 get_key_path = _instance.get_key_path
 get_database_path = _instance.get_database_path
 get_environment = _instance.get_environment
-
-# Expose keys at module level
-KEY_APP_ID = Credentials.KEY_APP_ID
-KEY_ACCESS_TOKENS = Credentials.KEY_ACCESS_TOKENS
-KEY_CLAUDE_API_KEY = Credentials.KEY_CLAUDE_API_KEY
-KEY_CERT_PATH = Credentials.KEY_CERT_PATH
-KEY_KEY_PATH = Credentials.KEY_KEY_PATH
-KEY_DATABASE_PATH = Credentials.KEY_DATABASE_PATH
-KEY_ENVIRONMENT = Credentials.KEY_ENVIRONMENT

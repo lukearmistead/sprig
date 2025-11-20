@@ -62,15 +62,15 @@ def setup_credentials() -> bool:
     key_path = prompt_for_value("Private key path (e.g., certs/private_key.pem): ") or "certs/private_key.pem"
 
     # Store all credentials
-    if not store_credential(credentials.KEY_APP_ID, app_id):
+    if not store_credential(credentials.Credentials.KEY_APP_ID, app_id):
         return False
-    if not store_credential(credentials.KEY_CLAUDE_API_KEY, claude_key):
+    if not store_credential(credentials.Credentials.KEY_CLAUDE_API_KEY, claude_key):
         return False
 
-    store_credential(credentials.KEY_CERT_PATH, cert_path, required=False)
-    store_credential(credentials.KEY_KEY_PATH, key_path, required=False)
-    store_credential(credentials.KEY_ENVIRONMENT, "development", required=False)
-    store_credential(credentials.KEY_DATABASE_PATH, "sprig.db", required=False)
+    store_credential(credentials.Credentials.KEY_CERT_PATH, cert_path, required=False)
+    store_credential(credentials.Credentials.KEY_KEY_PATH, key_path, required=False)
+    store_credential(credentials.Credentials.KEY_ENVIRONMENT, "development", required=False)
+    store_credential(credentials.Credentials.KEY_DATABASE_PATH, "sprig.db", required=False)
 
     logger.info("Credentials saved to keyring")
     return True
@@ -171,11 +171,11 @@ def main():
         project_root = Path(__file__).parent
         export_transactions_to_csv(project_root / db_path.value, args.output)
     elif args.command == "auth":
-        app_id = credentials.get(credentials.KEY_APP_ID)
+        app_id = credentials.get(credentials.Credentials.KEY_APP_ID)
         if not app_id:
             if not setup_credentials():
                 sys.exit(1)
-            app_id = credentials.get(credentials.KEY_APP_ID)
+            app_id = credentials.get(credentials.Credentials.KEY_APP_ID)
 
         authenticate(app_id, args.environment, args.port)
 
