@@ -117,7 +117,7 @@ def build_categorization_prompt(
 
 
 class ManualCategorizer:
-    """Applies manual category overrides from config."""
+    """Applies manual categorization from config."""
 
     def __init__(self, category_config: CategoryConfig):
         """Initialize with category configuration.
@@ -126,24 +126,25 @@ class ManualCategorizer:
             category_config: CategoryConfig containing manual_categories
         """
         self.category_config = category_config
-        self.override_map = {
-            override.transaction_id: override.category
-            for override in category_config.manual_categories
+        self.manual_map = {
+            manual_cat.transaction_id: manual_cat.category
+            for manual_cat in category_config.manual_categories
         }
 
-    def get_overrides(self, transaction_ids: List[str]) -> Dict[str, str]:
-        """Get category overrides for given transaction IDs.
+    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> Dict[str, str]:
+        """Categorize transactions using manual categories from config.
 
         Args:
-            transaction_ids: List of transaction IDs to check for overrides
+            transactions: List of transactions to categorize
+            account_info: Unused, for interface compatibility with ClaudeCategorizer
 
         Returns:
-            Dict mapping transaction_id to category for transactions that have overrides
+            Dict mapping transaction_id to category for manually categorized transactions
         """
         return {
-            txn_id: self.override_map[txn_id]
-            for txn_id in transaction_ids
-            if txn_id in self.override_map
+            txn.id: self.manual_map[txn.id]
+            for txn in transactions
+            if txn.id in self.manual_map
         }
 
 

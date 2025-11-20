@@ -186,7 +186,7 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with account info
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {
             "txn_ABC123": {"name": "Checking", "subtype": "checking"},
             "txn_DEF456": {"name": "Checking", "subtype": "checking"},
@@ -245,7 +245,7 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with empty account info
-        categorizer = TransactionCategorizer(self.runtime_config)
+        categorizer = ClaudeCategorizer(self.runtime_config)
         account_info = {}
         result = categorizer.categorize_batch(transactions, account_info)
         
@@ -264,7 +264,7 @@ class TestEdgeCases:
         """Set up test categorizer instance."""
         self.runtime_config = Mock(spec=RuntimeConfig)
         self.runtime_config.claude_api_key = "test_key"
-        self.categorizer = TransactionCategorizer(self.runtime_config)
+        self.categorizer = ClaudeCategorizer(self.runtime_config)
     
     def test_response_with_numeric_transaction_ids(self):
         """Test transaction IDs that are numeric strings."""

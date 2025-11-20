@@ -153,22 +153,11 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
 
-    # Apply category overrides from config
-    manual_categorizer = ManualCategorizer(category_config)
-    transaction_ids = [row[0] for row in uncategorized]
-    overrides = manual_categorizer.get_overrides(transaction_ids)
+    if not uncategorized:
+        logger.info("No uncategorized transactions found - all transactions already have categories!")
+        return
 
-    if overrides:
-        logger.info(f"Applying {len(overrides)} category override(s) from config.yml")
-        for txn_id, category in overrides.items():
-            db.update_transaction_category(txn_id, category)
-            logger.debug(f"   Applied override: {txn_id} → {category}")
-        logger.info(f"   Applied {len(overrides)} override(s)")
-
-        # Refresh uncategorized list after applying overrides
-        uncategorized = db.get_uncategorized_transactions()
-
-    # Convert remaining uncategorized to TellerTransaction objects with account info
+    # Convert all uncategorized to TellerTransaction objects with account info
     transactions = []
     account_info = {}
     for row in uncategorized:
@@ -187,11 +176,22 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
             "last_four": row[9]  # account last four digits
         }
 
+    # Apply manual categorization from config
+    manual_categorizer = ManualCategorizer(category_config)
+    manual_categories = manual_categorizer.categorize_batch(transactions, account_info)
+
+    if manual_categories:
+        logger.info(f"Applying {len(manual_categories)} manual categorization(s) from config.yml")
+        for txn_id, category in manual_categories.items():
+            db.update_transaction_category(txn_id, category)
+            logger.debug(f"   Applied manual category: {txn_id} → {category}")
+        logger.info(f"   Applied {len(manual_categories)} manual categorization(s)")
+
+        # Filter out manually categorized transactions
+        transactions = [txn for txn in transactions if txn.id not in manual_categories]
+
     if not transactions:
-        if overrides:
-            logger.info("All remaining transactions have category overrides - no Claude categorization needed!")
-        else:
-            logger.info("No uncategorized transactions found - all transactions already have categories!")
+        logger.info("All transactions have manual categories - no Claude categorization needed!")
         return
 
     categorizer = ClaudeCategorizer(runtime_config)

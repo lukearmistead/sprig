@@ -18,7 +18,7 @@ def test_category_config_loads_manual_categories():
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
-        # Create config with category overrides
+        # Create config with manual categories
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants and food"},
@@ -36,7 +36,7 @@ def test_category_config_loads_manual_categories():
         # Load config
         category_config = CategoryConfig.load(config_path)
 
-        # Verify overrides were loaded
+        # Verify manual categories were loaded
         assert category_config.manual_categories is not None
         assert len(category_config.manual_categories) == 2
         assert category_config.manual_categories[0].transaction_id == "txn_123"
@@ -50,7 +50,7 @@ def test_category_config_allows_empty_manual_categories():
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
-        # Create config without category overrides
+        # Create config without manual categories
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants and food"},
@@ -64,12 +64,12 @@ def test_category_config_allows_empty_manual_categories():
         # Load config
         category_config = CategoryConfig.load(config_path)
 
-        # Verify overrides is empty list
+        # Verify manual_categories is empty list
         assert category_config.manual_categories == []
 
 
 def test_manual_categories_applied_before_claude_categorization():
-    """Test that category overrides from config are applied before calling Claude."""
+    """Test that manual categories from config are applied before calling Claude."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test.db"
         config_path = Path(temp_dir) / "config.yml"

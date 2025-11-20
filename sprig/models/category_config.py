@@ -13,8 +13,8 @@ class Category(BaseModel):
     description: str
 
 
-class CategoryOverride(BaseModel):
-    """Category override for a specific transaction."""
+class ManualCategory(BaseModel):
+    """Manual categorization for a specific transaction."""
     transaction_id: str
     category: str
 
@@ -22,27 +22,27 @@ class CategoryOverride(BaseModel):
 class CategoryConfig(BaseModel):
     """Transaction category configuration from config.yml."""
     categories: List[Category]
-    manual_categories: List[CategoryOverride] = []
+    manual_categories: List[ManualCategory] = []
 
     @model_validator(mode='after')
-    def validate_override_categories(self):
-        """Validate that override categories match valid category names."""
+    def validate_manual_categories(self):
+        """Validate that manual categories match valid category names."""
         if not self.manual_categories:
             return self
 
         valid_categories = {cat.name for cat in self.categories}
-        invalid_overrides = [
-            override for override in self.manual_categories
-            if override.category not in valid_categories
+        invalid_manual_cats = [
+            manual_cat for manual_cat in self.manual_categories
+            if manual_cat.category not in valid_categories
         ]
 
-        if invalid_overrides:
+        if invalid_manual_cats:
             invalid_items = [
-                f"{override.transaction_id} -> '{override.category}'"
-                for override in invalid_overrides
+                f"{manual_cat.transaction_id} -> '{manual_cat.category}'"
+                for manual_cat in invalid_manual_cats
             ]
             raise ValueError(
-                f"Invalid categories in overrides: {', '.join(invalid_items)}. "
+                f"Invalid categories in manual_categories: {', '.join(invalid_items)}. "
                 f"Valid categories: {', '.join(sorted(valid_categories))}"
             )
 

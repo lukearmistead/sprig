@@ -182,7 +182,7 @@ class TestRetryLogic:
 class TestProgressTracking:
     """Test that progress is reported during categorization."""
     
-    @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
+    @patch('sprig.categorizer.ClaudeCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
     @patch('sprig.sync.logger')
     def test_batch_progress_is_shown(self, mock_logger, mock_db, mock_categorize_batch):
@@ -215,7 +215,7 @@ class TestProgressTracking:
         )
         assert progress_logged, "Should show batch progress"
     
-    @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
+    @patch('sprig.categorizer.ClaudeCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
     @patch('sprig.sync.logger')
     def test_summary_shows_results(self, mock_logger, mock_db, mock_categorize_batch):
