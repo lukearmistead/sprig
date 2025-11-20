@@ -6,8 +6,9 @@ from typing import Dict, List
 import anthropic
 
 from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
+from sprig.models import TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
 from sprig.models.category_config import CategoryConfig
+import sprig.credentials as credentials
 
 logger = get_logger("sprig.categorizer")
 
@@ -156,10 +157,12 @@ class ManualCategorizer:
 class ClaudeCategorizer:
     """Claude-based transaction categorization."""
 
-    def __init__(self, runtime_config: RuntimeConfig):
-        self.runtime_config = runtime_config
+    def __init__(self):
         self.category_config = CategoryConfig.load()
-        self.client = anthropic.Anthropic(api_key=runtime_config.claude_api_key)
+        api_key = credentials.get_claude_api_key()
+        if not api_key:
+            raise ValueError("Claude API key not found in keyring")
+        self.client = anthropic.Anthropic(api_key=api_key.value)
 
     def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> dict:
         """Categorize a batch of transactions using Claude with retry logic."""

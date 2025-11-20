@@ -25,7 +25,8 @@ This file guides Claude when working on Sprig - "Actually-personal personal fina
 
 | Feature | Primary Module | Secondary | Test File | When to Extend Here |
 |---------|---------------|-----------|-----------|---------------------|
-| Bank OAuth | `auth.py` | - | `test_auth.py` | Teller Connect, token management |
+| Credentials | `credentials.py` | - | `test_credentials.py` | Keyring storage, migration, credential access |
+| Bank OAuth | `auth.py` | `credentials.py` | `test_auth.py` | Teller Connect, token management |
 | API calls | `teller_client.py` | - | `test_teller_client.py` | mTLS, HTTP requests, retries |
 | Data storage | `database.py` | - | `test_database.py` | Schema, CRUD, SQL queries |
 | Sync logic | `sync.py` | `database.py` | `test_sync.py` | Orchestration, duplicate detection |
@@ -313,6 +314,7 @@ def sample_uncategorized_db_row():
 ## Current Implementation Status
 
 ### Working Features ✅
+- Secure credential storage via system keyring
 - Teller OAuth flow via browser
 - mTLS authentication with certificates
 - Transaction sync with duplicate prevention
@@ -333,6 +335,7 @@ def sample_uncategorized_db_row():
    - Recent: Added confidence scoring (0-1) to identify uncertain categorizations
 
 ### Recent Improvements ✨
+- **Keyring Credential Storage**: Secure OS-level credential management
 - **Confidence Scoring**: AI provides 0-1 confidence score for each categorization; sort by confidence in CSV to review uncertain transactions
 - **Category Overrides**: Override miscategorized transactions in `config.yml` for persistence across syncs
 - **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
@@ -389,21 +392,19 @@ def _validate_category(self, category: str) -> str:
 
 ## Configuration & Secrets
 
-### Required `.env` Structure
-```bash
-# Teller Configuration
-APP_ID=app_xxx
-ACCESS_TOKENS=test_tok_xxx,test_tok_yyy  # Comma-separated
-CERT_PATH=certs/certificate.pem
-KEY_PATH=certs/private_key.pem
+### Credential Storage
 
-# Claude Configuration
-ANTHROPIC_API_KEY=sk-ant-xxx
+Sprig stores credentials securely in your system keyring:
+- **macOS**: Keychain
+- **Linux**: Secret Service (GNOME Keyring, KWallet)
+- **Windows**: Credential Locker
 
-# Optional
-DATABASE_PATH=sprig.db  # Defaults to ./sprig.db
-EXPORT_DIR=exports      # Defaults to ./exports
-```
+On first run, `sprig auth` will prompt for:
+- Teller APP_ID
+- Claude API Key
+- Certificate paths
+
+Subsequent runs use stored credentials. Bank access tokens are added automatically during OAuth.
 
 ### Category Configuration (`config.yml`)
 ```yaml
@@ -459,12 +460,12 @@ Ask:
 Only create new modules for genuinely orthogonal concerns.
 
 ### Debugging Checklist
-- [ ] Verify `.env` has all required keys
-- [ ] Check certificate paths are absolute
+- [ ] Run `sprig auth` to verify credentials are set
+- [ ] Check certificate paths are correct
 - [ ] Run with `--verbose` flag for detailed logs
 - [ ] Check `sprig.db` with sqlite3 CLI
-- [ ] Verify Teller token with: `curl -H "Authorization: Bearer $TOKEN"`
-- [ ] Test Claude key with simple prompt
+- [ ] Verify Teller API connectivity
+- [ ] Test Claude API key
 
 ## When In Doubt
 
@@ -485,7 +486,8 @@ python -m pytest --cov=sprig         # Coverage report
 ruff check .                          # Linting and code formatting
 
 # Usage
-python sprig.py auth                 # Authenticate banks
+python sprig.py auth                 # First run: prompts for credentials, then authenticates
+                                     # Subsequent runs: just authenticates more banks
 python sprig.py sync                 # Sync + categorize
 python sprig.py sync --days 7        # Sync recent transactions only
 python sprig.py sync --batch-size 5  # Gentler API usage (default: 10)
@@ -507,5 +509,5 @@ python sprig.py sync                           # Resume categorization
 # Debugging
 sqlite3 sprig.db "SELECT * FROM transactions LIMIT 10;"
 sqlite3 sprig.db "SELECT DISTINCT inferred_category FROM transactions;"
-python -c "from sprig.config import Config; Config().validate()"
+python -c "from sprig import credentials; print(credentials.get_app_id())"
 ```

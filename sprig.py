@@ -4,27 +4,77 @@ Sprig - Teller.io transaction data collection tool.
 """
 
 import argparse
+import getpass
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from pydantic import ValidationError
 
 # Add the sprig package to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Load environment variables once at startup
-load_dotenv()
-
-# Import after path setup and env loading
-from sprig.auth import authenticate  # noqa: E402
-from sprig.export import export_transactions_to_csv  # noqa: E402
-from sprig.logger import get_logger  # noqa: E402
-from sprig.models import RuntimeConfig, SyncParams  # noqa: E402
-from sprig.sync import sync_all_accounts  # noqa: E402
+# Import after path setup
+from sprig.auth import authenticate
+from sprig.export import export_transactions_to_csv
+from sprig.logger import get_logger
+from sprig.models import SyncParams
+from sprig.sync import sync_all_accounts
+import sprig.credentials as credentials
 
 # Initialize logger
 logger = get_logger()
+
+
+def prompt_for_value(prompt_text: str, secret: bool = False) -> str:
+    """Prompt user for a single value."""
+    if secret:
+        return getpass.getpass(prompt_text).strip()
+    return input(prompt_text).strip()
+
+
+def store_credential(key: str, value: str, required: bool = True) -> bool:
+    """Store a credential and handle errors."""
+    if not credentials.set(key, value):
+        if required:
+            logger.error(f"Failed to store {key}")
+        return False
+    return True
+
+
+def setup_credentials() -> bool:
+    """Prompt for and store all required credentials."""
+    logger.info("First-time setup: Please enter your credentials")
+    logger.info("=" * 50)
+
+    # Required credentials
+    app_id = prompt_for_value("Teller APP_ID (app_xxx): ")
+    if not app_id:
+        logger.error("APP_ID is required")
+        return False
+
+    claude_key = prompt_for_value("Claude API Key (sk-ant-api03-xxx): ", secret=True)
+    if not claude_key:
+        logger.error("Claude API Key is required")
+        return False
+
+    # Optional credentials with defaults
+    cert_path = prompt_for_value("Certificate path (e.g., certs/certificate.pem): ") or "certs/certificate.pem"
+    key_path = prompt_for_value("Private key path (e.g., certs/private_key.pem): ") or "certs/private_key.pem"
+
+    # Store all credentials
+    if not store_credential(credentials.KEY_APP_ID, app_id):
+        return False
+    if not store_credential(credentials.KEY_CLAUDE_API_KEY, claude_key):
+        return False
+
+    store_credential(credentials.KEY_CERT_PATH, cert_path, required=False)
+    store_credential(credentials.KEY_KEY_PATH, key_path, required=False)
+    store_credential(credentials.KEY_ENVIRONMENT, "development", required=False)
+    store_credential(credentials.KEY_DATABASE_PATH, "sprig.db", required=False)
+
+    logger.info("Credentials saved to keyring")
+    return True
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -67,7 +117,7 @@ def main():
     )
 
     # Auth command
-    auth_parser = subparsers.add_parser("auth", help="Authenticate with Teller")
+    auth_parser = subparsers.add_parser("auth", help="Authenticate with Teller (prompts for credentials on first run)")
     auth_parser.add_argument(
         "--environment",
         choices=["sandbox", "development", "production"],
@@ -88,15 +138,6 @@ def main():
         return
 
     if args.command == "sync":
-        # Load and validate full configuration for sync
-        try:
-            config = RuntimeConfig.load()
-        except Exception as e:
-            logger.error(f"Configuration error: {e}")
-            logger.error("Please check your .env file and certificate setup.")
-            sys.exit(1)
-
-        # Validate sync parameters with Pydantic
         try:
             sync_params = SyncParams(
                 recategorize=args.recategorize,
@@ -110,24 +151,33 @@ def main():
                 logger.error(f"  {field}: {msg}")
             sys.exit(1)
 
-        sync_all_accounts(
-            config,
-            recategorize=sync_params.recategorize,
-            from_date=sync_params.from_date,
-            batch_size=args.batch_size
-        )
-    elif args.command == "export":
-        # Load and validate full configuration for export
         try:
-            config = RuntimeConfig.load()
-        except Exception as e:
+            sync_all_accounts(
+                recategorize=sync_params.recategorize,
+                from_date=sync_params.from_date,
+                batch_size=args.batch_size
+            )
+        except ValueError as e:
             logger.error(f"Configuration error: {e}")
-            logger.error("Please check your .env file and certificate setup.")
+            logger.error("Please run 'sprig auth' to set up credentials.")
             sys.exit(1)
-        export_transactions_to_csv(config.database_path, args.output)
+    elif args.command == "export":
+        db_path = credentials.get_database_path()
+        if not db_path:
+            logger.error("Database path not found in keyring")
+            logger.error("Please run 'sprig auth' to set up credentials.")
+            sys.exit(1)
+
+        project_root = Path(__file__).parent
+        export_transactions_to_csv(project_root / db_path.value, args.output)
     elif args.command == "auth":
-        # Auth command doesn't need full config validation
-        authenticate(args.environment, args.port)
+        app_id = credentials.get(credentials.KEY_APP_ID)
+        if not app_id:
+            if not setup_credentials():
+                sys.exit(1)
+            app_id = credentials.get(credentials.KEY_APP_ID)
+
+        authenticate(app_id, args.environment, args.port)
 
 if __name__ == "__main__":
     main()

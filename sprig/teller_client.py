@@ -1,23 +1,27 @@
 """Simple Teller API client."""
 
+from pathlib import Path
 import requests
 
-from sprig.models import RuntimeConfig
+import sprig.credentials as credentials
 
 
 class TellerClient:
     """Basic Teller API client."""
-    
-    def __init__(self, config: RuntimeConfig):
-        self.config = config
+
+    def __init__(self):
         self.base_url = "https://api.teller.io"
         self.session = requests.Session()
         self._setup_mtls_certificates()
-    
+
     def _setup_mtls_certificates(self):
         """Configure mTLS client certificates for authentication."""
-        if self.config.cert_path and self.config.key_path:
-            self.session.cert = (str(self.config.cert_path), str(self.config.key_path))
+        cert_path = credentials.get_cert_path()
+        key_path = credentials.get_key_path()
+
+        if cert_path and key_path:
+            # Paths are already validated and resolved in credentials.get_*_path()
+            self.session.cert = (str(cert_path.value), str(key_path.value))
     
     def _make_request(self, access_token: str, endpoint: str):
         """Make authenticated request to Teller API."""

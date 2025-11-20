@@ -4,19 +4,18 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import ClaudeCategorizer, ManualCategorizer
+from sprig.categorizer import TransactionCategorizer
 from sprig.logger import get_logger
-from sprig.models import RuntimeConfig, TellerAccount, TellerTransaction
-from sprig.models.category_config import CategoryConfig
+from sprig.models import TellerAccount, TellerTransaction
 from sprig.database import SprigDatabase
 from sprig.teller_client import TellerClient
+import sprig.credentials as credentials
 
 logger = get_logger("sprig.sync")
 BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
 
 
 def sync_all_accounts(
-    config: RuntimeConfig,
     recategorize: bool = False,
     from_date: Optional[date] = None,
     batch_size: int = 10
@@ -24,15 +23,22 @@ def sync_all_accounts(
     """Sync accounts and transactions for all access tokens.
 
     Args:
-        config: Runtime configuration
         recategorize: Clear all existing categories before syncing
         from_date: Only sync transactions from this date onwards (reduces API costs)
         batch_size: Number of transactions to categorize per API call (default: 10)
     """
-    logger.info(f"Starting sync for {len(config.access_tokens)} access token(s)")
+    access_tokens = credentials.get_access_tokens()
+    logger.info(f"Starting sync for {len(access_tokens)} access token(s)")
 
-    client = TellerClient(config)
-    db = SprigDatabase(config.database_path)
+    client = TellerClient()
+
+    db_path = credentials.get_database_path()
+    if not db_path:
+        raise ValueError("Database path not found in keyring")
+
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent
+    db = SprigDatabase(project_root / db_path.value)
 
     # Use from_date if specified
     cutoff_date = from_date
@@ -47,8 +53,8 @@ def sync_all_accounts(
     invalid_tokens = []
     valid_tokens = 0
 
-    for i, token_obj in enumerate(config.access_tokens, 1):
-        logger.debug(f"Processing token {i}/{len(config.access_tokens)}")
+    for i, token_obj in enumerate(access_tokens, 1):
+        logger.debug(f"Processing token {i}/{len(access_tokens)}")
         success = sync_accounts_for_token(client, db, token_obj.token, cutoff_date)
         if success:
             valid_tokens += 1
@@ -65,7 +71,7 @@ def sync_all_accounts(
 
     # Categorize any uncategorized transactions
     try:
-        categorize_uncategorized_transactions(config, db, batch_size)
+        categorize_uncategorized_transactions(db, batch_size)
     except Exception as e:
         if "rate_limit_error" in str(e) or "rate limit" in str(e).lower():
             logger.error("Categorization stopped due to Claude API rate limits")
@@ -142,22 +148,14 @@ def sync_transactions_for_account(
         db.insert_record("transactions", transaction.model_dump())
 
 
-def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: SprigDatabase, batch_size: int = 10, category_config: CategoryConfig = None):
+def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int = 10):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
-
-    # Load category config
-    if category_config is None:
-        category_config = CategoryConfig.load()
-
+    categorizer = TransactionCategorizer()
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
-
-    if not uncategorized:
-        logger.info("No uncategorized transactions found - all transactions already have categories!")
-        return
-
-    # Convert all uncategorized to TellerTransaction objects with account info
+    
+    # Convert to TellerTransaction objects with account info
     transactions = []
     account_info = {}
     for row in uncategorized:
@@ -175,26 +173,10 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
             "counterparty": row[8],  # counterparty from JSON extraction
             "last_four": row[9]  # account last four digits
         }
-
-    # Apply manual categorization from config
-    manual_categorizer = ManualCategorizer(category_config)
-    manual_categories = manual_categorizer.categorize_batch(transactions, account_info)
-
-    if manual_categories:
-        logger.info(f"Applying {len(manual_categories)} manual categorization(s) from config.yml")
-        for txn_id, category in manual_categories.items():
-            db.update_transaction_category(txn_id, category)
-            logger.debug(f"   Applied manual category: {txn_id} → {category}")
-        logger.info(f"   Applied {len(manual_categories)} manual categorization(s)")
-
-        # Filter out manually categorized transactions
-        transactions = [txn for txn in transactions if txn.id not in manual_categories]
-
+    
     if not transactions:
-        logger.info("All transactions have manual categories - no Claude categorization needed!")
+        logger.info("No uncategorized transactions found - all transactions already have categories!")
         return
-
-    categorizer = ClaudeCategorizer(runtime_config)
 
     total_transactions = len(transactions)
     logger.debug(f"Converted to {total_transactions} TellerTransaction objects")
@@ -222,8 +204,8 @@ def categorize_uncategorized_transactions(runtime_config: RuntimeConfig, db: Spr
         
         # Update database with successful categorizations
         batch_success_count = 0
-        for txn_id, (category, confidence) in categories.items():
-            db.update_transaction_category(txn_id, category, confidence)
+        for txn_id, category in categories.items():
+            db.update_transaction_category(txn_id, category)
             batch_success_count += 1
 
         categorized_count += batch_success_count

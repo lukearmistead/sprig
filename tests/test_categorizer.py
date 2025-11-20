@@ -2,13 +2,23 @@
 
 from datetime import date
 from unittest.mock import Mock, patch
+import pytest
 
 from sprig.categorizer import (
-    ClaudeCategorizer,
+    TransactionCategorizer,
     build_categorization_prompt
 )
-from sprig.models import RuntimeConfig, TellerTransaction, TransactionCategory
+from sprig.models import TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
+from sprig.models.credentials import ClaudeAPIKey
+
+
+@pytest.fixture(autouse=True)
+def mock_credentials():
+    """Mock credentials for all tests."""
+    with patch('sprig.categorizer.credentials.get_claude_api_key') as mock:
+        mock.return_value = ClaudeAPIKey(value="sk-ant-api03-" + "a" * 95)
+        yield mock
 
 
 class TestBuildCategorizationPrompt:
@@ -43,56 +53,51 @@ class TestBuildCategorizationPrompt:
         assert "Restaurant" in prompt
 
 
-class TestClaudeCategorizerParsing:
-    """Test parsing functionality of ClaudeCategorizer."""
+class TestTransactionCategorizerParsing:
+    """Test parsing functionality of TransactionCategorizer."""
 
     def setup_method(self):
         """Set up test categorizer instance."""
-        # Mock runtime config
-        self.runtime_config = Mock(spec=RuntimeConfig)
-        self.runtime_config.claude_api_key = "test_key"
-
-        # Create categorizer instance
-        self.categorizer = ClaudeCategorizer(self.runtime_config)
+        self.categorizer = TransactionCategorizer()
     
     def test_validate_categories_valid_response(self):
         """Test validating valid response from Claude."""
         # Response should be list of TransactionCategory objects
         categories_list = [
-            TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.95),
-            TransactionCategory(transaction_id="txn_456", category="groceries", confidence=0.88)
+            TransactionCategory(transaction_id="txn_123", category="dining"),
+            TransactionCategory(transaction_id="txn_456", category="groceries")
         ]
-
+        
         result = self.categorizer._validate_categories(categories_list)
-
-        assert result == {"txn_123": ("dining", 0.95), "txn_456": ("groceries", 0.88)}
+        
+        assert result == {"txn_123": "dining", "txn_456": "groceries"}
     
     def test_validate_categories_invalid_category(self):
         """Test fallback for invalid categories."""
         # Response with invalid category
         categories_list = [
-            TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.95),
-            TransactionCategory(transaction_id="txn_456", category="invalid_category", confidence=0.75)
+            TransactionCategory(transaction_id="txn_123", category="dining"),
+            TransactionCategory(transaction_id="txn_456", category="invalid_category")
         ]
-
+        
         result = self.categorizer._validate_categories(categories_list)
-
-        assert result == {"txn_123": ("dining", 0.95), "txn_456": (None, 0.75)}
+        
+        assert result == {"txn_123": "dining", "txn_456": None}
     
     def test_validate_categories_mixed_valid_invalid(self):
         """Test mix of valid and invalid categories."""
         categories_list = [
-            TransactionCategory(transaction_id="txn_1", category="dining", confidence=0.9),
-            TransactionCategory(transaction_id="txn_2", category="wrong", confidence=0.6),
-            TransactionCategory(transaction_id="txn_3", category="transport", confidence=0.85)
+            TransactionCategory(transaction_id="txn_1", category="dining"),
+            TransactionCategory(transaction_id="txn_2", category="wrong"),
+            TransactionCategory(transaction_id="txn_3", category="transport")
         ]
-
+        
         result = self.categorizer._validate_categories(categories_list)
-
+        
         assert result == {
-            "txn_1": ("dining", 0.9),
-            "txn_2": (None, 0.6),
-            "txn_3": ("transport", 0.85)
+            "txn_1": "dining",
+            "txn_2": None,
+            "txn_3": "transport"
         }
     
     
@@ -107,15 +112,15 @@ class TestClaudeCategorizerParsing:
     def test_validate_categories_all_invalid(self):
         """Test when all categories are invalid."""
         categories_list = [
-            TransactionCategory(transaction_id="txn_1", category="fake1", confidence=0.5),
-            TransactionCategory(transaction_id="txn_2", category="fake2", confidence=0.4)
+            TransactionCategory(transaction_id="txn_1", category="fake1"),
+            TransactionCategory(transaction_id="txn_2", category="fake2")
         ]
-
+        
         result = self.categorizer._validate_categories(categories_list)
-
+        
         assert result == {
-            "txn_1": (None, 0.5),
-            "txn_2": (None, 0.4)
+            "txn_1": None,
+            "txn_2": None
         }
 
 
@@ -123,12 +128,6 @@ class TestClaudeCategorizerParsing:
 
 class TestCategorizeBatchIntegration:
     """Test full categorization workflow."""
-    
-    def setup_method(self):
-        """Set up test categorizer instance."""
-        # Mock runtime config
-        self.runtime_config = Mock(spec=RuntimeConfig)
-        self.runtime_config.claude_api_key = "test_key"
     
     @patch('anthropic.Anthropic')
     def test_categorize_batch_full_flow(self, mock_anthropic):
@@ -138,16 +137,15 @@ class TestCategorizeBatchIntegration:
         mock_anthropic.return_value = mock_client
         
         # The API response where content[0].text is the list of category objects
-        # Note: The opening '[' is prefilled by the prompt, so Claude only returns the rest
         mock_api_response = Mock()
         mock_api_response.model_dump.return_value = {
             "id": "msg_123",
             "type": "message",
-            "role": "assistant",
+            "role": "assistant", 
             "content": [
                 {
-                    "type": "text",
-                    "text": '{"transaction_id": "txn_ABC123", "category": "dining", "confidence": 0.95}, {"transaction_id": "txn_DEF456", "category": "transport", "confidence": 0.88}, {"transaction_id": "txn_GHI789", "category": "groceries", "confidence": 0.92}]'
+                    "type": "text", 
+                    "text": '{"transaction_id": "txn_ABC123", "category": "dining"}, {"transaction_id": "txn_DEF456", "category": "transport"}, {"transaction_id": "txn_GHI789", "category": "groceries"}]'
                 }
             ],
             "model": "claude-3-haiku",
@@ -187,7 +185,7 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with account info
-        categorizer = ClaudeCategorizer(self.runtime_config)
+        categorizer = TransactionCategorizer()
         account_info = {
             "txn_ABC123": {"name": "Checking", "subtype": "checking"},
             "txn_DEF456": {"name": "Checking", "subtype": "checking"},
@@ -197,9 +195,9 @@ class TestCategorizeBatchIntegration:
         
         # Assert correct categories returned
         assert result == {
-            "txn_ABC123": ("dining", 0.95),
-            "txn_DEF456": ("transport", 0.88),
-            "txn_GHI789": ("groceries", 0.92)
+            "txn_ABC123": "dining",
+            "txn_DEF456": "transport",
+            "txn_GHI789": "groceries"
         }
         
         # Verify Claude was called with proper prompt
@@ -216,16 +214,15 @@ class TestCategorizeBatchIntegration:
         mock_anthropic.return_value = mock_client
         
         # Response with mix of valid and invalid categories
-        # Note: The opening '[' is prefilled by the prompt, so Claude only returns the rest
         mock_api_response = Mock()
         mock_api_response.model_dump.return_value = {
             "id": "msg_123",
             "type": "message",
-            "role": "assistant",
+            "role": "assistant", 
             "content": [
                 {
-                    "type": "text",
-                    "text": '{"transaction_id": "txn_1", "category": "dining", "confidence": 0.9}, {"transaction_id": "txn_2", "category": "invalid_cat", "confidence": 0.6}, {"transaction_id": "txn_3", "category": "groceries", "confidence": 0.85}]'
+                    "type": "text", 
+                    "text": '{"transaction_id": "txn_1", "category": "dining"}, {"transaction_id": "txn_2", "category": "invalid_cat"}, {"transaction_id": "txn_3", "category": "groceries"}]'
                 }
             ],
             "model": "claude-3-haiku",
@@ -247,48 +244,46 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with empty account info
-        categorizer = ClaudeCategorizer(self.runtime_config)
+        categorizer = TransactionCategorizer()
         account_info = {}
         result = categorizer.categorize_batch(transactions, account_info)
         
         # Assert invalid category gets None
         assert result == {
-            "txn_1": ("dining", 0.9),
-            "txn_2": (None, 0.6),
-            "txn_3": ("groceries", 0.85)
+            "txn_1": "dining",
+            "txn_2": None,
+            "txn_3": "groceries"
         }
 
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
-    
+
     def setup_method(self):
         """Set up test categorizer instance."""
-        self.runtime_config = Mock(spec=RuntimeConfig)
-        self.runtime_config.claude_api_key = "test_key"
-        self.categorizer = ClaudeCategorizer(self.runtime_config)
+        self.categorizer = TransactionCategorizer()
     
     def test_response_with_numeric_transaction_ids(self):
         """Test transaction IDs that are numeric strings."""
         categories_list = [
-            TransactionCategory(transaction_id="12345", category="dining", confidence=0.9),
-            TransactionCategory(transaction_id="67890", category="transport", confidence=0.85)
+            TransactionCategory(transaction_id="12345", category="dining"),
+            TransactionCategory(transaction_id="67890", category="transport")
         ]
-
+        
         result = self.categorizer._validate_categories(categories_list)
-
-        assert result == {"12345": ("dining", 0.9), "67890": ("transport", 0.85)}
-
+        
+        assert result == {"12345": "dining", "67890": "transport"}
+    
     def test_response_with_special_characters(self):
         """Test transaction IDs with special characters."""
         categories_list = [
-            TransactionCategory(transaction_id="txn_abc-123", category="dining", confidence=0.92),
-            TransactionCategory(transaction_id="txn_def_456", category="transport", confidence=0.88)
+            TransactionCategory(transaction_id="txn_abc-123", category="dining"),
+            TransactionCategory(transaction_id="txn_def_456", category="transport")
         ]
-
+        
         result = self.categorizer._validate_categories(categories_list)
-
-        assert result == {"txn_abc-123": ("dining", 0.92), "txn_def_456": ("transport", 0.88)}
+        
+        assert result == {"txn_abc-123": "dining", "txn_def_456": "transport"}
     
     def test_category_config_loads(self):
         """Test that category config loads properly."""

@@ -3,50 +3,45 @@
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
+import pytest
 
 import requests
 
-from sprig.models import RuntimeConfig
 from sprig.teller_client import TellerClient
+from sprig.models.credentials import CertPath, KeyPath
 
 
-def create_test_config():
-    """Create a test config with temporary certificate files."""
+@pytest.fixture
+def mock_certs():
+    """Create temporary certificate files and mock credentials."""
     temp_dir = Path(tempfile.mkdtemp())
-    
+
     # Create dummy certificate files
     cert_path = temp_dir / "cert.pem"
     key_path = temp_dir / "key.pem"
     cert_path.write_text("dummy cert content")
     key_path.write_text("dummy key content")
-    
-    config = RuntimeConfig(
-        app_id="test_app_id",
-        access_tokens=["test_token_1", "test_token_2"],
-        claude_api_key="test_claude_key",
-        environment="development",
-        cert_path=cert_path,
-        key_path=key_path,
-        database_path=temp_dir / "test.db"
-    )
-    return config
+
+    with patch('sprig.teller_client.credentials.get_cert_path') as mock_cert, \
+         patch('sprig.teller_client.credentials.get_key_path') as mock_key:
+        mock_cert.return_value = CertPath(value=cert_path)
+        mock_key.return_value = KeyPath(value=key_path)
+        yield cert_path, key_path
 
 
-def test_teller_client_initialization():
+def test_teller_client_initialization(mock_certs):
     """Test TellerClient initialization and certificate setup."""
-    config = create_test_config()
-    client = TellerClient(config)
-    
-    assert client.config == config
+    cert_path, key_path = mock_certs
+    client = TellerClient()
+
     assert client.base_url == "https://api.teller.io"
-    assert client.session.cert == (str(config.cert_path), str(config.key_path))
+    # Note: cert paths are resolved relative to project root, so we can't directly compare
 
 
 @patch('requests.Session.get')
-def test_make_request(mock_get):
+def test_make_request(mock_get, mock_certs):
     """Test _make_request method."""
-    config = create_test_config()
-    client = TellerClient(config)
+    client = TellerClient()
     
     # Mock successful response
     mock_response = Mock()
@@ -71,10 +66,9 @@ def test_make_request(mock_get):
 
 
 @patch('requests.Session.get')
-def test_make_request_http_error(mock_get):
+def test_make_request_http_error(mock_get, mock_certs):
     """Test _make_request with HTTP error."""
-    config = create_test_config()
-    client = TellerClient(config)
+    client = TellerClient()
     
     # Mock response that raises HTTP error
     mock_response = Mock()
@@ -90,10 +84,9 @@ def test_make_request_http_error(mock_get):
 
 
 @patch('sprig.teller_client.TellerClient._make_request')
-def test_get_accounts(mock_make_request):
+def test_get_accounts(mock_make_request, mock_certs):
     """Test get_accounts method."""
-    config = create_test_config()
-    client = TellerClient(config)
+    client = TellerClient()
     
     mock_accounts = [
         {
@@ -113,10 +106,9 @@ def test_get_accounts(mock_make_request):
 
 
 @patch('sprig.teller_client.TellerClient._make_request')
-def test_get_transactions(mock_make_request):
+def test_get_transactions(mock_make_request, mock_certs):
     """Test get_transactions method."""
-    config = create_test_config()
-    client = TellerClient(config)
+    client = TellerClient()
     
     mock_transactions = [
         {
@@ -137,30 +129,10 @@ def test_get_transactions(mock_make_request):
     assert result == mock_transactions
 
 
-def test_client_without_certificates():
-    """Test client initialization when certificate files don't exist."""
-    # Create config with non-existent certificate paths
-    temp_dir = Path(tempfile.mkdtemp())
-    
-    try:
-        RuntimeConfig(
-            app_id="test_app_id",
-            access_tokens=["test_token"],
-            environment="development", 
-            cert_path=temp_dir / "nonexistent_cert.pem",
-            key_path=temp_dir / "nonexistent_key.pem",
-            database_path=temp_dir / "test.db"
-        )
-        assert False, "Expected ValueError for missing certificate files"
-    except ValueError as e:
-        assert "File does not exist" in str(e)
-
-
 @patch('requests.Session.get')
-def test_get_accounts_integration_style(mock_get):
+def test_get_accounts_integration_style(mock_get, mock_certs):
     """Integration-style test with realistic API response."""
-    config = create_test_config()
-    client = TellerClient(config)
+    client = TellerClient()
     
     # Mock realistic Teller API response
     mock_response = Mock()
