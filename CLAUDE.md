@@ -335,18 +335,109 @@ def sample_uncategorized_db_row():
    - Recent: Added confidence scoring (0-1) to identify uncertain categorizations
 
 ### Recent Improvements ✨
+- **Simplified Auth Flow**: Single `setup_credentials()` function with user-friendly prompts and credential masking
+- **DRY Credential Management**: Data-driven configuration with consolidated validation patterns
+- **Claude API Mandatory**: Simplified sync logic by requiring Claude API key (no graceful fallback complexity)
+- **Pydantic Validation**: Direct error propagation instead of wrapper functions
+- **Clean Function Interfaces**: `set_app_id()`, `set_claude_api_key()` instead of global imports
+- **Current Value Display**: Auth shows existing credentials with partial masking for security
 - **Keyring Credential Storage**: Secure OS-level credential management
 - **Confidence Scoring**: AI provides 0-1 confidence score for each categorization; sort by confidence in CSV to review uncertain transactions
-- **Category Overrides**: Override miscategorized transactions in `config.yml` for persistence across syncs
 - **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
 - **Configurable Batch Sizes**: `--batch-size` parameter for API cost management
 - **Enhanced Context**: Account details (name, subtype, last4) included in categorization
-- **Better Logging**: Clear rate limit messages and user guidance
 - **Progress Preservation**: Sync succeeds even if categorization hits limits
 
 ### Not Implemented Yet ❌
 - `--full` flag for complete resync
 - Account fingerprinting for duplicate prevention
+
+## Simplified Credential Management Patterns
+
+### DRY Configuration Pattern
+```python
+# sprig/credentials.py - Data-driven credential management
+CREDENTIALS = {
+    "app_id": TellerAppId,           # Validates with Pydantic model
+    "claude_api_key": ClaudeAPIKey,  # Validates with Pydantic model  
+    "cert_path": CertPath,           # Validates with Pydantic model
+    "key_path": KeyPath,             # Validates with Pydantic model
+    "access_tokens": None,           # No validation model
+    "database_path": None,           # No validation model
+    "environment": Environment,      # Validates with Pydantic model
+}
+
+def store_credential(key: str, value: str) -> bool:
+    """Store credential with automatic validation."""
+    if not value:
+        return True
+    
+    # Use Pydantic validation if available
+    model_class = CREDENTIALS.get(key)
+    if model_class:
+        model_class(value=value)  # Let ValidationError propagate
+    
+    keyring.set_password(SERVICE_NAME, key, value)
+    return True
+```
+
+### Clean Function Interfaces
+```python
+# sprig/credentials.py - Clean API instead of global imports
+def set_app_id(app_id: str) -> bool:
+    """Set Teller APP_ID with validation."""
+    return store_credential(KEY_APP_ID, app_id)
+
+def set_claude_api_key(api_key: str) -> bool:
+    """Set Claude API key with validation."""
+    return store_credential(KEY_CLAUDE_API_KEY, api_key)
+
+def get_claude_api_key() -> Optional[ClaudeAPIKey]:
+    """Get validated Claude API key."""
+    raw = get(KEY_CLAUDE_API_KEY)
+    return ClaudeAPIKey(value=raw) if raw else None
+```
+
+### Simplified Auth Flow
+```python
+# sprig.py - Single function handles all credential setup
+def setup_credentials() -> bool:
+    """Setup or update credentials with user-friendly prompts."""
+    # Get current values
+    current_app_id = credentials.get_app_id()
+    current_claude_key = credentials.get_claude_api_key()
+    
+    # Show current values with masking
+    app_id_prompt = f"Teller APP_ID (current: {current_app_id.value if current_app_id else 'none'}): "
+    claude_prompt = f"Claude API Key (current: {credentials.mask(current_claude_key.value if current_claude_key else None, 12)}): "
+    
+    # Allow keeping existing values
+    app_id = input(app_id_prompt).strip() or (current_app_id.value if current_app_id else None)
+    claude_key = input(claude_prompt).strip() or (current_claude_key.value if current_claude_key else None)
+    
+    # Validate and store (Pydantic errors propagate)
+    credentials.set_app_id(app_id)
+    credentials.set_claude_api_key(claude_key)
+    
+    return True
+```
+
+### Mandatory Claude API Key
+```python
+# sprig/sync.py - Simplified logic, no graceful fallback
+def sync_all_accounts(recategorize: bool = False, from_date: str = None, batch_size: int = 10):
+    """Sync all accounts. Claude API key is mandatory."""
+    # Fail fast if Claude not configured
+    try:
+        claude_categorizer = ClaudeCategorizer()
+    except ValueError as e:
+        logger.error(f"Claude API key is required: {e}")
+        logger.error("Run 'python sprig.py auth' to set up credentials")
+        raise ValueError("Claude API key not configured")
+    
+    # Continue with sync knowing Claude is available
+    categorize_uncategorized_transactions(claude_categorizer, batch_size)
+```
 
 ## Clean Code Principles Applied
 
@@ -396,15 +487,19 @@ def _validate_category(self, category: str) -> str:
 
 Sprig stores credentials securely in your system keyring:
 - **macOS**: Keychain
-- **Linux**: Secret Service (GNOME Keyring, KWallet)
+- **Linux**: Secret Service (GNOME Keyring, KWallet)  
 - **Windows**: Credential Locker
 
-On first run, `sprig auth` will prompt for:
-- Teller APP_ID
-- Claude API Key
-- Certificate paths
+**Simple setup flow**: `sprig auth` prompts for credentials, shows current values, and validates automatically:
+- **Teller APP_ID** (format: `app_xxx` with 21 characters after prefix)
+- **Claude API Key** (format: `sk-ant-api03-xxx` with 95 characters after prefix)
+- **Certificate paths** (defaults to `certs/certificate.pem` and `certs/private_key.pem`)
 
-Subsequent runs use stored credentials. Bank access tokens are added automatically during OAuth.
+**User-friendly features**:
+- Shows current credential values with security masking
+- Press Enter to keep existing values  
+- Automatic format validation with clear error messages
+- Bank access tokens added automatically during OAuth
 
 ### Category Configuration (`config.yml`)
 ```yaml
@@ -460,12 +555,12 @@ Ask:
 Only create new modules for genuinely orthogonal concerns.
 
 ### Debugging Checklist
-- [ ] Run `sprig auth` to verify credentials are set
-- [ ] Check certificate paths are correct
-- [ ] Run with `--verbose` flag for detailed logs
-- [ ] Check `sprig.db` with sqlite3 CLI
-- [ ] Verify Teller API connectivity
-- [ ] Test Claude API key
+- [ ] Run `sprig auth` to verify credentials (shows current values with masking)
+- [ ] Check certificate files exist in `certs/` folder
+- [ ] Verify credential formats automatically validated by Pydantic
+- [ ] Check `sprig.db` with sqlite3 CLI for data issues
+- [ ] Test Teller connectivity with existing access tokens
+- [ ] Verify Claude API key works (mandatory for categorization)
 
 ## When In Doubt
 
@@ -473,8 +568,9 @@ Only create new modules for genuinely orthogonal concerns.
 2. **Can I extend existing code?** Usually yes
 3. **Is there a test for this?** Write one first
 4. **Is this the simplest solution?** Refactor if not
-5. **Does this match Sprig's philosophy?** User control > automation
-6. **Would Luke approve?** Keep it pragmatic, not enterprise-y
+5. **Can I use existing patterns?** DRY configuration, clean function interfaces, Pydantic validation
+6. **Does this match Sprig's philosophy?** User control > automation, simplicity > enterprise complexity
+7. **Would Luke approve?** Keep it pragmatic and readable
 
 ## Common Commands Reference
 

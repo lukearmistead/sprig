@@ -4,7 +4,8 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import TransactionCategorizer
+from sprig.categorizer import ManualCategorizer, ClaudeCategorizer
+from sprig.models.category_config import CategoryConfig
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.database import SprigDatabase
@@ -151,7 +152,19 @@ def sync_transactions_for_account(
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int = 10):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
-    categorizer = TransactionCategorizer()
+    
+    # Initialize categorizers
+    category_config = CategoryConfig.load()
+    manual_categorizer = ManualCategorizer(category_config)
+    
+    # Initialize Claude categorizer (API key is mandatory)
+    try:
+        claude_categorizer = ClaudeCategorizer()
+    except ValueError as e:
+        logger.error(f"Claude API key is required for categorization: {e}")
+        logger.error("Please run 'python sprig.py auth' to set up your Claude API key")
+        raise ValueError("Claude API key not configured")
+    
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(f"Database returned {len(uncategorized)} uncategorized transaction rows")
     
@@ -178,13 +191,23 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int = 1
         logger.info("No uncategorized transactions found - all transactions already have categories!")
         return
 
+    # Check for manual categories that match current transactions
+    manual_matches = 0
+    if category_config.manual_categories:
+        manual_map = {mc.transaction_id: mc.category for mc in category_config.manual_categories}
+        manual_matches = sum(1 for txn in transactions if txn.id in manual_map)
+
     total_transactions = len(transactions)
     logger.debug(f"Converted to {total_transactions} TellerTransaction objects")
     total_batches = (total_transactions + batch_size - 1) // batch_size
     categorized_count = 0
     failed_count = 0
 
-    logger.info(f"Categorizing {total_transactions} uncategorized transaction(s) using Claude AI")
+    categorization_methods = ["Claude AI"]
+    if manual_matches > 0:
+        categorization_methods.insert(0, f"manual rules ({manual_matches} matches)")
+    
+    logger.info(f"Categorizing {total_transactions} uncategorized transaction(s) using {' and '.join(categorization_methods)}")
     logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each")
 
     if total_transactions > 100:
@@ -200,12 +223,35 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int = 1
         
         # Get account info for this batch
         batch_account_info = {t.id: account_info[t.id] for t in batch}
-        categories = categorizer.categorize_batch(batch, batch_account_info)
+        
+        # First, apply manual categorizations
+        manual_results = manual_categorizer.categorize_batch(batch, batch_account_info)
+        
+        # Find transactions that weren't manually categorized
+        manual_txn_ids = set(manual_results.keys())
+        remaining_transactions = [txn for txn in batch if txn.id not in manual_txn_ids]
+        
+        # Apply Claude categorization to remaining transactions
+        claude_results = {}
+        if remaining_transactions:
+            claude_results = claude_categorizer.categorize_batch(remaining_transactions, batch_account_info)
         
         # Update database with successful categorizations
         batch_success_count = 0
-        for txn_id, category in categories.items():
-            db.update_transaction_category(txn_id, category)
+        
+        # Update manual categorizations (with confidence = 1.0)
+        for txn_id, category in manual_results.items():
+            db.update_transaction_category(txn_id, category, 1.0)
+            batch_success_count += 1
+            
+        # Update Claude categorizations (with AI confidence score)
+        for txn_id, result in claude_results.items():
+            if isinstance(result, tuple):
+                category, confidence = result
+                db.update_transaction_category(txn_id, category, confidence)
+            else:
+                # Fallback for legacy format
+                db.update_transaction_category(txn_id, result, 0.5)
             batch_success_count += 1
 
         categorized_count += batch_success_count

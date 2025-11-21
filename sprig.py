@@ -4,7 +4,6 @@ Sprig - Teller.io transaction data collection tool.
 """
 
 import argparse
-import getpass
 import sys
 from pathlib import Path
 
@@ -25,54 +24,56 @@ import sprig.credentials as credentials
 logger = get_logger()
 
 
-def prompt_for_value(prompt_text: str, secret: bool = False) -> str:
-    """Prompt user for a single value."""
-    if secret:
-        return getpass.getpass(prompt_text).strip()
-    return input(prompt_text).strip()
-
-
-def store_credential(key: str, value: str, required: bool = True) -> bool:
-    """Store a credential and handle errors."""
-    if not credentials.set(key, value):
-        if required:
-            logger.error(f"Failed to store {key}")
-        return False
-    return True
+def exit_with_auth_error(message: str) -> None:
+    """Exit with error message and auth instruction."""
+    logger.error(message)
+    logger.error("Please run 'sprig auth' to set up credentials.")
+    sys.exit(1)
 
 
 def setup_credentials() -> bool:
-    """Prompt for and store all required credentials."""
-    logger.info("First-time setup: Please enter your credentials")
-    logger.info("=" * 50)
+    """Setup or update credentials."""
+    logger.info("Sprig credential setup")
+    logger.info("=" * 25)
 
-    # Required credentials
-    app_id = prompt_for_value("Teller APP_ID (app_xxx): ")
+    # Get current credential values
+    current_app_id = credentials.get_app_id()
+    current_claude_key = credentials.get_claude_api_key()
+    
+    current_app_id_str = current_app_id.value if current_app_id else None
+    current_claude_key_str = current_claude_key.value if current_claude_key else None
+
+    # Prompt with current values shown
+    app_id_prompt = f"Teller APP_ID (current: {current_app_id_str or 'none'}): " if current_app_id_str else "Teller APP_ID (app_xxx): "
+    claude_key_prompt = f"Claude API Key (current: {credentials.mask(current_claude_key_str, 12)}): " if current_claude_key_str else "Claude API Key (sk-ant-api03-xxx): "
+
+    app_id = input(app_id_prompt).strip() or current_app_id_str
+    claude_key = input(claude_key_prompt).strip() or current_claude_key_str
+
+    # Validate and store using clean interfaces
     if not app_id:
-        logger.error("APP_ID is required")
+        logger.error("Teller APP_ID is required")
         return False
-
-    claude_key = prompt_for_value("Claude API Key (sk-ant-api03-xxx): ", secret=True)
     if not claude_key:
-        logger.error("Claude API Key is required")
+        logger.error("Claude API key is required")
         return False
 
-    # Optional credentials with defaults
-    cert_path = prompt_for_value("Certificate path (e.g., certs/certificate.pem): ") or "certs/certificate.pem"
-    key_path = prompt_for_value("Private key path (e.g., certs/private_key.pem): ") or "certs/private_key.pem"
+    credentials.set_app_id(app_id)
+    credentials.set_claude_api_key(claude_key)
 
-    # Store all credentials
-    if not store_credential(credentials.KEY_APP_ID, app_id):
-        return False
-    if not store_credential(credentials.KEY_CLAUDE_API_KEY, claude_key):
-        return False
+    # Set defaults for other credentials if not already set
+    defaults = [
+        (credentials.get_cert_path, credentials.set_cert_path, "certs/certificate.pem"),
+        (credentials.get_key_path, credentials.set_key_path, "certs/private_key.pem"),
+        (credentials.get_environment, credentials.set_environment, "development"),
+        (credentials.get_database_path, credentials.set_database_path, "sprig.db"),
+    ]
+    
+    for get_func, set_func, default_value in defaults:
+        if not get_func():
+            set_func(default_value)
 
-    store_credential(credentials.KEY_CERT_PATH, cert_path, required=False)
-    store_credential(credentials.KEY_KEY_PATH, key_path, required=False)
-    store_credential(credentials.KEY_ENVIRONMENT, "development", required=False)
-    store_credential(credentials.KEY_DATABASE_PATH, "sprig.db", required=False)
-
-    logger.info("Credentials saved to keyring")
+    logger.info("Credentials updated successfully")
     return True
 
 
@@ -117,7 +118,7 @@ def main():
     )
 
     # Auth command
-    auth_parser = subparsers.add_parser("auth", help="Authenticate with Teller (prompts for credentials on first run)")
+    auth_parser = subparsers.add_parser("auth", help="Setup credentials and authenticate with Teller")
     auth_parser.add_argument(
         "--environment",
         choices=["sandbox", "development", "production"],
@@ -158,26 +159,20 @@ def main():
                 batch_size=args.batch_size
             )
         except ValueError as e:
-            logger.error(f"Configuration error: {e}")
-            logger.error("Please run 'sprig auth' to set up credentials.")
-            sys.exit(1)
+            exit_with_auth_error(f"Configuration error: {e}")
     elif args.command == "export":
         db_path = credentials.get_database_path()
         if not db_path:
-            logger.error("Database path not found in keyring")
-            logger.error("Please run 'sprig auth' to set up credentials.")
-            sys.exit(1)
+            exit_with_auth_error("Database path not found in keyring")
 
         project_root = Path(__file__).parent
         export_transactions_to_csv(project_root / db_path.value, args.output)
     elif args.command == "auth":
-        app_id = credentials.get(credentials.KEY_APP_ID)
-        if not app_id:
-            if not setup_credentials():
-                sys.exit(1)
-            app_id = credentials.get(credentials.KEY_APP_ID)
-
-        authenticate(app_id, args.environment, args.port)
+        if not setup_credentials():
+            sys.exit(1)
+            
+        app_id = credentials.get_app_id()
+        authenticate(app_id.value if app_id else None, args.environment, args.port)
 
 if __name__ == "__main__":
     main()

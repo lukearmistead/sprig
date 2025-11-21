@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, FilePath
 
 class TellerAppId(BaseModel):
     """Teller application ID."""
-    value: str = Field(pattern=r"^app_[a-z0-9]{32}$")
+    value: str = Field(pattern=r"^app_[a-z0-9]{21}$")
 
 
 class ClaudeAPIKey(BaseModel):

@@ -12,13 +12,25 @@ from sprig.models.credentials import (
     DatabasePath,
     Environment,
 )
+from pydantic import ValidationError
 from sprig.models.teller import TellerAccessToken
 
 
 # Keyring service name
 SERVICE_NAME = "sprig"
 
-# Credential keys
+# Credential configuration: key names and their validation models
+CREDENTIALS = {
+    "app_id": TellerAppId,
+    "access_tokens": None,  # No validation model (comma-separated tokens)
+    "claude_api_key": ClaudeAPIKey,
+    "cert_path": CertPath,
+    "key_path": KeyPath,
+    "database_path": None,  # No validation model (may not exist yet)
+    "environment": Environment,
+}
+
+# Backward compatibility constants
 KEY_APP_ID = "app_id"
 KEY_ACCESS_TOKENS = "access_tokens"
 KEY_CLAUDE_API_KEY = "claude_api_key"
@@ -33,14 +45,18 @@ def get(key: str) -> Optional[str]:
     return keyring.get_password(SERVICE_NAME, key)
 
 
-def set(key: str, value: str) -> bool:
-    """Set a credential in keyring."""
-    try:
-        keyring.set_password(SERVICE_NAME, key, value)
-        return True
-    except Exception as e:
-        print(f"Error setting credential '{key}': {e}")
-        return False
+def store_credential(key: str, value: str) -> bool:
+    """Store a credential in keyring with validation."""
+    if not value:
+        return True  # Allow empty values
+        
+    # Validate using Pydantic model if available
+    model_class = CREDENTIALS.get(key)
+    if model_class:
+        model_class(value=value)  # Let Pydantic ValidationError propagate
+    
+    keyring.set_password(SERVICE_NAME, key, value)
+    return True
 
 
 def append_token(new_token: str) -> bool:
@@ -56,7 +72,7 @@ def append_token(new_token: str) -> bool:
         current_tokens.append(new_token)
 
     updated_token_string = ",".join(current_tokens)
-    return set(KEY_ACCESS_TOKENS, updated_token_string)
+    return store_credential(KEY_ACCESS_TOKENS, updated_token_string)
 
 
 def mask(value: Optional[str], show_chars: int = 4) -> str:
@@ -115,10 +131,40 @@ def get_key_path() -> Optional[KeyPath]:
 def get_database_path() -> Optional[DatabasePath]:
     """Get validated database path."""
     raw = get(KEY_DATABASE_PATH)
-    return DatabasePath(value=Path(raw)) if raw else None
+    return DatabasePath(value=raw) if raw else None
 
 
 def get_environment() -> Environment:
     """Get validated environment setting."""
     raw = get(KEY_ENVIRONMENT)
     return Environment(value=raw if raw else "development")
+
+
+def set_app_id(app_id: str) -> bool:
+    """Set Teller APP_ID with validation."""
+    return store_credential(KEY_APP_ID, app_id)
+
+
+def set_claude_api_key(api_key: str) -> bool:
+    """Set Claude API key with validation."""
+    return store_credential(KEY_CLAUDE_API_KEY, api_key)
+
+
+def set_cert_path(path: str) -> bool:
+    """Set certificate path with validation."""
+    return store_credential(KEY_CERT_PATH, path)
+
+
+def set_key_path(path: str) -> bool:
+    """Set private key path with validation."""
+    return store_credential(KEY_KEY_PATH, path)
+
+
+def set_environment(env: str) -> bool:
+    """Set environment with validation."""
+    return store_credential(KEY_ENVIRONMENT, env)
+
+
+def set_database_path(path: str) -> bool:
+    """Set database path."""
+    return store_credential(KEY_DATABASE_PATH, path)

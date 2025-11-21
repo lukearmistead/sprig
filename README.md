@@ -50,9 +50,9 @@ You'll need accounts with two services (both free to start):
    - Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
    - **Save these** - you'll enter them when you run `sprig auth` in Step 3
 
-2. **Anthropic** - Powers AI transaction categorization (optional but recommended)
+2. **Anthropic** - Powers AI transaction categorization (required)
    - Go to [console.anthropic.com](https://console.anthropic.com) and create an account
-   - Create an API key (starts with `sk-ant-`)
+   - Create an API key (starts with `sk-ant-api03-`)
    - **Cost:** ~$0.10-0.50 per 1000 transactions (~$1-5/month for most users)
    - **Save this** - you'll enter it when you run `sprig auth` in Step 3
 
@@ -63,15 +63,15 @@ python sprig.py auth
 ```
 
 **What happens:**
-1. **First run:** You'll be prompted to enter:
-   - Your Teller APP_ID
-   - Your Claude API key
-   - Certificate paths (defaults to `certs/certificate.pem` and `certs/private_key.pem`)
+1. **Credential setup:** You'll be prompted for your Teller APP_ID and Claude API key
+   - Shows current values if they exist (press Enter to keep them)
+   - Validates formats automatically (APP_ID: `app_xxx`, Claude: `sk-ant-api03-xxx`)
+   - Stores securely in your system keyring
 2. **Then:** A browser opens to Teller's secure login
 3. Select your bank, log in normally, and authorize access
 4. Sprig automatically saves your bank connection
 
-**To stop:** Press Control-C in your terminal when finished.
+**To update credentials:** Just run `python sprig.py auth` again - it shows your current values.
 
 ### Step 4: Get Your Data
 
@@ -432,7 +432,7 @@ Your bank login credentials are only entered on your bank's official website, ne
 
 - **Sprig:** Free and open source
 - **Teller.io:** Free tier includes 100 bank connections (accounts). [See teller.io](https://teller.io) for current pricing
-- **Claude API:** Optional. ~$0.10-0.50 per 1000 transactions categorized. [See pricing](https://anthropic.com/pricing)
+- **Claude API:** Required. ~$0.10-0.50 per 1000 transactions categorized. [See pricing](https://anthropic.com/pricing)
 
 ### Do I need to be technical to use this?
 
@@ -472,16 +472,14 @@ Teller.io's free tier includes 100 bank connections (individual accounts you can
 
 ### What if I don't want AI categorization?
 
-When running `python sprig.py auth` for the first time, press Enter when prompted for the Claude API key (leaving it blank). Sprig will:
-- Still download all your transactions
-- Still export to CSV
-- Leave the `inferred_category` column empty (you can categorize manually in Excel)
-
-You can add the Claude API key later by running `python sprig.py auth` again.
+Sprig requires a Claude API key for transaction categorization. You can minimize AI usage by:
+- Adding manual category overrides in `config.yml` for specific transactions
+- Manual overrides take precedence over AI categorization
+- Only transactions without manual overrides will be categorized by Claude AI
 
 ### Can I categorize old transactions?
 
-Yes. Once you add your Claude API key (via `python sprig.py auth`), run `python sprig.py sync` and Claude will automatically categorize any uncategorized transactions in your database.
+Yes. Run `python sprig.py sync` and Claude will automatically categorize any uncategorized transactions in your database.
 
 ### Can I change the categories Sprig uses?
 
