@@ -13,8 +13,6 @@ This file guides Claude when working on Sprig - "Actually-personal personal fina
 
 **Core Vision**: User-controlled finance tool that prioritizes flexibility over prescriptive automation. Users own their data locally and define their own categories.
 
-**Current Focus**: Solving duplicate account issues from re-authentication using fingerprinting (institution_id + account_type + last4).
-
 **Anti-patterns to Avoid**:
 - No UI (pure CLI tool)
 - No budgeting features (user control > automation)
@@ -321,32 +319,9 @@ def sample_uncategorized_db_row():
 - Claude categorization with batch processing and rate limit handling
 - CSV export with timestamps and account details
 - Configurable batch sizes for API cost management
-- Date-filtered syncing with --days parameter
-
-### Active Problems 🔧
-1. **Duplicate Accounts**: Re-authentication creates new account IDs
-   - Solution: Fingerprinting with (institution_id, type, last4)
-   - Status: Design documented, implementation pending
-
-2. **Category Optimization**: Ongoing improvements to categorization accuracy
-   - Current: 14 categories in `config.yml`
-   - Recent: Added account context (name, subtype, last4) to categorization
-   - Recent: Enhanced TransactionView model with all relevant fields
-   - Recent: Added confidence scoring (0-1) to identify uncertain categorizations
-
-### Recent Improvements ✨
-- **Simplified Auth Flow**: Single `setup_credentials()` function with user-friendly prompts and credential masking
-- **DRY Credential Management**: Data-driven configuration with consolidated validation patterns
-- **Claude API Mandatory**: Simplified sync logic by requiring Claude API key (no graceful fallback complexity)
-- **Pydantic Validation**: Direct error propagation instead of wrapper functions
-- **Clean Function Interfaces**: `set_app_id()`, `set_claude_api_key()` instead of global imports
-- **Current Value Display**: Auth shows existing credentials with partial masking for security
-- **Keyring Credential Storage**: Secure OS-level credential management
-- **Confidence Scoring**: AI provides 0-1 confidence score for each categorization; sort by confidence in CSV to review uncertain transactions
-- **Rate Limit Handling**: Intelligent retry logic with longer delays for API limits
-- **Configurable Batch Sizes**: `--batch-size` parameter for API cost management
-- **Enhanced Context**: Account details (name, subtype, last4) included in categorization
-- **Progress Preservation**: Sync succeeds even if categorization hits limits
+- Date-filtered syncing with --from-date parameter
+- Manual category overrides in config.yml
+- Confidence scoring for AI categorizations
 
 ### Not Implemented Yet ❌
 - `--full` flag for complete resync
@@ -503,8 +478,6 @@ Sprig stores credentials securely in your system keyring:
 
 ### Category Configuration (`config.yml`)
 ```yaml
-# Sprig Transaction Categories Configuration
-# This file defines the 14 categories used for transaction classification.
 categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
@@ -534,6 +507,11 @@ categories:
     description: "Credit card payments, loan payments, interest charges, account transfers, and internal money movements between your accounts"
   - name: undefined
     description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
+
+# Manual category overrides (optional)
+manual_categories:
+  - transaction_id: txn_abc123
+    category: dining
 ```
 
 ## Development Workflow
@@ -582,25 +560,27 @@ python -m pytest --cov=sprig         # Coverage report
 ruff check .                          # Linting and code formatting
 
 # Usage
-python sprig.py auth                 # First run: prompts for credentials, then authenticates
-                                     # Subsequent runs: just authenticates more banks
-python sprig.py sync                 # Sync + categorize
-python sprig.py sync --days 7        # Sync recent transactions only
-python sprig.py sync --batch-size 5  # Gentler API usage (default: 10)
-python sprig.py sync --recategorize  # Clear and recategorize all
-python sprig.py export               # Export to CSV with account context
-python sprig.py sync && python sprig.py export  # Full workflow
+python sprig.py auth                             # Setup credentials and authenticate banks
+python sprig.py sync                             # Sync + categorize all transactions
+python sprig.py sync --from-date 2024-11-01     # Sync from specific date only
+python sprig.py sync --batch-size 5              # Gentler API usage (default: 10)
+python sprig.py sync --recategorize              # Clear and recategorize all transactions
+python sprig.py export                           # Export to CSV
+python sprig.py export -o my-transactions.csv    # Export to custom file
 
-# Category overrides (edit config.yml):
-# category_overrides:
+# Full workflow
+python sprig.py sync && python sprig.py export
+
+# Manual category overrides (edit config.yml):
+# manual_categories:
 #   - transaction_id: txn_abc123
 #     category: dining
 # Then run: python sprig.py sync
 
 # Rate limit management strategies
-python sprig.py sync --days 1 --batch-size 5   # Very conservative
-python sprig.py sync --days 7                  # Recent transactions
-python sprig.py sync                           # Resume categorization
+python sprig.py sync --from-date 2024-11-01 --batch-size 5   # Very conservative
+python sprig.py sync --from-date 2024-11-01                  # Recent transactions only
+python sprig.py sync                                         # Resume categorization
 
 # Debugging
 sqlite3 sprig.db "SELECT * FROM transactions LIMIT 10;"

@@ -12,7 +12,6 @@ from sprig.models.credentials import (
     DatabasePath,
     Environment,
 )
-from pydantic import ValidationError
 from sprig.models.teller import TellerAccessToken
 
 
@@ -82,6 +81,11 @@ def mask(value: Optional[str], show_chars: int = 4) -> str:
 
     if len(value) <= show_chars:
         return "*" * len(value)
+
+    # Special handling for Claude API keys - show prefix instead of suffix
+    if value.startswith("sk-ant-api03-"):
+        prefix = "sk-ant-api03-"
+        return prefix + "*" * (len(value) - len(prefix))
 
     return "*" * (len(value) - show_chars) + value[-show_chars:]
 

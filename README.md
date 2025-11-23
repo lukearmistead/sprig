@@ -14,7 +14,7 @@ You can use Sprig to download a CSV like this:
 
 ---
 
-## Quick Setup Guide
+## Quickstart
 
 **This is a quickstart guide to get you running quickly. More detailed instructions, troubleshooting, and customization options are available in the sections below.**
 
@@ -43,18 +43,14 @@ You'll need accounts with two services (both free to start):
 1. **Teller.io** - Connects securely to your bank accounts
    - Go to [teller.io](https://teller.io) and create a free developer account
    - Create a new application (use "Personal Project" for company name)
-   - Download your certificates:
-     - Go to [Certificate Settings](https://teller.io/settings/certificates)
-     - Click "Create Certificate" and download the zip file
-     - Extract it and move `certificate.pem` and `private_key.pem` to the `certs/` folder in Sprig
+   - Go to [Certificate Settings](https://teller.io/settings/certificates), click "Create Certificate" and download the zip
+   - Extract and save `certificate.pem` and `private_key.pem` to the `certs/` folder in Sprig
    - Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
-   - **Save these** - you'll enter them when you run `sprig auth` in Step 3
 
 2. **Anthropic** - Powers AI transaction categorization (required)
    - Go to [console.anthropic.com](https://console.anthropic.com) and create an account
    - Create an API key (starts with `sk-ant-api03-`)
-   - **Cost:** ~$0.10-0.50 per 1000 transactions (~$1-5/month for most users)
-   - **Save this** - you'll enter it when you run `sprig auth` in Step 3
+   - **Cost:** ~$0.10-0.50 per 1000 transactions ([see pricing](https://platform.claude.com/docs/en/build-with-claude/batch-processing#pricing))
 
 ### Step 3: Set Up and Connect Your Banks
 
@@ -62,14 +58,7 @@ You'll need accounts with two services (both free to start):
 python sprig.py auth
 ```
 
-**What happens:**
-1. **Credential setup:** You'll be prompted for your Teller APP_ID and Claude API key
-   - Shows current values if they exist (press Enter to keep them)
-   - Validates formats automatically (APP_ID: `app_xxx`, Claude: `sk-ant-api03-xxx`)
-   - Stores securely in your system keyring
-2. **Then:** A browser opens to Teller's secure login
-3. Select your bank, log in normally, and authorize access
-4. Sprig automatically saves your bank connection
+You'll be prompted to enter your Teller APP_ID and Claude API key, then a browser opens for secure bank login.
 
 **To update credentials:** Just run `python sprig.py auth` again - it shows your current values.
 

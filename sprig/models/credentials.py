@@ -1,6 +1,5 @@
 """Individual credential models for validation."""
 
-from pathlib import Path
 from pydantic import BaseModel, Field, FilePath
 
 

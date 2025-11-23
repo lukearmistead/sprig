@@ -1,6 +1,5 @@
 """Simple Teller API client."""
 
-from pathlib import Path
 import requests
 
 import sprig.credentials as credentials
