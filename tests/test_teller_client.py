@@ -109,7 +109,7 @@ def test_get_accounts(mock_make_request, mock_certs):
 def test_get_transactions(mock_make_request, mock_certs):
     """Test get_transactions method."""
     client = TellerClient()
-    
+
     mock_transactions = [
         {
             "id": "txn_123",
@@ -122,10 +122,37 @@ def test_get_transactions(mock_make_request, mock_certs):
         }
     ]
     mock_make_request.return_value = mock_transactions
-    
+
     result = client.get_transactions("test_token", "acc_456")
-    
+
     mock_make_request.assert_called_once_with("test_token", "/accounts/acc_456/transactions")
+    assert result == mock_transactions
+
+
+@patch('sprig.teller_client.TellerClient._make_request')
+def test_get_transactions_with_start_date(mock_make_request, mock_certs):
+    """Test get_transactions method with start_date parameter."""
+    from datetime import date
+
+    client = TellerClient()
+
+    mock_transactions = [
+        {
+            "id": "txn_123",
+            "account_id": "acc_456",
+            "amount": 25.50,
+            "description": "Recent Transaction",
+            "date": "2024-03-15",
+            "type": "card_payment",
+            "status": "posted"
+        }
+    ]
+    mock_make_request.return_value = mock_transactions
+
+    start_date = date(2024, 3, 1)
+    result = client.get_transactions("test_token", "acc_456", start_date)
+
+    mock_make_request.assert_called_once_with("test_token", "/accounts/acc_456/transactions?start_date=2024-03-01")
     assert result == mock_transactions
 
 

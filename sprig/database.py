@@ -151,3 +151,22 @@ class SprigDatabase:
                 ORDER BY t.date DESC
             """)
             return cursor.fetchall()
+
+    def get_latest_transaction_date(self, account_id: str):
+        """Get the most recent transaction date for an account.
+
+        Args:
+            account_id: Account ID to check
+
+        Returns:
+            date object of most recent transaction, or None if no transactions exist
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT MAX(date) FROM transactions WHERE account_id = ?",
+                (account_id,)
+            )
+            result = cursor.fetchone()[0]
+            if result:
+                return date.fromisoformat(result)
+            return None

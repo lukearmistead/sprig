@@ -156,7 +156,8 @@ def main():
             sync_all_accounts(
                 recategorize=sync_params.recategorize,
                 from_date=sync_params.from_date,
-                batch_size=args.batch_size
+                batch_size=args.batch_size,
+                full=args.full
             )
         except ValueError as e:
             exit_with_auth_error(f"Configuration error: {e}")

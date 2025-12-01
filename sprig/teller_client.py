@@ -1,5 +1,8 @@
 """Simple Teller API client."""
 
+from datetime import date
+from typing import Optional
+
 import requests
 
 import sprig.credentials as credentials
@@ -36,6 +39,18 @@ class TellerClient:
         """Get all accounts for given access token."""
         return self._make_request(access_token, "/accounts")
     
-    def get_transactions(self, access_token: str, account_id: str):
-        """Get transactions for an account."""
-        return self._make_request(access_token, f"/accounts/{account_id}/transactions")
+    def get_transactions(self, access_token: str, account_id: str, start_date: Optional[date] = None):
+        """Get transactions for an account.
+
+        Args:
+            access_token: Teller access token
+            account_id: Account ID
+            start_date: Optional date to fetch transactions from (inclusive)
+
+        Returns:
+            List of transaction dictionaries
+        """
+        endpoint = f"/accounts/{account_id}/transactions"
+        if start_date:
+            endpoint += f"?start_date={start_date.isoformat()}"
+        return self._make_request(access_token, endpoint)

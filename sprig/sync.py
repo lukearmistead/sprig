@@ -19,7 +19,8 @@ BATCH_SIZE = 10  # Reduced from 20 to be gentler on API rate limits
 def sync_all_accounts(
     recategorize: bool = False,
     from_date: Optional[date] = None,
-    batch_size: int = 10
+    batch_size: int = 10,
+    full: bool = False
 ):
     """Sync accounts and transactions for all access tokens.
 
@@ -27,6 +28,7 @@ def sync_all_accounts(
         recategorize: Clear all existing categories before syncing
         from_date: Only sync transactions from this date onwards (reduces API costs)
         batch_size: Number of transactions to categorize per API call (default: 10)
+        full: Force full sync, fetching all transactions even if already stored
     """
     access_tokens = credentials.get_access_tokens()
     logger.info(f"Starting sync for {len(access_tokens)} access token(s)")
@@ -56,7 +58,7 @@ def sync_all_accounts(
 
     for i, token_obj in enumerate(access_tokens, 1):
         logger.debug(f"Processing token {i}/{len(access_tokens)}")
-        success = sync_accounts_for_token(client, db, token_obj.token, cutoff_date)
+        success = sync_accounts_for_token(client, db, token_obj.token, cutoff_date, full)
         if success:
             valid_tokens += 1
         else:
@@ -88,7 +90,8 @@ def sync_accounts_for_token(
     client: TellerClient,
     db: SprigDatabase,
     token: str,
-    cutoff_date: Optional[date] = None
+    cutoff_date: Optional[date] = None,
+    full: bool = False
 ) -> bool:
     """Sync accounts and their transactions for a single token.
 
@@ -97,6 +100,7 @@ def sync_accounts_for_token(
         db: Database instance
         token: Access token
         cutoff_date: Only sync transactions on or after this date
+        full: Force full sync, fetching all transactions
 
     Returns:
         True if sync was successful, False if token is invalid/expired
@@ -115,7 +119,7 @@ def sync_accounts_for_token(
     for account_data in accounts:
         account = TellerAccount(**account_data)
         db.insert_record("accounts", account.model_dump())
-        sync_transactions_for_account(client, db, token, account.id, cutoff_date)
+        sync_transactions_for_account(client, db, token, account.id, cutoff_date, full)
 
     return True
 
@@ -125,7 +129,8 @@ def sync_transactions_for_account(
     db: SprigDatabase,
     token: str,
     account_id: str,
-    cutoff_date: Optional[date] = None
+    cutoff_date: Optional[date] = None,
+    full: bool = False
 ):
     """Sync transactions for a specific account.
 
@@ -135,18 +140,18 @@ def sync_transactions_for_account(
         token: Access token
         account_id: Account ID to fetch transactions for
         cutoff_date: Only sync transactions on or after this date
+        full: Force full sync, fetching all transactions
     """
-    transactions = client.get_transactions(token, account_id)
-    logger.debug(f"Syncing {len(transactions)} transaction(s) for account {account_id}")
+    # Determine start_date: user cutoff > auto-incremental > None (full sync)
+    start_date = cutoff_date or (None if full else db.get_latest_transaction_date(account_id))
+
+    transactions = client.get_transactions(token, account_id, start_date)
+
+    sync_mode = f"from {start_date}" if start_date else "full"
+    logger.debug(f"Fetched {len(transactions)} transaction(s) ({sync_mode}) for {account_id}")
 
     for transaction_data in transactions:
-        transaction = TellerTransaction(**transaction_data)
-
-        # Filter by cutoff date if specified
-        if cutoff_date and transaction.date < cutoff_date:
-            continue
-
-        db.insert_record("transactions", transaction.model_dump())
+        db.insert_record("transactions", TellerTransaction(**transaction_data).model_dump())
 
 
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int = 10):

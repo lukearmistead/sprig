@@ -231,3 +231,65 @@ def test_update_transaction_category_with_confidence():
             category, confidence = cursor.fetchone()
             assert category == "dining"
             assert confidence == 0.85
+
+
+def test_get_latest_transaction_date():
+    """Test getting the most recent transaction date for an account."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        db = SprigDatabase(db_path)
+
+        account_data = {
+            "id": "acc_1",
+            "name": "Test Checking",
+            "type": "depository",
+            "currency": "USD",
+            "status": "open"
+        }
+        db.insert_record("accounts", account_data)
+
+        # Test with no transactions
+        latest_date = db.get_latest_transaction_date("acc_1")
+        assert latest_date is None
+
+        # Insert transactions with different dates
+        transactions = [
+            {
+                "id": "txn_1",
+                "account_id": "acc_1",
+                "amount": -25.50,
+                "description": "Old Transaction",
+                "date": "2024-01-15",
+                "type": "card_payment",
+                "status": "posted"
+            },
+            {
+                "id": "txn_2",
+                "account_id": "acc_1",
+                "amount": -50.00,
+                "description": "Recent Transaction",
+                "date": "2024-03-20",
+                "type": "card_payment",
+                "status": "posted"
+            },
+            {
+                "id": "txn_3",
+                "account_id": "acc_1",
+                "amount": -10.00,
+                "description": "Middle Transaction",
+                "date": "2024-02-10",
+                "type": "card_payment",
+                "status": "posted"
+            }
+        ]
+
+        for txn in transactions:
+            db.insert_record("transactions", txn)
+
+        # Should return most recent date
+        latest_date = db.get_latest_transaction_date("acc_1")
+        assert latest_date == date(2024, 3, 20)
+
+        # Test with different account (no transactions)
+        latest_date = db.get_latest_transaction_date("acc_2")
+        assert latest_date is None
