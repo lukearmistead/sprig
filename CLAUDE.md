@@ -102,69 +102,66 @@ def find_or_create_account(self, account: TellerAccount) -> str:
     return self.create_account(account, fingerprint)
 ```
 
-### Incremental Transaction Syncing
+### Gap-Filling Transaction Syncing
 ```python
-# Sprig automatically fetches only new transactions to save API costs
-def sync_transactions_for_account(
-    client: TellerClient,
-    db: SprigDatabase,
-    token: str,
-    account_id: str,
-    cutoff_date: Optional[date] = None,
-    full: bool = False
-):
-    """Sync transactions for a specific account.
+# Sprig intelligently fills gaps in transaction history to minimize API calls
+def sync_transactions_for_account(...):
+    """Sync transactions using gap-filling strategy.
 
-    By default, only fetches transactions since the most recent one in the database.
-    Use full=True to fetch all transactions (useful for first sync or troubleshooting).
+    Desired window: from_date (or earliest existing) to yesterday
+    Only fetches missing ranges:
+    1. Gap before earliest transaction (if from_date < earliest)
+    2. Gap after latest transaction (if latest < yesterday)
     """
-    # Determine start_date: user cutoff > auto-incremental > None (full sync)
-    start_date = cutoff_date or (None if full else db.get_latest_transaction_date(account_id))
+    if full:
+        # Full sync: fetch everything
+        transactions = client.get_transactions(token, account_id)
+    else:
+        # Find gaps in the desired window
+        earliest_db, latest_db = db.get_transaction_date_range(account_id)
+        yesterday = (datetime.now() - timedelta(days=1)).date()
+        window_start = cutoff_date if cutoff_date else earliest_db
 
-    transactions = client.get_transactions(token, account_id, start_date)
+        if earliest_db is None:
+            # No existing data: fetch from window_start to yesterday
+            transactions = client.get_transactions(token, account_id, window_start)
+        else:
+            transactions = []
 
-    sync_mode = f"from {start_date}" if start_date else "full"
-    logger.debug(f"Fetched {len(transactions)} transaction(s) ({sync_mode}) for {account_id}")
+            # Gap 1: Fill before earliest (if needed)
+            if window_start and window_start < earliest_db:
+                early_txns = client.get_transactions(token, account_id, window_start)
+                early_txns = [t for t in early_txns if date.fromisoformat(t['date']) < earliest_db]
+                transactions.extend(early_txns)
+
+            # Gap 2: Fill after latest (if needed)
+            if latest_db < yesterday:
+                late_txns = client.get_transactions(token, account_id, latest_db)
+                transactions.extend(late_txns)
 
     for transaction_data in transactions:
         db.insert_record("transactions", TellerTransaction(**transaction_data).model_dump())
 ```
 
 **Key Benefits:**
+- Only fetches missing transaction ranges
 - Reduces Teller API calls by ~95% on subsequent syncs
-- Reduces Claude API token usage (fewer transactions to categorize)
-- Faster sync times for daily usage
-- Still supports `--full` flag when complete resync is needed
+- Handles backfill (from_date before earliest) and updates (after latest)
+- Reduces token usage (fewer transactions to categorize)
 
 **Database Method:**
 ```python
-def get_latest_transaction_date(self, account_id: str) -> Optional[date]:
-    """Get the most recent transaction date for an account."""
+def get_transaction_date_range(self, account_id: str):
+    """Get earliest and latest transaction dates for an account."""
     with sqlite3.connect(self.db_path) as conn:
         cursor = conn.execute(
-            "SELECT MAX(date) FROM transactions WHERE account_id = ?",
+            "SELECT MIN(date), MAX(date) FROM transactions WHERE account_id = ?",
             (account_id,)
         )
-        result = cursor.fetchone()[0]
-        if result:
-            return date.fromisoformat(result)
-        return None
-```
-
-**TellerClient Update:**
-```python
-def get_transactions(self, access_token: str, account_id: str, start_date: Optional[date] = None):
-    """Get transactions for an account.
-
-    Args:
-        access_token: Teller access token
-        account_id: Account ID
-        start_date: Optional date to fetch transactions from (inclusive)
-    """
-    endpoint = f"/accounts/{account_id}/transactions"
-    if start_date:
-        endpoint += f"?start_date={start_date.isoformat()}"
-    return self._make_request(access_token, endpoint)
+        min_date, max_date = cursor.fetchone()
+        if min_date and max_date:
+            return date.fromisoformat(min_date), date.fromisoformat(max_date)
+        return None, None
 ```
 
 ### API Error Handling
@@ -380,13 +377,13 @@ def sample_uncategorized_db_row():
 - Secure credential storage via system keyring
 - Teller OAuth flow via browser
 - mTLS authentication with certificates
-- Incremental transaction sync (only fetches new transactions since last sync)
+- Gap-filling transaction sync (only fetches missing date ranges)
 - Transaction sync with duplicate prevention
 - `--full` flag for complete resync when needed
-- Claude categorization with batch processing and rate limit handling
+- Automatic backfill and forward-fill of transaction gaps
+- Date-filtered syncing with --from-date parameter
 - CSV export with timestamps and account details
 - Configurable batch sizes for API cost management
-- Date-filtered syncing with --from-date parameter
 - Manual category overrides in config.yml
 - Confidence scoring for AI categorizations
 
@@ -627,9 +624,9 @@ ruff check .                          # Linting and code formatting
 
 # Usage
 python sprig.py auth                             # Setup credentials and authenticate banks
-python sprig.py sync                             # Incremental sync (only new transactions since last sync)
+python sprig.py sync                             # Gap-filling sync (fetches only missing date ranges)
 python sprig.py sync --full                      # Full resync (fetch all transactions, useful for first run)
-python sprig.py sync --from-date 2024-11-01     # Sync from specific date only
+python sprig.py sync --from-date 2024-11-01     # Backfill from specific date and forward-fill to yesterday
 python sprig.py sync --batch-size 5              # Gentler API usage (default: 10)
 python sprig.py sync --recategorize              # Clear and recategorize all transactions
 python sprig.py export                           # Export to CSV

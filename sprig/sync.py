@@ -139,16 +139,53 @@ def sync_transactions_for_account(
         db: Database instance
         token: Access token
         account_id: Account ID to fetch transactions for
-        cutoff_date: Only sync transactions on or after this date
+        cutoff_date: Only sync transactions from this date onwards
         full: Force full sync, fetching all transactions
     """
-    # Determine start_date: user cutoff > auto-incremental > None (full sync)
-    start_date = cutoff_date or (None if full else db.get_latest_transaction_date(account_id))
+    from datetime import datetime, timedelta
 
-    transactions = client.get_transactions(token, account_id, start_date)
+    if full:
+        # Full sync: fetch everything
+        transactions = client.get_transactions(token, account_id)
+        logger.debug(f"Full sync: fetched {len(transactions)} transaction(s) for {account_id}")
+    else:
+        # Gap-filling sync: find what's missing in the desired window
+        earliest_db, latest_db = db.get_transaction_date_range(account_id)
+        yesterday = (datetime.now() - timedelta(days=1)).date()
 
-    sync_mode = f"from {start_date}" if start_date else "full"
-    logger.debug(f"Fetched {len(transactions)} transaction(s) ({sync_mode}) for {account_id}")
+        # Determine the start of our desired window
+        window_start = cutoff_date if cutoff_date else earliest_db
+
+        if earliest_db is None:
+            # No existing transactions - fetch from window_start to yesterday
+            if window_start:
+                transactions = client.get_transactions(token, account_id, window_start)
+                logger.debug(f"Initial sync from {window_start}: fetched {len(transactions)} transaction(s)")
+            else:
+                transactions = client.get_transactions(token, account_id)
+                logger.debug(f"Initial full sync: fetched {len(transactions)} transaction(s)")
+        else:
+            # Fill gaps: before earliest and after latest
+            transactions = []
+
+            # Gap 1: from window_start to earliest transaction (if there's a gap)
+            if window_start and window_start < earliest_db:
+                logger.debug(f"Fetching gap before earliest: {window_start} to {earliest_db}")
+                early_txns = client.get_transactions(token, account_id, window_start)
+                # Filter to only include transactions before earliest_db to avoid overlap
+                early_txns = [t for t in early_txns if date.fromisoformat(t['date']) < earliest_db]
+                transactions.extend(early_txns)
+                logger.debug(f"Fetched {len(early_txns)} transaction(s) in early gap")
+
+            # Gap 2: from latest transaction to yesterday
+            if latest_db < yesterday:
+                logger.debug(f"Fetching gap after latest: {latest_db} to yesterday")
+                late_txns = client.get_transactions(token, account_id, latest_db)
+                transactions.extend(late_txns)
+                logger.debug(f"Fetched {len(late_txns)} transaction(s) in late gap")
+
+            if not transactions:
+                logger.debug(f"No gaps to fill for {account_id}")
 
     for transaction_data in transactions:
         db.insert_record("transactions", TellerTransaction(**transaction_data).model_dump())

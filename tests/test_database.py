@@ -233,8 +233,8 @@ def test_update_transaction_category_with_confidence():
             assert confidence == 0.85
 
 
-def test_get_latest_transaction_date():
-    """Test getting the most recent transaction date for an account."""
+def test_get_transaction_date_range():
+    """Test getting the earliest and latest transaction dates for an account."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test.db"
         db = SprigDatabase(db_path)
@@ -249,8 +249,9 @@ def test_get_latest_transaction_date():
         db.insert_record("accounts", account_data)
 
         # Test with no transactions
-        latest_date = db.get_latest_transaction_date("acc_1")
-        assert latest_date is None
+        earliest, latest = db.get_transaction_date_range("acc_1")
+        assert earliest is None
+        assert latest is None
 
         # Insert transactions with different dates
         transactions = [
@@ -286,10 +287,12 @@ def test_get_latest_transaction_date():
         for txn in transactions:
             db.insert_record("transactions", txn)
 
-        # Should return most recent date
-        latest_date = db.get_latest_transaction_date("acc_1")
-        assert latest_date == date(2024, 3, 20)
+        # Should return earliest and latest dates
+        earliest, latest = db.get_transaction_date_range("acc_1")
+        assert earliest == date(2024, 1, 15)
+        assert latest == date(2024, 3, 20)
 
         # Test with different account (no transactions)
-        latest_date = db.get_latest_transaction_date("acc_2")
-        assert latest_date is None
+        earliest, latest = db.get_transaction_date_range("acc_2")
+        assert earliest is None
+        assert latest is None

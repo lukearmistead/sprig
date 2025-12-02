@@ -152,21 +152,21 @@ class SprigDatabase:
             """)
             return cursor.fetchall()
 
-    def get_latest_transaction_date(self, account_id: str):
-        """Get the most recent transaction date for an account.
+    def get_transaction_date_range(self, account_id: str):
+        """Get the earliest and latest transaction dates for an account.
 
         Args:
             account_id: Account ID to check
 
         Returns:
-            date object of most recent transaction, or None if no transactions exist
+            Tuple of (earliest_date, latest_date), or (None, None) if no transactions exist
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT MAX(date) FROM transactions WHERE account_id = ?",
+                "SELECT MIN(date), MAX(date) FROM transactions WHERE account_id = ?",
                 (account_id,)
             )
-            result = cursor.fetchone()[0]
-            if result:
-                return date.fromisoformat(result)
-            return None
+            min_date, max_date = cursor.fetchone()
+            if min_date and max_date:
+                return date.fromisoformat(min_date), date.fromisoformat(max_date)
+            return None, None
