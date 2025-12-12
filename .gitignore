@@ -4,7 +4,6 @@ certs/*.pem
 certs/*.key
 certs/*.crt
 certs/*.p12
-manual_categories.yml
 
 # Python
 venv/

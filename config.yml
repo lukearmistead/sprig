@@ -32,12 +32,6 @@ categories:
   - name: undefined
     description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
 
-# BATCH SIZE CONFIGURATION
-# Number of transactions to categorize per Claude API call
-# Lower values = slower but more gentle on API rate limits
-# Higher values = faster but may hit rate limits more easily
-batch_size: 25
-
 # MANUAL CATEGORIES
 # You can override the AI-inferred category for specific transactions.
 # After exporting to CSV and finding miscategorized transactions, add them here:
@@ -45,82 +39,6 @@ batch_size: 25
 #
 # On next sync, these manual categories will be applied instead of calling Claude AI.
 # The manual_categories section is optional - leave empty if not needed.
-manual_categories:
-- transaction_id: txn_pl3soauaq18j1al4ni000
-  category: transport
-- transaction_id: txn_pl3smd23bgen0aggg0002
-  category: entertainment
-- transaction_id: txn_pl3smd23rgen0aggg0001
-  category: shopping
-- transaction_id: txn_pl3smd24bgen0aggg000a
-  category: shopping
-- transaction_id: txn_pl3smd25bgen0aggg0005
-  category: shopping
-- transaction_id: txn_pk7gs5rfmjsf2r0kqa001
-  category: transport
-- transaction_id: txn_pl3smd26bgen0aggg0003
-  category: shopping
-- transaction_id: txn_pl3smd26bgen0aggg0009
-  category: transport
-- transaction_id: txn_pl3smd26rgen0aggg0002
-  category: travel
-- transaction_id: txn_pl3smd26rgen0aggg0003
-  category: shopping
-- transaction_id: txn_pl3smd26rgen0aggg0006
-  category: shopping
-- transaction_id: txn_pk7gs5rhmjsf2r0kqa000
-  category: dining
-- transaction_id: txn_pk7gs5rhmjsf2r0kqa001
-  category: transport
-- transaction_id: txn_pl3smd27bgen0aggg0007
-  category: shopping
-- transaction_id: txn_pl3smd27rgen0aggg0000
-  category: transport
-- transaction_id: txn_pk7gs5ri6jsf2r0kqa003
-  category: dining
-- transaction_id: txn_pl3smd27rgen0aggg0003
-  category: entertainment
-- transaction_id: txn_pl3smemqmsn2if4m3e002
-  category: travel
-- transaction_id: txn_pl3smd28bgen0aggg0005
-  category: shopping
-- transaction_id: txn_pl3smemqmsn2if4m3e004
-  category: transport
-- transaction_id: txn_pl3smd28bgen0aggg0006
-  category: dining
-- transaction_id: txn_pl3smd29bgen0aggg0003
-  category: travel
-- transaction_id: txn_pl3smd29rgen0aggg0000
-  category: dining
-- transaction_id: txn_pjouicab0jim0ebo0a005
-  category: shopping
-- transaction_id: txn_pl3smemr6sn2if4m3e002
-  category: shopping
-- transaction_id: txn_pk7gs5rk6jsf2r0kqa001
-  category: dining
-- transaction_id: txn_pl3smd2bbgen0aggg0006
-  category: entertainment
-- transaction_id: txn_pl3smd2bbgen0aggg0007
-  category: entertainment
-- transaction_id: txn_pl3smd2brgen0aggg0002
-  category: dining
-- transaction_id: txn_pjouicacgjim0ebo0a004
-  category: transport
-- transaction_id: txn_pl3smemrmsn2if4m3e005
-  category: general
-- transaction_id: txn_pl3smems6sn2if4m3e000
-  category: shopping
-- transaction_id: txn_pl3smd2frgen0aggg0000
-  category: dining
-- transaction_id: txn_pk7gs5rmmjsf2r0kqa004
-  category: dining
-- transaction_id: txn_pk7gs5rmmjsf2r0kqa005
-  category: dining
-- transaction_id: txn_pl3smd2frgen0aggg000a
-  category: shopping
-- transaction_id: txn_pl3smemumsn2if4m3e001
-  category: shopping
-- transaction_id: txn_pjouicaggjim0ebo0a006
-  category: dining
-- transaction_id: txn_pjouicah0jim0ebo0a003
-  category: dining
+# manual_categories:
+#   - transaction_id: txn_abc123
+#     category: dining
