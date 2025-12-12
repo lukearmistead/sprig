@@ -13,11 +13,11 @@ logger = get_logger("sprig.database")
 
 class SprigDatabase:
     """SQLite database for storing Teller data."""
-    
+
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self._initialize_database()
-    
+
     def _initialize_database(self):
         """Create database file and tables if they don't exist."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,7 +60,7 @@ class SprigDatabase:
             """)
 
             conn.commit()
-    
+
     def insert_record(self, table_name: str, data: Dict) -> bool:
         """Insert data into specified table."""
         try:
@@ -88,7 +88,7 @@ class SprigDatabase:
         except Exception as e:
             logger.error(f"Error inserting into {table_name}: {e}")
             return False
-    
+
     def get_uncategorized_transactions(self):
         """Get transactions that don't have an inferred category assigned."""
         with sqlite3.connect(self.db_path) as conn:
@@ -103,8 +103,10 @@ class SprigDatabase:
                 ORDER BY t.date DESC
             """)
             return cursor.fetchall()
-    
-    def update_transaction_category(self, transaction_id: str, category: str, confidence: float = None) -> bool:
+
+    def update_transaction_category(
+        self, transaction_id: str, category: str, confidence: float = None
+    ) -> bool:
         """Update the inferred category and confidence for a specific transaction.
 
         Args:
@@ -116,22 +118,118 @@ class SprigDatabase:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     "UPDATE transactions SET inferred_category = ?, confidence = ? WHERE id = ?",
-                    (category, confidence, transaction_id)
+                    (category, confidence, transaction_id),
                 )
                 conn.commit()
                 return True
         except Exception as e:
-            logger.error(f"Error updating category for transaction {transaction_id}: {e}")
+            logger.error(
+                f"Error updating category for transaction {transaction_id}: {e}"
+            )
             return False
-    
+
+    def sync_transaction(self, transaction) -> bool:
+        """Sync transaction data while preserving existing categorization.
+
+        For existing transactions: updates raw Teller fields, preserves inferred_category/confidence
+        For new transactions: inserts with NULL categories
+
+        Args:
+            transaction: TellerTransaction object or dict with transaction data
+        """
+        try:
+            # Convert to dict if it's a Pydantic model
+            if hasattr(transaction, "model_dump"):
+                txn_data = transaction.model_dump()
+            else:
+                txn_data = transaction
+
+            # Prepare data for SQL insertion (same logic as insert_record)
+            insert_data = {}
+            for key, value in txn_data.items():
+                if isinstance(value, (dict, list)):
+                    insert_data[key] = json.dumps(value)
+                elif isinstance(value, date):
+                    insert_data[key] = value.isoformat()
+                else:
+                    insert_data[key] = value
+
+            with sqlite3.connect(self.db_path) as conn:
+                # Check if transaction exists
+                cursor = conn.execute(
+                    "SELECT id FROM transactions WHERE id = ?", (insert_data["id"],)
+                )
+                exists = cursor.fetchone() is not None
+
+                if exists:
+                    # Update existing transaction, preserve categories
+                    update_fields = [
+                        f"{col} = ?" for col in insert_data.keys() if col != "id"
+                    ]
+                    update_values = [v for k, v in insert_data.items() if k != "id"]
+                    update_values.append(insert_data["id"])  # WHERE clause value
+
+                    sql = f"UPDATE transactions SET {', '.join(update_fields)} WHERE id = ?"
+                    conn.execute(sql, update_values)
+                else:
+                    # Insert new transaction with NULL categories
+                    columns = list(insert_data.keys())
+                    placeholders = ["?" for _ in columns]
+                    values = list(insert_data.values())
+
+                    sql = f"INSERT INTO transactions ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+                    conn.execute(sql, values)
+
+                conn.commit()
+                return True
+
+        except Exception as e:
+            logger.error(
+                f"Error syncing transaction {insert_data.get('id', 'unknown')}: {e}"
+            )
+            return False
+
+    def add_transaction(self, transaction_data: Dict) -> bool:
+        """Add a transaction for testing/manual insertion (always inserts).
+
+        Args:
+            transaction_data: Dict with transaction fields
+        """
+        try:
+            # Prepare data for SQL insertion
+            insert_data = {}
+            for key, value in transaction_data.items():
+                if isinstance(value, (dict, list)):
+                    insert_data[key] = json.dumps(value)
+                elif isinstance(value, date):
+                    insert_data[key] = value.isoformat()
+                else:
+                    insert_data[key] = value
+
+            with sqlite3.connect(self.db_path) as conn:
+                columns = list(insert_data.keys())
+                placeholders = ["?" for _ in columns]
+                values = list(insert_data.values())
+
+                sql = f"INSERT INTO transactions ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+                conn.execute(sql, values)
+                conn.commit()
+                return True
+
+        except Exception as e:
+            logger.error(f"Error adding transaction: {e}")
+            return False
+
     def clear_all_categories(self):
         """Clear all inferred_category and confidence values."""
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("UPDATE transactions SET inferred_category = NULL, confidence = NULL")
+            cursor = conn.execute(
+                "UPDATE transactions SET inferred_category = NULL, confidence = NULL"
+            )
             rows_updated = cursor.rowcount
             conn.commit()
             return rows_updated
-    
+
     def get_transactions_for_export(self):
         """Get all transactions for export with account details.
 

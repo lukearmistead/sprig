@@ -106,8 +106,8 @@ def main():
         "--batch-size",
         type=int,
         metavar="SIZE",
-        default=10,
-        help="Number of transactions to categorize per API call (default: 10, lower = gentler on rate limits)"
+        default=None,
+        help="Number of transactions to categorize per API call (default: from config.yml, lower = gentler on rate limits)"
     )
 
     # Export command

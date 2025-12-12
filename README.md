@@ -114,11 +114,11 @@ Successfully added 2 account(s)!
 ```
 Starting sync for 2 access token(s)
 Categorizing 47 uncategorized transaction(s) using Claude AI
-   Processing in 5 batch(es) of up to 10 transactions each
-   Processing batch 1/5 (10 transactions)...
-      Batch 1 complete: 10 categorized
-   Processing batch 2/5 (10 transactions)...
-      Batch 2 complete: 10 categorized
+   Processing in 2 batch(es) of up to 25 transactions each
+   Processing batch 1/2 (25 transactions)...
+      Batch 1 complete: 25 categorized
+   Processing batch 2/2 (22 transactions)...
+      Batch 2 complete: 22 categorized
    [... continues for remaining batches ...]
 Successfully synced 2 valid token(s)
 Categorization complete
