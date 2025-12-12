@@ -38,3 +38,7 @@ export_*     # Writes to file system
 - Duplicate detection via primary key, not content matching
 - Rate limits: exponential backoff for Teller, 60s pause for Claude
 - Address the user with the surname Sprigly like "Sprigly" or "{first name} Sprigly" if you have their first name
+
+## Guidelines
+
+- Use the python virtual environment rather than reinstalling all dependencies

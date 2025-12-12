@@ -128,6 +128,25 @@ class SprigDatabase:
             )
             return False
 
+    def _prepare_data_for_sql(self, data: Dict) -> Dict:
+        """Prepare data for SQL insertion by converting complex types to strings.
+
+        Args:
+            data: Raw data dictionary
+
+        Returns:
+            Dictionary with SQL-compatible values
+        """
+        prepared_data = {}
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                prepared_data[key] = json.dumps(value)
+            elif isinstance(value, date):
+                prepared_data[key] = value.isoformat()
+            else:
+                prepared_data[key] = value
+        return prepared_data
+
     def sync_transaction(self, transaction) -> bool:
         """Sync transaction data while preserving existing categorization.
 
@@ -144,32 +163,34 @@ class SprigDatabase:
             else:
                 txn_data = transaction
 
-            # Prepare data for SQL insertion (same logic as insert_record)
-            insert_data = {}
-            for key, value in txn_data.items():
-                if isinstance(value, (dict, list)):
-                    insert_data[key] = json.dumps(value)
-                elif isinstance(value, date):
-                    insert_data[key] = value.isoformat()
-                else:
-                    insert_data[key] = value
+            # Validate required fields
+            if not txn_data or "id" not in txn_data:
+                raise ValueError("Transaction data must contain 'id' field")
+
+            # Prepare data for SQL insertion
+            insert_data = self._prepare_data_for_sql(txn_data)
+            transaction_id = insert_data["id"]
 
             with sqlite3.connect(self.db_path) as conn:
                 # Check if transaction exists
                 cursor = conn.execute(
-                    "SELECT id FROM transactions WHERE id = ?", (insert_data["id"],)
+                    "SELECT id FROM transactions WHERE id = ?", (transaction_id,)
                 )
                 exists = cursor.fetchone() is not None
 
                 if exists:
                     # Update existing transaction, preserve categories
-                    update_fields = [
-                        f"{col} = ?" for col in insert_data.keys() if col != "id"
-                    ]
-                    update_values = [v for k, v in insert_data.items() if k != "id"]
-                    update_values.append(insert_data["id"])  # WHERE clause value
+                    # Build field-value pairs explicitly to maintain order
+                    update_pairs = []
+                    update_values = []
+                    for key, value in insert_data.items():
+                        if key != "id":
+                            update_pairs.append(f"{key} = ?")
+                            update_values.append(value)
 
-                    sql = f"UPDATE transactions SET {', '.join(update_fields)} WHERE id = ?"
+                    update_values.append(transaction_id)  # WHERE clause value
+
+                    sql = f"UPDATE transactions SET {', '.join(update_pairs)} WHERE id = ?"
                     conn.execute(sql, update_values)
                 else:
                     # Insert new transaction with NULL categories
@@ -184,9 +205,10 @@ class SprigDatabase:
                 return True
 
         except Exception as e:
-            logger.error(
-                f"Error syncing transaction {insert_data.get('id', 'unknown')}: {e}"
+            transaction_id = (
+                txn_data.get("id", "unknown") if "txn_data" in locals() else "unknown"
             )
+            logger.error(f"Error syncing transaction {transaction_id}: {e}")
             return False
 
     def add_transaction(self, transaction_data: Dict) -> bool:
@@ -197,14 +219,7 @@ class SprigDatabase:
         """
         try:
             # Prepare data for SQL insertion
-            insert_data = {}
-            for key, value in transaction_data.items():
-                if isinstance(value, (dict, list)):
-                    insert_data[key] = json.dumps(value)
-                elif isinstance(value, date):
-                    insert_data[key] = value.isoformat()
-                else:
-                    insert_data[key] = value
+            insert_data = self._prepare_data_for_sql(transaction_data)
 
             with sqlite3.connect(self.db_path) as conn:
                 columns = list(insert_data.keys())
