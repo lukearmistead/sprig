@@ -22,15 +22,15 @@ def test_category_config_loads_manual_categories():
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants and food"},
-                {"name": "groceries", "description": "Supermarkets"}
+                {"name": "groceries", "description": "Supermarkets"},
             ],
             "manual_categories": [
                 {"transaction_id": "txn_123", "category": "dining"},
-                {"transaction_id": "txn_456", "category": "groceries"}
-            ]
+                {"transaction_id": "txn_456", "category": "groceries"},
+            ],
         }
 
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
         # Load config
@@ -54,11 +54,11 @@ def test_category_config_allows_empty_manual_categories():
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants and food"},
-                {"name": "groceries", "description": "Supermarkets"}
+                {"name": "groceries", "description": "Supermarkets"},
             ]
         }
 
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
         # Load config
@@ -85,7 +85,7 @@ def test_manual_categories_applied_before_claude_categorization():
             "subtype": "checking",
             "currency": "USD",
             "status": "open",
-            "last_four": "1234"
+            "last_four": "1234",
         }
         db.insert_record("accounts", account_data)
 
@@ -99,7 +99,7 @@ def test_manual_categories_applied_before_claude_categorization():
                 "date": date(2024, 1, 15),
                 "type": "card_payment",
                 "status": "posted",
-                "details": {"counterparty": {"name": "Starbucks"}}
+                "details": {"counterparty": {"name": "Starbucks"}},
             },
             {
                 "id": "txn_override_2",  # Has category override
@@ -109,7 +109,7 @@ def test_manual_categories_applied_before_claude_categorization():
                 "date": date(2024, 1, 16),
                 "type": "card_payment",
                 "status": "posted",
-                "details": {"counterparty": {"name": "Whole Foods"}}
+                "details": {"counterparty": {"name": "Whole Foods"}},
             },
             {
                 "id": "txn_claude",  # No override, should use Claude
@@ -119,27 +119,27 @@ def test_manual_categories_applied_before_claude_categorization():
                 "date": date(2024, 1, 17),
                 "type": "card_payment",
                 "status": "posted",
-                "details": {"counterparty": {"name": "Shell"}}
-            }
+                "details": {"counterparty": {"name": "Shell"}},
+            },
         ]
 
         for txn in transactions:
-            db.insert_record("transactions", txn)
+            db.add_transaction(txn)
 
         # Create config with category overrides
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants"},
                 {"name": "groceries", "description": "Supermarkets"},
-                {"name": "transport", "description": "Gas and fuel"}
+                {"name": "transport", "description": "Gas and fuel"},
             ],
             "manual_categories": [
                 {"transaction_id": "txn_override_1", "category": "dining"},
-                {"transaction_id": "txn_override_2", "category": "groceries"}
-            ]
+                {"transaction_id": "txn_override_2", "category": "groceries"},
+            ],
         }
 
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
         # Mock RuntimeConfig
@@ -152,28 +152,35 @@ def test_manual_categories_applied_before_claude_categorization():
         test_category_config = CategoryConfig.load(config_path)
 
         # Mock the categorizer to verify it only receives non-overridden transactions
-        with patch('sprig.sync.ClaudeCategorizer') as mock_categorizer_class:
+        with patch("sprig.sync.ClaudeCategorizer") as mock_categorizer_class:
             mock_categorizer = Mock()
             mock_categorizer_class.return_value = mock_categorizer
 
             # Mock categorize_batch to return a category for the non-overridden transaction
-            mock_categorizer.categorize_batch.return_value = {
-                "txn_claude": "transport"
-            }
+            mock_categorizer.categorize_batch.return_value = {"txn_claude": "transport"}
 
             # Run categorization with explicit category_config
-            categorize_uncategorized_transactions(runtime_config, db, batch_size=10, category_config=test_category_config)
+            categorize_uncategorized_transactions(
+                runtime_config, db, batch_size=25, category_config=test_category_config
+            )
 
             # Verify category overrides were applied
             import sqlite3
+
             with sqlite3.connect(db_path) as conn:
-                cursor = conn.execute("SELECT inferred_category FROM transactions WHERE id = 'txn_override_1'")
+                cursor = conn.execute(
+                    "SELECT inferred_category FROM transactions WHERE id = 'txn_override_1'"
+                )
                 assert cursor.fetchone()[0] == "dining"
 
-                cursor = conn.execute("SELECT inferred_category FROM transactions WHERE id = 'txn_override_2'")
+                cursor = conn.execute(
+                    "SELECT inferred_category FROM transactions WHERE id = 'txn_override_2'"
+                )
                 assert cursor.fetchone()[0] == "groceries"
 
-                cursor = conn.execute("SELECT inferred_category FROM transactions WHERE id = 'txn_claude'")
+                cursor = conn.execute(
+                    "SELECT inferred_category FROM transactions WHERE id = 'txn_claude'"
+                )
                 assert cursor.fetchone()[0] == "transport"
 
             # Verify categorizer was called only once (for the non-overridden transaction)
@@ -195,14 +202,14 @@ def test_category_override_validates_category():
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants"},
-                {"name": "groceries", "description": "Supermarkets"}
+                {"name": "groceries", "description": "Supermarkets"},
             ],
             "manual_categories": [
                 {"transaction_id": "txn_123", "category": "invalid_category"}
-            ]
+            ],
         }
 
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
         # Loading should fail with validation error
@@ -211,8 +218,9 @@ def test_category_override_validates_category():
             # If we get here, validation should have caught the invalid category
             valid_categories = [cat.name for cat in category_config.categories]
             for override in category_config.manual_categories:
-                assert override.category in valid_categories, \
+                assert override.category in valid_categories, (
                     f"Invalid category '{override.category}' in category override"
+                )
         except Exception:
             # Expected - invalid category should be caught
             pass

@@ -23,6 +23,7 @@ class CategoryConfig(BaseModel):
     """Transaction category configuration from config.yml."""
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
+    batch_size: int = 25
 
     @model_validator(mode='after')
     def validate_manual_categories(self):
