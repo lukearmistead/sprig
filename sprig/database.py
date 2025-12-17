@@ -139,6 +139,10 @@ class SprigDatabase:
             
         Returns:
             Number of rows updated (1 if successful, 0 if transaction not found)
+            
+        Note:
+            BREAKING CHANGE: Return type changed from bool to int in v1.x.
+            Previously returned True/False, now returns actual row count from cursor.rowcount.
         """
         try:
             with sqlite3.connect(self.db_path) as conn:

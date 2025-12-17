@@ -4,6 +4,9 @@ from datetime import date
 from typing import Optional
 import requests
 
+# Manual categories have maximum confidence since they are user-specified
+MANUAL_CATEGORY_CONFIDENCE = 1.0
+
 from sprig.categorizer import ManualCategorizer, ClaudeCategorizer
 from sprig.models.category_config import CategoryConfig
 from sprig.logger import get_logger
@@ -168,22 +171,18 @@ def sync_transactions_for_account(
 
 
 
-def _apply_all_manual_categories(db: SprigDatabase, category_config: CategoryConfig, manual_categorizer: ManualCategorizer):
+def _apply_all_manual_categories(db: SprigDatabase, manual_categorizer: ManualCategorizer):
     """Apply manual categories to all matching transactions, overriding any existing categories.
     
     Args:
         db: Database instance
-        category_config: Category configuration with manual_categories
-        manual_categorizer: ManualCategorizer instance (unused, kept for compatibility)
+        manual_categorizer: ManualCategorizer instance with loaded manual categories
     """
-    if not category_config.manual_categories:
+    if not manual_categorizer.manual_map:
         return
     
-    # Direct mapping from manual categories (no need for mock transactions)
-    manual_results = {
-        manual_cat.transaction_id: manual_cat.category 
-        for manual_cat in category_config.manual_categories
-    }
+    # Use existing manual_map from categorizer (avoids redundant data structure)
+    manual_results = manual_categorizer.manual_map
     
     # Apply manual categories with confidence=1.0 (overriding any existing categories)
     success_count = 0
@@ -195,11 +194,11 @@ def _apply_all_manual_categories(db: SprigDatabase, category_config: CategoryCon
             # Check if transaction has existing category
             existing_category, existing_confidence = db.get_transaction_category(transaction_id)
             
-            rows_updated = db.update_transaction_category(transaction_id, category, 1.0)
+            rows_updated = db.update_transaction_category(transaction_id, category, MANUAL_CATEGORY_CONFIDENCE)
             if rows_updated > 0:
                 if existing_category and existing_category != category:
                     conf_str = f"{existing_confidence:.2f}" if existing_confidence is not None else "unknown"
-                    logger.debug(f"   Manual override: {transaction_id} '{existing_category}' (conf: {conf_str}) -> '{category}' (conf: 1.0)")
+                    logger.debug(f"   Manual override: {transaction_id} '{existing_category}' (conf: {conf_str}) -> '{category}' (conf: {MANUAL_CATEGORY_CONFIDENCE})")
                 else:
                     logger.debug(f"   Manual category: {transaction_id} -> '{category}'")
                 success_count += 1
@@ -212,9 +211,9 @@ def _apply_all_manual_categories(db: SprigDatabase, category_config: CategoryCon
     if success_count > 0:
         logger.info(f"   ✅ Applied manual categories: {success_count} updated")
     if not_found_count > 0:
-        logger.warning(f"   ⚠️  {not_found_count} manual categories skipped (transactions not found in database)")
+        logger.warning(f"   ⚠️  {not_found_count} manual categories skipped (transaction IDs not found in database)")
     if error_count > 0:
-        logger.error(f"   ❌ {error_count} manual categories failed due to errors")
+        logger.error(f"   ❌ {error_count} manual categories failed due to database errors")
 
 
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
@@ -228,7 +227,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     # Apply manual categories to ALL transactions first (including previously categorized ones)
     if category_config.manual_categories:
         logger.info(f"⚡ Applying {len(category_config.manual_categories)} manual category overrides (fast and cost-free)...")
-        _apply_all_manual_categories(db, category_config, manual_categorizer)
+        _apply_all_manual_categories(db, manual_categorizer)
     else:
         logger.debug("No manual categories defined in config")
 
