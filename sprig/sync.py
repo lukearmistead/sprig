@@ -167,36 +167,6 @@ def sync_transactions_for_account(
         db.sync_transaction(transaction)
 
 
-def _validate_manual_categories(category_config: CategoryConfig):
-    """Validate manual categories against available category names.
-    
-    Args:
-        category_config: Category configuration to validate
-        
-    Raises:
-        ValueError: If any manual categories reference invalid category names
-    """
-    valid_category_names = {cat.name for cat in category_config.categories}
-    invalid_manual_categories = []
-    
-    for manual_cat in category_config.manual_categories:
-        if manual_cat.category not in valid_category_names:
-            invalid_manual_categories.append(f"{manual_cat.transaction_id} -> '{manual_cat.category}'")
-    
-    if invalid_manual_categories:
-        logger.error(f"❌ Found {len(invalid_manual_categories)} invalid manual categories:")
-        for invalid in invalid_manual_categories[:5]:  # Show first 5
-            logger.error(f"   {invalid}")
-        if len(invalid_manual_categories) > 5:
-            logger.error(f"   ... and {len(invalid_manual_categories) - 5} more")
-        
-        valid_names = ', '.join(sorted(valid_category_names))
-        raise ValueError(
-            f"Invalid manual categories found. Valid categories are: {valid_names}"
-        )
-    
-    logger.debug(f"✅ All {len(category_config.manual_categories)} manual categories are valid")
-
 
 def _apply_all_manual_categories(db: SprigDatabase, category_config: CategoryConfig, manual_categorizer: ManualCategorizer):
     """Apply manual categories to all matching transactions, overriding any existing categories.
@@ -204,47 +174,47 @@ def _apply_all_manual_categories(db: SprigDatabase, category_config: CategoryCon
     Args:
         db: Database instance
         category_config: Category configuration with manual_categories
-        manual_categorizer: ManualCategorizer instance
+        manual_categorizer: ManualCategorizer instance (unused, kept for compatibility)
     """
-    from sprig.models import TellerTransaction
-    from datetime import date
-    
-    # Create mock transactions for all manual category transaction IDs
-    mock_transactions = []
-    for manual_cat in category_config.manual_categories:
-        mock_txn = TellerTransaction(
-            id=manual_cat.transaction_id,
-            account_id="mock_account",
-            amount=0.0,
-            description="mock_description",
-            date=date(2024, 1, 1),
-            type="mock_type",
-            status="posted"
-        )
-        mock_transactions.append(mock_txn)
-    
-    if not mock_transactions:
+    if not category_config.manual_categories:
         return
     
-    # Get manual category mappings
-    manual_results = manual_categorizer.categorize_batch(mock_transactions)
+    # Direct mapping from manual categories (no need for mock transactions)
+    manual_results = {
+        manual_cat.transaction_id: manual_cat.category 
+        for manual_cat in category_config.manual_categories
+    }
     
     # Apply manual categories with confidence=1.0 (overriding any existing categories)
     success_count = 0
-    skip_count = 0
+    not_found_count = 0
+    error_count = 0
     
     for transaction_id, category in manual_results.items():
         try:
-            result = db.update_transaction_category(transaction_id, category, 1.0)
-            if result:
+            # Check if transaction has existing category
+            existing_category, existing_confidence = db.get_transaction_category(transaction_id)
+            
+            rows_updated = db.update_transaction_category(transaction_id, category, 1.0)
+            if rows_updated > 0:
+                if existing_category and existing_category != category:
+                    conf_str = f"{existing_confidence:.2f}" if existing_confidence is not None else "unknown"
+                    logger.debug(f"   Manual override: {transaction_id} '{existing_category}' (conf: {conf_str}) -> '{category}' (conf: 1.0)")
+                else:
+                    logger.debug(f"   Manual category: {transaction_id} -> '{category}'")
                 success_count += 1
             else:
-                skip_count += 1
+                not_found_count += 1
         except Exception as e:
             logger.warning(f"Failed to apply manual category for {transaction_id}: {e}")
-            skip_count += 1
+            error_count += 1
     
-    logger.info(f"   ✅ Applied manual categories: {success_count} updated, {skip_count} skipped (not found in database)")
+    if success_count > 0:
+        logger.info(f"   ✅ Applied manual categories: {success_count} updated")
+    if not_found_count > 0:
+        logger.warning(f"   ⚠️  {not_found_count} manual categories skipped (transactions not found in database)")
+    if error_count > 0:
+        logger.error(f"   ❌ {error_count} manual categories failed due to errors")
 
 
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
@@ -257,8 +227,6 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
 
     # Apply manual categories to ALL transactions first (including previously categorized ones)
     if category_config.manual_categories:
-        # Validate manual categories before proceeding
-        _validate_manual_categories(category_config)
         logger.info(f"⚡ Applying {len(category_config.manual_categories)} manual category overrides (fast and cost-free)...")
         _apply_all_manual_categories(db, category_config, manual_categorizer)
     else:
@@ -347,16 +315,21 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
             try:
                 if isinstance(result, tuple):
                     category, confidence = result
-                    db.update_transaction_category(txn_id, category, confidence)
+                    rows_updated = db.update_transaction_category(txn_id, category, confidence)
                 else:
                     # Fallback for legacy format
-                    db.update_transaction_category(txn_id, result, 0.5)
-                batch_success_count += 1
+                    rows_updated = db.update_transaction_category(txn_id, result, 0.5)
+                
+                if rows_updated > 0:
+                    batch_success_count += 1
+                else:
+                    logger.warning(f"Transaction {txn_id} not found in database")
+                    batch_failed_count += 1
             except Exception as e:
                 logger.warning(f"Failed to update category for {txn_id}: {e}")
                 batch_failed_count += 1
 
-        # Count transactions that failed Claude categorization
+        # Add transactions that Claude didn't return results for
         claude_txn_ids = set(claude_results.keys())
         for txn in batch:
             if txn.id not in claude_txn_ids:
