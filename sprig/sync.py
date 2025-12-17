@@ -278,7 +278,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     
     if total_transactions == 0:
         logger.info("🎉 All transactions are categorized!")
-        logger.info("   Manual categories have been applied where applicable")
+        logger.info("   All manual categories have been applied")
         return
     
     total_batches = (total_transactions + batch_size - 1) // batch_size
