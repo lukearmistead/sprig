@@ -167,6 +167,86 @@ def sync_transactions_for_account(
         db.sync_transaction(transaction)
 
 
+def _validate_manual_categories(category_config: CategoryConfig):
+    """Validate manual categories against available category names.
+    
+    Args:
+        category_config: Category configuration to validate
+        
+    Raises:
+        ValueError: If any manual categories reference invalid category names
+    """
+    valid_category_names = {cat.name for cat in category_config.categories}
+    invalid_manual_categories = []
+    
+    for manual_cat in category_config.manual_categories:
+        if manual_cat.category not in valid_category_names:
+            invalid_manual_categories.append(f"{manual_cat.transaction_id} -> '{manual_cat.category}'")
+    
+    if invalid_manual_categories:
+        logger.error(f"❌ Found {len(invalid_manual_categories)} invalid manual categories:")
+        for invalid in invalid_manual_categories[:5]:  # Show first 5
+            logger.error(f"   {invalid}")
+        if len(invalid_manual_categories) > 5:
+            logger.error(f"   ... and {len(invalid_manual_categories) - 5} more")
+        
+        valid_names = ', '.join(sorted(valid_category_names))
+        raise ValueError(
+            f"Invalid manual categories found. Valid categories are: {valid_names}"
+        )
+    
+    logger.debug(f"✅ All {len(category_config.manual_categories)} manual categories are valid")
+
+
+def _apply_all_manual_categories(db: SprigDatabase, category_config: CategoryConfig, manual_categorizer: ManualCategorizer):
+    """Apply manual categories to all matching transactions, overriding any existing categories.
+    
+    Args:
+        db: Database instance
+        category_config: Category configuration with manual_categories
+        manual_categorizer: ManualCategorizer instance
+    """
+    from sprig.models import TellerTransaction
+    from datetime import date
+    
+    # Create mock transactions for all manual category transaction IDs
+    mock_transactions = []
+    for manual_cat in category_config.manual_categories:
+        mock_txn = TellerTransaction(
+            id=manual_cat.transaction_id,
+            account_id="mock_account",
+            amount=0.0,
+            description="mock_description",
+            date=date(2024, 1, 1),
+            type="mock_type",
+            status="posted"
+        )
+        mock_transactions.append(mock_txn)
+    
+    if not mock_transactions:
+        return
+    
+    # Get manual category mappings
+    manual_results = manual_categorizer.categorize_batch(mock_transactions)
+    
+    # Apply manual categories with confidence=1.0 (overriding any existing categories)
+    success_count = 0
+    skip_count = 0
+    
+    for transaction_id, category in manual_results.items():
+        try:
+            result = db.update_transaction_category(transaction_id, category, 1.0)
+            if result:
+                success_count += 1
+            else:
+                skip_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to apply manual category for {transaction_id}: {e}")
+            skip_count += 1
+    
+    logger.info(f"   ✅ Applied manual categories: {success_count} updated, {skip_count} skipped (not found in database)")
+
+
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
@@ -174,6 +254,15 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     # Initialize categorizers
     category_config = CategoryConfig.load()
     manual_categorizer = ManualCategorizer(category_config)
+
+    # Apply manual categories to ALL transactions first (including previously categorized ones)
+    if category_config.manual_categories:
+        # Validate manual categories before proceeding
+        _validate_manual_categories(category_config)
+        logger.info(f"⚡ Applying {len(category_config.manual_categories)} manual category overrides (fast and cost-free)...")
+        _apply_all_manual_categories(db, category_config, manual_categorizer)
+    else:
+        logger.debug("No manual categories defined in config")
 
     # Initialize Claude categorizer (API key is mandatory)
     try:
@@ -217,109 +306,82 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
         )
         return
 
-    # Check for manual categories that match current transactions
-    manual_matches = 0
-    if category_config.manual_categories:
-        manual_map = {
-            mc.transaction_id: mc.category for mc in category_config.manual_categories
-        }
-        manual_matches = sum(1 for txn in transactions if txn.id in manual_map)
-
     total_transactions = len(transactions)
     logger.debug(f"Converted to {total_transactions} TellerTransaction objects")
+    
+    if total_transactions == 0:
+        logger.info("🎉 All transactions are categorized!")
+        logger.info("   Manual categories have been applied where applicable")
+        return
+    
     total_batches = (total_transactions + batch_size - 1) // batch_size
     categorized_count = 0
     failed_count = 0
 
-    categorization_methods = ["Claude AI"]
-    if manual_matches > 0:
-        categorization_methods.insert(0, f"manual rules ({manual_matches} matches)")
-
-    logger.info(
-        f"Categorizing {total_transactions} uncategorized transaction(s) using {' and '.join(categorization_methods)}"
-    )
-    logger.info(
-        f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each"
-    )
+    logger.info(f"🔥 Categorizing {total_transactions} remaining uncategorized transaction(s) using Claude AI")
+    logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each")
 
     if total_transactions > 100:
         logger.info("   Large transaction volume may hit Claude API rate limits")
-        logger.info(
-            "   Consider using '--from-date YYYY-MM-DD' flag to process recent transactions first"
-        )
+        logger.info("   Consider using '--from-date YYYY-MM-DD' flag to process recent transactions first")
 
-    # Process in batches
+    # Process in batches using Claude AI only (manual categories already applied globally)
     for i in range(0, len(transactions), batch_size):
         batch = transactions[i : i + batch_size]
         batch_num = (i // batch_size) + 1
 
-        logger.info(
-            f"   Processing batch {batch_num}/{total_batches} ({len(batch)} transactions)..."
-        )
+        logger.info(f"   Processing batch {batch_num}/{total_batches} ({len(batch)} transactions)...")
 
         # Get account info for this batch
         batch_account_info = {t.id: account_info[t.id] for t in batch}
 
-        # First, apply manual categorizations
-        manual_results = manual_categorizer.categorize_batch(batch, batch_account_info)
+        # Apply Claude categorization to all transactions in batch
+        claude_results = claude_categorizer.categorize_batch(batch, batch_account_info)
 
-        # Find transactions that weren't manually categorized
-        manual_txn_ids = set(manual_results.keys())
-        remaining_transactions = [txn for txn in batch if txn.id not in manual_txn_ids]
-
-        # Apply Claude categorization to remaining transactions
-        claude_results = {}
-        if remaining_transactions:
-            claude_results = claude_categorizer.categorize_batch(
-                remaining_transactions, batch_account_info
-            )
-
-        # Update database with successful categorizations
+        # Update database with Claude categorizations
         batch_success_count = 0
         batch_failed_count = 0
 
-        # Update manual categorizations (with confidence = 1.0)
-        for txn_id, category in manual_results.items():
-            db.update_transaction_category(txn_id, category, 1.0)
-            batch_success_count += 1
-
         # Update Claude categorizations (with AI confidence score)
         for txn_id, result in claude_results.items():
-            if isinstance(result, tuple):
-                category, confidence = result
-                db.update_transaction_category(txn_id, category, confidence)
-            else:
-                # Fallback for legacy format
-                db.update_transaction_category(txn_id, result, 0.5)
-            batch_success_count += 1
+            try:
+                if isinstance(result, tuple):
+                    category, confidence = result
+                    db.update_transaction_category(txn_id, category, confidence)
+                else:
+                    # Fallback for legacy format
+                    db.update_transaction_category(txn_id, result, 0.5)
+                batch_success_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to update category for {txn_id}: {e}")
+                batch_failed_count += 1
 
         # Count transactions that failed Claude categorization
-        # These are transactions that weren't manually categorized and didn't get Claude results
-        manual_txn_ids = set(manual_results.keys())
         claude_txn_ids = set(claude_results.keys())
-        failed_txn_ids = set()
         for txn in batch:
-            if txn.id not in manual_txn_ids and txn.id not in claude_txn_ids:
-                failed_txn_ids.add(txn.id)
-        batch_failed_count = len(failed_txn_ids)
+            if txn.id not in claude_txn_ids:
+                batch_failed_count += 1
 
         categorized_count += batch_success_count
         failed_count += batch_failed_count
 
         if batch_success_count == len(batch):
-            logger.info(
-                f"      Batch {batch_num} complete: {batch_success_count} categorized"
-            )
+            logger.info(f"      ✅ Batch {batch_num} complete: {batch_success_count} categorized")
         else:
-            logger.warning(
-                f"      Batch {batch_num} partial: {batch_success_count}/{len(batch)} categorized"
-            )
+            logger.warning(f"      ⚠️  Batch {batch_num} partial: {batch_success_count}/{len(batch)} categorized")
 
     # Show final summary
-    logger.info("Categorization complete")
-    logger.info(f"   Successfully categorized: {categorized_count} transactions")
+    logger.info("🎯 Categorization Summary:")
+    if category_config.manual_categories:
+        logger.info(f"   ⚡ Manual categories (fast/free): {len(category_config.manual_categories)} rules applied")
+    
+    logger.info(f"   🔥 Claude AI categories: {categorized_count} transactions processed")
     if failed_count > 0:
-        logger.warning(f"   Failed to categorize: {failed_count} transactions")
-    logger.info(
-        f"   Success rate: {(categorized_count / total_transactions * 100):.1f}%"
-    )
+        logger.warning(f"   ❌ Failed to categorize: {failed_count} transactions")
+    
+    if total_transactions > 0:
+        success_rate = (categorized_count / total_transactions * 100)
+        logger.info(f"   📊 Claude AI success rate: {success_rate:.1f}%")
+    
+    total_processed = len(category_config.manual_categories) + categorized_count
+    logger.info(f"   🎉 Total transactions categorized this session: {total_processed}")
