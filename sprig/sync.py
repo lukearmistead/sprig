@@ -191,16 +191,9 @@ def _apply_all_manual_categories(db: SprigDatabase, manual_categorizer: ManualCa
     
     for transaction_id, category in manual_results.items():
         try:
-            # Check if transaction has existing category
-            existing_category, existing_confidence = db.get_transaction_category(transaction_id)
-            
             rows_updated = db.update_transaction_category(transaction_id, category, MANUAL_CATEGORY_CONFIDENCE)
             if rows_updated > 0:
-                if existing_category and existing_category != category:
-                    conf_str = f"{existing_confidence:.2f}" if existing_confidence is not None else "unknown"
-                    logger.debug(f"   Manual override: {transaction_id} '{existing_category}' (conf: {conf_str}) -> '{category}' (conf: {MANUAL_CATEGORY_CONFIDENCE})")
-                else:
-                    logger.debug(f"   Manual category: {transaction_id} -> '{category}'")
+                logger.debug(f"   Applied manual category: {transaction_id} -> '{category}'")
                 success_count += 1
             else:
                 not_found_count += 1
@@ -209,9 +202,9 @@ def _apply_all_manual_categories(db: SprigDatabase, manual_categorizer: ManualCa
             error_count += 1
     
     if success_count > 0:
-        logger.info(f"   ✅ Applied manual categories: {success_count} updated")
+        logger.info(f"   ✅ Applied {success_count} manual categories")
     if not_found_count > 0:
-        logger.warning(f"   ⚠️  {not_found_count} manual categories skipped (transaction IDs not found in database)")
+        logger.warning(f"   ⚠️  {not_found_count} manual categories skipped (transaction IDs not in database)")
     if error_count > 0:
         logger.error(f"   ❌ {error_count} manual categories failed due to database errors")
 

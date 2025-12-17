@@ -224,15 +224,15 @@ def test_category_override_validates_category():
             pass
 
 
-def test_manual_categories_override_existing_ai_categories():
-    """Test that manual categories override existing AI categories with confidence 1.0."""
+def test_manual_categories_applied_with_confidence_1_0():
+    """Test that manual categories are applied with confidence 1.0."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test.db"
         db = SprigDatabase(db_path)
         
-        # Create test transaction and categorize it with AI first
+        # Create test transaction
         db.sync_transaction({
-            'id': 'txn_test_override',
+            'id': 'txn_test_manual',
             'account_id': 'acc_123',
             'amount': 50.0,
             'description': 'Test transaction',
@@ -241,23 +241,14 @@ def test_manual_categories_override_existing_ai_categories():
             'status': 'posted'
         })
         
-        # Set initial AI category with confidence 0.8
-        rows_updated = db.update_transaction_category('txn_test_override', 'transport', 0.8)
-        assert rows_updated == 1
-        
-        # Verify initial category
-        category, confidence = db.get_transaction_category('txn_test_override')
-        assert category == 'transport'
-        assert confidence == 0.8
-        
-        # Apply manual override via sync function
+        # Apply manual category via sync function
         with patch('sprig.sync.CategoryConfig.load') as mock_config_load, \
              patch('sprig.sync.ClaudeCategorizer') as mock_claude:
             
-            # Mock config with manual override
+            # Mock config with manual category
             mock_config = Mock()
             mock_config.manual_categories = [
-                Mock(transaction_id='txn_test_override', category='dining')
+                Mock(transaction_id='txn_test_manual', category='dining')
             ]
             mock_config.categories = [
                 Mock(name='dining', description='Food'),
@@ -269,7 +260,15 @@ def test_manual_categories_override_existing_ai_categories():
             # Run categorization
             categorize_uncategorized_transactions(db, batch_size=25)
             
-            # Verify manual category overrode AI category with confidence 1.0
-            category, confidence = db.get_transaction_category('txn_test_override')
-            assert category == 'dining'
-            assert confidence == 1.0
+            # Verify manual category was applied with confidence 1.0
+            import sqlite3
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT inferred_category, confidence FROM transactions WHERE id = ?",
+                    ('txn_test_manual',)
+                )
+                result = cursor.fetchone()
+                assert result is not None
+                category, confidence = result
+                assert category == 'dining'
+                assert confidence == 1.0

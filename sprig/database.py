@@ -104,29 +104,6 @@ class SprigDatabase:
             """)
             return cursor.fetchall()
 
-    def get_transaction_category(self, transaction_id: str) -> tuple:
-        """Get the current category and confidence for a transaction.
-        
-        Args:
-            transaction_id: Transaction ID
-            
-        Returns:
-            Tuple of (category, confidence) or (None, None) if not found
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute(
-                    "SELECT inferred_category, confidence FROM transactions WHERE id = ?",
-                    (transaction_id,)
-                )
-                result = cursor.fetchone()
-                if result:
-                    return result[0], result[1]
-                return None, None
-        except Exception as e:
-            logger.error(f"Error getting category for transaction {transaction_id}: {e}")
-            return None, None
-
     def update_transaction_category(
         self, transaction_id: str, category: str, confidence: float = None
     ) -> int:
