@@ -4,10 +4,7 @@ from datetime import date
 from unittest.mock import Mock, patch
 import pytest
 
-from sprig.categorizer import (
-    TransactionCategorizer,
-    build_categorization_prompt
-)
+from sprig.categorizer import ClaudeCategorizer
 from sprig.models import TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
 from sprig.models.credentials import ClaudeAPIKey
@@ -23,10 +20,10 @@ def mock_credentials():
 
 class TestBuildCategorizationPrompt:
     """Test prompt building functionality."""
-    
+
     def test_build_prompt_includes_descriptions(self):
         """Test that prompt includes category descriptions."""
-        
+
         transactions = [
             TellerTransaction(
                 id="txn_123",
@@ -38,14 +35,17 @@ class TestBuildCategorizationPrompt:
                 status="posted"
             )
         ]
-        
+
         # Load actual category config
         category_config = CategoryConfig.load()
-        
+
+        # Create categorizer to access _build_prompt
+        categorizer = ClaudeCategorizer(category_config)
+
         # Provide empty account info for test
         account_info = {}
-        prompt = build_categorization_prompt(transactions, account_info, category_config)
-        
+        prompt = categorizer._build_prompt(transactions, account_info)
+
         # Should include actual categories from config
         assert "dining:" in prompt
         assert "groceries:" in prompt
@@ -53,75 +53,82 @@ class TestBuildCategorizationPrompt:
         assert "Restaurant" in prompt
 
 
-class TestTransactionCategorizerParsing:
-    """Test parsing functionality of TransactionCategorizer."""
+class TestClaudeCategorizerParsing:
+    """Test parsing functionality of ClaudeCategorizer."""
 
     def setup_method(self):
         """Set up test categorizer instance."""
-        self.categorizer = TransactionCategorizer()
-    
+        category_config = CategoryConfig.load()
+        self.categorizer = ClaudeCategorizer(category_config)
+
     def test_validate_categories_valid_response(self):
         """Test validating valid response from Claude."""
         # Response should be list of TransactionCategory objects
         categories_list = [
-            TransactionCategory(transaction_id="txn_123", category="dining"),
-            TransactionCategory(transaction_id="txn_456", category="groceries")
+            TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.9),
+            TransactionCategory(transaction_id="txn_456", category="groceries", confidence=0.85)
         ]
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {"txn_123": "dining", "txn_456": "groceries"}
-    
+
+        assert len(result) == 2
+        assert result[0].transaction_id == "txn_123"
+        assert result[0].category == "dining"
+        assert result[1].transaction_id == "txn_456"
+        assert result[1].category == "groceries"
+
     def test_validate_categories_invalid_category(self):
-        """Test fallback for invalid categories."""
+        """Test that invalid categories are filtered out."""
         # Response with invalid category
         categories_list = [
-            TransactionCategory(transaction_id="txn_123", category="dining"),
-            TransactionCategory(transaction_id="txn_456", category="invalid_category")
+            TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.9),
+            TransactionCategory(transaction_id="txn_456", category="invalid_category", confidence=0.5)
         ]
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {"txn_123": "dining", "txn_456": None}
-    
+
+        # Invalid category should be filtered out
+        assert len(result) == 1
+        assert result[0].transaction_id == "txn_123"
+        assert result[0].category == "dining"
+
     def test_validate_categories_mixed_valid_invalid(self):
         """Test mix of valid and invalid categories."""
         categories_list = [
-            TransactionCategory(transaction_id="txn_1", category="dining"),
-            TransactionCategory(transaction_id="txn_2", category="wrong"),
-            TransactionCategory(transaction_id="txn_3", category="transport")
+            TransactionCategory(transaction_id="txn_1", category="dining", confidence=0.9),
+            TransactionCategory(transaction_id="txn_2", category="wrong", confidence=0.5),
+            TransactionCategory(transaction_id="txn_3", category="transport", confidence=0.85)
         ]
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {
-            "txn_1": "dining",
-            "txn_2": None,
-            "txn_3": "transport"
-        }
-    
-    
+
+        # Only valid categories should be returned
+        assert len(result) == 2
+        assert result[0].transaction_id == "txn_1"
+        assert result[0].category == "dining"
+        assert result[1].transaction_id == "txn_3"
+        assert result[1].category == "transport"
+
+
     def test_validate_categories_empty_list(self):
         """Test handling empty list."""
         categories_list = []
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {}
-    
+
+        assert result == []
+
     def test_validate_categories_all_invalid(self):
         """Test when all categories are invalid."""
         categories_list = [
-            TransactionCategory(transaction_id="txn_1", category="fake1"),
-            TransactionCategory(transaction_id="txn_2", category="fake2")
+            TransactionCategory(transaction_id="txn_1", category="fake1", confidence=0.5),
+            TransactionCategory(transaction_id="txn_2", category="fake2", confidence=0.5)
         ]
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {
-            "txn_1": None,
-            "txn_2": None
-        }
+
+        # All invalid, so empty list
+        assert result == []
 
 
 
@@ -145,7 +152,7 @@ class TestCategorizeBatchIntegration:
             "content": [
                 {
                     "type": "text", 
-                    "text": '{"transaction_id": "txn_ABC123", "category": "dining"}, {"transaction_id": "txn_DEF456", "category": "transport"}, {"transaction_id": "txn_GHI789", "category": "groceries"}]'
+                    "text": '{"transaction_id": "txn_ABC123", "category": "dining", "confidence": 0.9}, {"transaction_id": "txn_DEF456", "category": "transport", "confidence": 0.85}, {"transaction_id": "txn_GHI789", "category": "groceries", "confidence": 0.95}]'
                 }
             ],
             "model": "claude-3-haiku",
@@ -185,20 +192,23 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with account info
-        categorizer = TransactionCategorizer()
+        category_config = CategoryConfig.load()
+        categorizer = ClaudeCategorizer(category_config)
         account_info = {
             "txn_ABC123": {"name": "Checking", "subtype": "checking"},
             "txn_DEF456": {"name": "Checking", "subtype": "checking"},
             "txn_GHI789": {"name": "Checking", "subtype": "checking"}
         }
         result = categorizer.categorize_batch(transactions, account_info)
-        
-        # Assert correct categories returned
-        assert result == {
-            "txn_ABC123": "dining",
-            "txn_DEF456": "transport",
-            "txn_GHI789": "groceries"
-        }
+
+        # Assert correct categories returned as list
+        assert len(result) == 3
+        assert result[0].transaction_id == "txn_ABC123"
+        assert result[0].category == "dining"
+        assert result[1].transaction_id == "txn_DEF456"
+        assert result[1].category == "transport"
+        assert result[2].transaction_id == "txn_GHI789"
+        assert result[2].category == "groceries"
         
         # Verify Claude was called with proper prompt
         mock_client.messages.create.assert_called_once()
@@ -222,7 +232,7 @@ class TestCategorizeBatchIntegration:
             "content": [
                 {
                     "type": "text", 
-                    "text": '{"transaction_id": "txn_1", "category": "dining"}, {"transaction_id": "txn_2", "category": "invalid_cat"}, {"transaction_id": "txn_3", "category": "groceries"}]'
+                    "text": '{"transaction_id": "txn_1", "category": "dining", "confidence": 0.9}, {"transaction_id": "txn_2", "category": "invalid_cat", "confidence": 0.5}, {"transaction_id": "txn_3", "category": "groceries", "confidence": 0.85}]'
                 }
             ],
             "model": "claude-3-haiku",
@@ -244,16 +254,17 @@ class TestCategorizeBatchIntegration:
         ]
         
         # Run categorization with empty account info
-        categorizer = TransactionCategorizer()
+        category_config = CategoryConfig.load()
+        categorizer = ClaudeCategorizer(category_config)
         account_info = {}
         result = categorizer.categorize_batch(transactions, account_info)
-        
-        # Assert invalid category gets None
-        assert result == {
-            "txn_1": "dining",
-            "txn_2": None,
-            "txn_3": "groceries"
-        }
+
+        # Assert invalid category is filtered out
+        assert len(result) == 2
+        assert result[0].transaction_id == "txn_1"
+        assert result[0].category == "dining"
+        assert result[1].transaction_id == "txn_3"
+        assert result[1].category == "groceries"
 
 
 class TestEdgeCases:
@@ -261,29 +272,38 @@ class TestEdgeCases:
 
     def setup_method(self):
         """Set up test categorizer instance."""
-        self.categorizer = TransactionCategorizer()
-    
+        category_config = CategoryConfig.load()
+        self.categorizer = ClaudeCategorizer(category_config)
+
     def test_response_with_numeric_transaction_ids(self):
         """Test transaction IDs that are numeric strings."""
         categories_list = [
-            TransactionCategory(transaction_id="12345", category="dining"),
-            TransactionCategory(transaction_id="67890", category="transport")
+            TransactionCategory(transaction_id="12345", category="dining", confidence=0.9),
+            TransactionCategory(transaction_id="67890", category="transport", confidence=0.85)
         ]
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {"12345": "dining", "67890": "transport"}
-    
+
+        assert len(result) == 2
+        assert result[0].transaction_id == "12345"
+        assert result[0].category == "dining"
+        assert result[1].transaction_id == "67890"
+        assert result[1].category == "transport"
+
     def test_response_with_special_characters(self):
         """Test transaction IDs with special characters."""
         categories_list = [
-            TransactionCategory(transaction_id="txn_abc-123", category="dining"),
-            TransactionCategory(transaction_id="txn_def_456", category="transport")
+            TransactionCategory(transaction_id="txn_abc-123", category="dining", confidence=0.9),
+            TransactionCategory(transaction_id="txn_def_456", category="transport", confidence=0.85)
         ]
-        
+
         result = self.categorizer._validate_categories(categories_list)
-        
-        assert result == {"txn_abc-123": "dining", "txn_def_456": "transport"}
+
+        assert len(result) == 2
+        assert result[0].transaction_id == "txn_abc-123"
+        assert result[0].category == "dining"
+        assert result[1].transaction_id == "txn_def_456"
+        assert result[1].category == "transport"
     
     def test_category_config_loads(self):
         """Test that category config loads properly."""

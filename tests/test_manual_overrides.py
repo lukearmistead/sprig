@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 import yaml
 
 from sprig.database import SprigDatabase
-from sprig.models import RuntimeConfig
 from sprig.models.category_config import CategoryConfig
 from sprig.sync import categorize_uncategorized_transactions
 
@@ -142,27 +141,42 @@ def test_manual_categories_applied_before_claude_categorization():
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        # Mock RuntimeConfig
-        runtime_config = Mock(spec=RuntimeConfig)
-        runtime_config.claude_api_key = "test_key"
-        runtime_config.database_path = db_path
-        runtime_config.category_config_path = config_path
-
         # Load the test category config
         test_category_config = CategoryConfig.load(config_path)
 
+        # Import TransactionCategory for use in mocks
+        from sprig.models import TransactionCategory
+
+        # Mock CategoryConfig.load to return our test config
         # Mock the categorizer to verify it only receives non-overridden transactions
-        with patch("sprig.sync.ClaudeCategorizer") as mock_categorizer_class:
+        with (
+            patch("sprig.sync.CategoryConfig") as mock_category_config_class,
+            patch("sprig.sync.ClaudeCategorizer") as mock_categorizer_class,
+            patch("sprig.sync.ManualCategorizer") as mock_manual_categorizer_class,
+        ):
+            # Mock CategoryConfig.load to return our test config
+            mock_category_config_class.load.return_value = test_category_config
+
+            # Mock manual categorizer
+            mock_manual_categorizer = Mock()
+            manual_results = [
+                TransactionCategory(transaction_id="txn_override_1", category="dining", confidence=1.0),
+                TransactionCategory(transaction_id="txn_override_2", category="groceries", confidence=1.0),
+            ]
+            mock_manual_categorizer.categorize_batch.return_value = manual_results
+            mock_manual_categorizer_class.return_value = mock_manual_categorizer
+
+            # Mock Claude categorizer
             mock_categorizer = Mock()
             mock_categorizer_class.return_value = mock_categorizer
 
             # Mock categorize_batch to return a category for the non-overridden transaction
-            mock_categorizer.categorize_batch.return_value = {"txn_claude": "transport"}
+            mock_categorizer.categorize_batch.return_value = [
+                TransactionCategory(transaction_id="txn_claude", category="transport", confidence=0.9)
+            ]
 
-            # Run categorization with explicit category_config
-            categorize_uncategorized_transactions(
-                runtime_config, db, batch_size=25, category_config=test_category_config
-            )
+            # Run categorization
+            categorize_uncategorized_transactions(db, batch_size=25)
 
             # Verify category overrides were applied
             import sqlite3
@@ -194,7 +208,7 @@ def test_manual_categories_applied_before_claude_categorization():
 
 
 def test_category_override_validates_category():
-    """Test that category overrides validate category against valid categories."""
+    """Test that category overrides validate category at categorize time."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
@@ -205,22 +219,51 @@ def test_category_override_validates_category():
                 {"name": "groceries", "description": "Supermarkets"},
             ],
             "manual_categories": [
-                {"transaction_id": "txn_123", "category": "invalid_category"}
+                {"transaction_id": "txn_valid", "category": "dining"},
+                {"transaction_id": "txn_invalid", "category": "invalid_category"}
             ],
         }
 
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        # Loading should fail with validation error
-        try:
-            category_config = CategoryConfig.load(config_path)
-            # If we get here, validation should have caught the invalid category
-            valid_categories = [cat.name for cat in category_config.categories]
-            for override in category_config.manual_categories:
-                assert override.category in valid_categories, (
-                    f"Invalid category '{override.category}' in category override"
-                )
-        except Exception:
-            # Expected - invalid category should be caught
-            pass
+        # Loading should succeed - validation happens at categorize time
+        category_config = CategoryConfig.load(config_path)
+        assert len(category_config.manual_categories) == 2
+
+        # Create a ManualCategorizer and test that it filters invalid categories
+        from sprig.categorizer import ManualCategorizer
+        from sprig.models import TellerTransaction
+        from datetime import date
+
+        manual_categorizer = ManualCategorizer(category_config)
+
+        # Create mock transactions
+        transactions = [
+            TellerTransaction(
+                id="txn_valid",
+                account_id="acc_123",
+                amount=-25.50,
+                description="Test",
+                date=date(2024, 1, 15),
+                type="card_payment",
+                status="posted",
+                details={}
+            ),
+            TellerTransaction(
+                id="txn_invalid",
+                account_id="acc_123",
+                amount=-50.00,
+                description="Test",
+                date=date(2024, 1, 16),
+                type="card_payment",
+                status="posted",
+                details={}
+            )
+        ]
+
+        # Categorize should filter out invalid category
+        results = manual_categorizer.categorize_batch(transactions)
+        assert len(results) == 1
+        assert results[0].transaction_id == "txn_valid"
+        assert results[0].category == "dining"

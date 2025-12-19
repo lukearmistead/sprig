@@ -4,8 +4,9 @@ from datetime import date
 from unittest.mock import Mock, patch, call
 import pytest
 
-from sprig.categorizer import TransactionCategorizer
-from sprig.models import TellerTransaction
+from sprig.categorizer import ClaudeCategorizer
+from sprig.models import TellerTransaction, TransactionCategory
+from sprig.models.category_config import CategoryConfig
 from sprig.models.credentials import ClaudeAPIKey
 
 
@@ -50,19 +51,20 @@ class TestErrorHandling:
         mock_client = Mock()
         mock_anthropic.return_value = mock_client
         
-        # Simulate API error
-        mock_client.messages.create.side_effect = Exception("API rate limit exceeded")
-        
-        categorizer = TransactionCategorizer()
+        # Simulate API error (not a rate limit error)
+        mock_client.messages.create.side_effect = Exception("API connection failed")
+
+        category_config = CategoryConfig.load()
+        categorizer = ClaudeCategorizer(category_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
-        
+
         # Should log the error
-        error_logged = any("API rate limit exceeded" in str(call) for call in mock_logger.error.call_args_list)
+        error_logged = any("API connection failed" in str(call) for call in mock_logger.error.call_args_list)
         assert error_logged, "API error should be logged"
-        
-        # Should return empty dict when batch fails
-        assert result == {}
+
+        # Should return empty list when batch fails
+        assert result == []
     
     @patch('anthropic.Anthropic')
     @patch('sprig.categorizer.logger')
@@ -82,18 +84,19 @@ class TestErrorHandling:
             "usage": {}
         }
         mock_client.messages.create.return_value = mock_api_response
-        
-        categorizer = TransactionCategorizer()
+
+        category_config = CategoryConfig.load()
+        categorizer = ClaudeCategorizer(category_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
-        
+
         # Should log parsing error
-        error_logged = any("Failed to parse" in str(call) or "Invalid JSON" in str(call) 
+        error_logged = any("Failed to parse" in str(call) or "Invalid JSON" in str(call)
                           for call in mock_logger.error.call_args_list)
         assert error_logged, "JSON parsing error should be logged"
-        
-        # Should return empty dict for failed batch
-        assert result == {}
+
+        # Should return empty list for failed batch
+        assert result == []
 
 
 class TestRetryLogic:
@@ -127,7 +130,7 @@ class TestRetryLogic:
             "id": "msg_123",
             "type": "message",
             "role": "assistant",
-            "content": [{"type": "text", "text": '{"transaction_id": "txn_1", "category": "dining"}]'}],
+            "content": [{"type": "text", "text": '{"transaction_id": "txn_1", "category": "dining", "confidence": 0.9}]'}],
             "model": "claude-haiku-4-5-20251001",
             "usage": {}
         }
@@ -137,20 +140,23 @@ class TestRetryLogic:
             Exception("Timeout"),
             mock_api_response
         ]
-        
-        categorizer = TransactionCategorizer()
+
+        category_config = CategoryConfig.load()
+        categorizer = ClaudeCategorizer(category_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
-        
+
         # Should retry 3 times
         assert mock_client.messages.create.call_count == 3
-        
+
         # Should use exponential backoff (1s, 2s between retries)
         assert mock_sleep.call_count == 2
         mock_sleep.assert_has_calls([call(1), call(2)])
-        
-        # Should eventually return the successful result
-        assert result == {"txn_1": "dining"}
+
+        # Should eventually return the successful result as list
+        assert len(result) == 1
+        assert result[0].transaction_id == "txn_1"
+        assert result[0].category == "dining"
         
         # Should log retry attempts
         retry_logged = any("Retrying" in str(call) for call in mock_logger.info.call_args_list)
@@ -166,16 +172,17 @@ class TestRetryLogic:
         
         # Always fail
         mock_client.messages.create.side_effect = Exception("Persistent error")
-        
-        categorizer = TransactionCategorizer()
+
+        category_config = CategoryConfig.load()
+        categorizer = ClaudeCategorizer(category_config)
         account_info = {}  # Empty account info for test
         result = categorizer.categorize_batch(self.test_transactions, account_info)
-        
+
         # Should try exactly 3 times
         assert mock_client.messages.create.call_count == 3
-        
-        # Should return empty dict after giving up
-        assert result == {}
+
+        # Should return empty list after giving up
+        assert result == []
         
         # Should log that it gave up
         gave_up_logged = any("Failed after" in str(call) or "attempts" in str(call) 
@@ -186,59 +193,63 @@ class TestRetryLogic:
 class TestProgressTracking:
     """Test that progress is reported during categorization."""
     
-    @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
+    @patch('sprig.categorizer.ClaudeCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
     @patch('sprig.sync.logger')
     def test_batch_progress_is_shown(self, mock_logger, mock_db, mock_categorize_batch):
         """Test that progress is shown for each batch."""
         from sprig.sync import categorize_uncategorized_transactions
-        
+
         # Mock database returning 50 uncategorized transactions
         mock_db_instance = Mock()
         mock_db.return_value = mock_db_instance
-        
-        # Create 50 mock transaction rows (including account columns and counterparty)
-        mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit", 
-                             f"acc_{i}", f"Account {i}", "checking", f"Merchant {i}") 
+
+        # Create 50 mock transaction rows (including account columns, counterparty, and last_four)
+        mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit",
+                             f"acc_{i}", f"Account {i}", "checking", f"Merchant {i}", "1234")
                             for i in range(50)]
         mock_db_instance.get_uncategorized_transactions.return_value = mock_transactions
-        
-        # Mock successful categorization
-        mock_categorize_batch.return_value = {f"txn_{i}": "dining" for i in range(20)}
 
-        categorize_uncategorized_transactions(mock_db_instance)
+        # Mock successful categorization - return list of TransactionCategory
+        mock_categorize_batch.return_value = [
+            TransactionCategory(transaction_id=f"txn_{i}", category="dining", confidence=0.9)
+            for i in range(20)
+        ]
+
+        categorize_uncategorized_transactions(mock_db_instance, batch_size=20)
         
         # Should show batch progress (50 transactions = 3 batches with batch size 20)
         progress_logged = any(
-            "batch 1 of 3" in str(call).lower() or 
+            "batch 1/3" in str(call).lower() or
             "processing batch" in str(call).lower()
-            for call in mock_logger.debug.call_args_list
+            for call in mock_logger.info.call_args_list
         )
         assert progress_logged, "Should show batch progress"
     
-    @patch('sprig.categorizer.TransactionCategorizer.categorize_batch')
+    @patch('sprig.categorizer.ClaudeCategorizer.categorize_batch')
     @patch('sprig.database.SprigDatabase')
     @patch('sprig.sync.logger')
     def test_summary_shows_results(self, mock_logger, mock_db, mock_categorize_batch):
         """Test that a summary is shown at the end."""
         from sprig.sync import categorize_uncategorized_transactions
-        
+
         mock_db_instance = Mock()
         mock_db.return_value = mock_db_instance
-        
-        # Create 30 transactions (2 batches) with account columns and counterparty
+
+        # Create 30 transactions (2 batches) with account columns, counterparty, and last_four
         mock_transactions = [(f"txn_{i}", f"Description {i}", 10.0, "2024-01-01", "debit",
-                             f"acc_{i}", f"Account {i}", "checking", f"Merchant {i}") 
+                             f"acc_{i}", f"Account {i}", "checking", f"Merchant {i}", "1234")
                             for i in range(30)]
         mock_db_instance.get_uncategorized_transactions.return_value = mock_transactions
-        
+
         # First batch succeeds, second batch fails
         mock_categorize_batch.side_effect = [
-            {f"txn_{i}": "dining" for i in range(20)},  # First batch succeeds
-            {}  # Second batch fails
+            [TransactionCategory(transaction_id=f"txn_{i}", category="dining", confidence=0.9)
+             for i in range(20)],  # First batch succeeds
+            []  # Second batch fails
         ]
 
-        categorize_uncategorized_transactions(mock_db_instance)
+        categorize_uncategorized_transactions(mock_db_instance, batch_size=20)
         
         # Should show summary with success/failure counts
         summary_logged = any(

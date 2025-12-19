@@ -82,15 +82,16 @@ def test_failed_categorization_counting():
 
             # Mock manual categorizer (no manual overrides)
             mock_manual = Mock()
-            mock_manual.categorize_batch.return_value = {}
+            mock_manual.categorize_batch.return_value = []
             mock_manual_class.return_value = mock_manual
 
             # Mock Claude categorizer - only categorize one transaction, fail the others
+            from sprig.models import TransactionCategory
             mock_claude = Mock()
-            mock_claude.categorize_batch.return_value = {
-                "txn_success_1": ("dining", 0.95)
+            mock_claude.categorize_batch.return_value = [
+                TransactionCategory(transaction_id="txn_success_1", category="dining", confidence=0.95)
                 # txn_fail_1 and txn_fail_2 are NOT in the results = failed categorization
-            }
+            ]
             mock_claude_class.return_value = mock_claude
 
             # Run categorization with small batch size to test counting
@@ -177,12 +178,12 @@ def test_all_transactions_fail_categorization():
 
             # Mock manual categorizer (no manual overrides)
             mock_manual = Mock()
-            mock_manual.categorize_batch.return_value = {}
+            mock_manual.categorize_batch.return_value = []
             mock_manual_class.return_value = mock_manual
 
             # Mock Claude categorizer - complete failure, empty results
             mock_claude = Mock()
-            mock_claude.categorize_batch.return_value = {}  # All transactions failed
+            mock_claude.categorize_batch.return_value = []  # All transactions failed
             mock_claude_class.return_value = mock_claude
 
             # Run categorization

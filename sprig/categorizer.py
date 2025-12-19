@@ -1,9 +1,10 @@
 """Transaction categorization using Claude and manual overrides."""
 
 import time
-from typing import Dict, List
+from typing import List
 
 import anthropic
+from pydantic import TypeAdapter
 
 from sprig.logger import get_logger
 from sprig.models import TellerTransaction, ClaudeResponse, TransactionCategory, TransactionView
@@ -12,7 +13,67 @@ import sprig.credentials as credentials
 
 logger = get_logger("sprig.categorizer")
 
-PROMPT_TEMPLATE = """Analyze each transaction and assign it to exactly ONE category from the provided list.
+
+class ManualCategorizer:
+    """Applies manual categorization from config."""
+
+    CONFIDENCE = 1.0
+
+    def __init__(self, category_config: CategoryConfig):
+        """Initialize with category configuration.
+
+        Args:
+            category_config: CategoryConfig containing manual_categories
+        """
+        self.category_config = category_config
+        self.valid_category_names = {cat.name for cat in category_config.categories}
+
+    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> List[TransactionCategory]:
+        """Categorize transactions using manual categories from config.
+
+        Args:
+            transactions: List of transactions to categorize
+            account_info: Unused, for interface compatibility with ClaudeCategorizer
+
+        Returns:
+            List of TransactionCategory for manually categorized transactions
+        """
+        categorized_transactions = []
+        for manual_category in self.category_config.manual_categories:
+            if not self._validate_category(manual_category.category):
+                logger.warning(f"Invalid category '{manual_category.category}' for {manual_category.transaction_id}, skipping")
+                continue
+            for txn in transactions:
+                if txn.id == manual_category.transaction_id:
+                    categorized_transactions.append(TransactionCategory(
+                        transaction_id=txn.id,
+                        category=manual_category.category,
+                        confidence=self.CONFIDENCE
+                    ))
+        return categorized_transactions
+
+    def _validate_category(self, category: str) -> bool:
+        """Check if a category is valid.
+
+        Args:
+            category: Category name to validate
+
+        Returns:
+            True if category is valid, False otherwise
+        """
+        return category in self.valid_category_names
+
+
+class ClaudeCategorizer:
+    """Claude-based transaction categorization."""
+
+    MAX_RETRIES = 3
+    RATE_LIMIT_BASE_DELAY = 60
+    BACKOFF_BASE_DELAY = 1
+    MODEL = "claude-haiku-4-5-20251001"
+    MAX_TOKENS = 1000
+
+    PROMPT_TEMPLATE = """Analyze each transaction and assign it to exactly ONE category from the provided list.
 
 AVAILABLE CATEGORIES:
 {categories}
@@ -72,144 +133,89 @@ OUTPUT FORMAT:
   {{"transaction_id": "txn_example2", "category": "category_name", "confidence": 0.60}}
 ]"""
 
-
-def build_categorization_prompt(
-    transactions: List[TellerTransaction],
-    account_info: dict,
-    category_config: CategoryConfig,
-    prompt_template: str = PROMPT_TEMPLATE
-) -> str:
-    """Build the categorization prompt with category descriptions.
-
-    Args:
-        transactions: List of transactions to categorize
-        account_info: Dictionary mapping transaction IDs to account name/subtype
-        category_config: CategoryConfig with all category data
-        prompt_template: Template string with {categories} and {transactions} placeholders
-
-    Returns:
-        Formatted prompt string
-    """
-    # Format categories with descriptions: "name: description"
-    categories_with_descriptions = [f"{cat.name}: {cat.description}" for cat in category_config.categories]
-
-    # Convert to minimal format for LLM
-    minimal_transactions = []
-    for t in transactions:
-        info = account_info.get(t.id, {})
-        minimal_transactions.append(
-            TransactionView(
-                id=t.id,
-                date=str(t.date),
-                description=t.description,
-                amount=t.amount,
-                inferred_category=None,  # Not yet categorized
-                counterparty=info.get('counterparty'),
-                account_name=info.get('name'),
-                account_subtype=info.get('subtype'),
-                account_last_four=info.get('last_four')
-            )
-        )
-
-    # Use Pydantic's built-in JSON serialization for the minimal list
-    from pydantic import TypeAdapter
-    transactions_adapter = TypeAdapter(List[TransactionView])
-    transactions_json = transactions_adapter.dump_json(minimal_transactions, indent=2).decode()
-
-    return prompt_template.format(
-        categories=", ".join(categories_with_descriptions),
-        transactions=transactions_json
-    )
-
-
-class ManualCategorizer:
-    """Applies manual categorization from config."""
-
     def __init__(self, category_config: CategoryConfig):
         """Initialize with category configuration.
 
         Args:
-            category_config: CategoryConfig containing manual_categories
+            category_config: CategoryConfig containing categories
         """
         self.category_config = category_config
-        self.manual_map = {
-            manual_cat.transaction_id: manual_cat.category
-            for manual_cat in category_config.manual_categories
-        }
-
-    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> Dict[str, str]:
-        """Categorize transactions using manual categories from config.
-
-        Args:
-            transactions: List of transactions to categorize
-            account_info: Unused, for interface compatibility with ClaudeCategorizer
-
-        Returns:
-            Dict mapping transaction_id to category for manually categorized transactions
-        """
-        return {
-            txn.id: self.manual_map[txn.id]
-            for txn in transactions
-            if txn.id in self.manual_map
-        }
-
-
-class ClaudeCategorizer:
-    """Claude-based transaction categorization."""
-
-    def __init__(self):
-        self.category_config = CategoryConfig.load()
+        self.valid_category_names = {cat.name for cat in category_config.categories}
         api_key = credentials.get_claude_api_key()
         if not api_key:
             raise ValueError("Claude API key not found in keyring")
         self.client = anthropic.Anthropic(api_key=api_key.value)
 
-    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> dict:
-        """Categorize a batch of transactions using Claude with retry logic."""
-        max_retries = 3
+    def _build_prompt(self, transactions: List[TellerTransaction], account_info: dict) -> str:
+        """Build the categorization prompt with category descriptions.
 
-        for attempt in range(max_retries):
+        Args:
+            transactions: List of transactions to categorize
+            account_info: Dictionary mapping transaction IDs to account name/subtype
+
+        Returns:
+            Formatted prompt string
+        """
+        categories_with_descriptions = [
+            f"{cat.name}: {cat.description}" for cat in self.category_config.categories
+        ]
+
+        minimal_transactions = []
+        for t in transactions:
+            info = account_info.get(t.id, {})
+            minimal_transactions.append(
+                TransactionView(
+                    id=t.id,
+                    date=str(t.date),
+                    description=t.description,
+                    amount=t.amount,
+                    inferred_category=None,
+                    counterparty=info.get('counterparty'),
+                    account_name=info.get('name'),
+                    account_subtype=info.get('subtype'),
+                    account_last_four=info.get('last_four')
+                )
+            )
+
+        transactions_adapter = TypeAdapter(List[TransactionView])
+        transactions_json = transactions_adapter.dump_json(minimal_transactions, indent=2).decode()
+
+        return self.PROMPT_TEMPLATE.format(
+            categories=", ".join(categories_with_descriptions),
+            transactions=transactions_json
+        )
+
+    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> List[TransactionCategory]:
+        """Categorize a batch of transactions using Claude with retry logic."""
+        for attempt in range(self.MAX_RETRIES):
             try:
                 return self._attempt_categorization(transactions, account_info or {})
             except Exception as e:
-                error_str = str(e)
-                
-                # Check if this is a rate limit error
-                if "rate_limit_error" in error_str or "rate limit" in error_str.lower():
-                    if attempt == 0:  # First time seeing rate limit
-                        logger.warning("⏳ Hit Claude API rate limit - this is normal with large transaction volumes")
-                        logger.info("   💡 Tip: Use '--days N' flag to sync fewer transactions and reduce API costs")
-                        logger.info("   💡 Or run sync multiple times to process transactions in chunks")
-                    
-                    if attempt < max_retries - 1:
-                        # Much longer delays for rate limits (60, 120 seconds)
-                        delay = 60 * (2 ** attempt)
-                        logger.info(f"   ⏱️  Waiting {delay} seconds for rate limit to reset...")
-                        time.sleep(delay)
-                    else:
-                        logger.error(f"   ❌ Still hitting rate limits after {max_retries} attempts")
-                        logger.info("   💡 Try running sync again later, or use '--days 7' to sync recent transactions only")
-                        raise e  # Re-raise to stop categorization entirely
+                is_rate_limit = self._is_rate_limit_error(e)
+                is_last_attempt = attempt >= self.MAX_RETRIES - 1
+
+                if is_rate_limit:
+                    self._log_rate_limit_error(attempt, is_last_attempt)
                 else:
-                    # Non-rate-limit errors (API errors, network issues, etc.)
-                    logger.error(f"Batch categorization failed (attempt {attempt + 1}/{max_retries}): {e}")
-                    
-                    if attempt < max_retries - 1:
-                        delay = 2 ** attempt  # Normal exponential backoff: 1s, 2s
-                        logger.info(f"Retrying in {delay} seconds...")
-                        time.sleep(delay)
-                    else:
-                        logger.error(f"Failed after {max_retries} attempts, skipping this batch")
+                    self._log_general_error(e, attempt, is_last_attempt)
 
-        return {}
+                if is_last_attempt:
+                    if is_rate_limit:
+                        raise e
+                    return []
 
-    def _attempt_categorization(self, transactions: List[TellerTransaction], account_info: dict) -> dict:
+                delay = self._get_retry_delay(attempt, is_rate_limit)
+                time.sleep(delay)
+
+        return []
+
+    def _attempt_categorization(self, transactions: List[TellerTransaction], account_info: dict) -> List[TransactionCategory]:
         """Single attempt at categorizing a batch."""
-        full_prompt = build_categorization_prompt(transactions, account_info, self.category_config)
+        full_prompt = self._build_prompt(transactions, account_info)
 
         response = self.client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1000,
+            model=self.MODEL,
+            max_tokens=self.MAX_TOKENS,
             messages=[
                 {"role": "user", "content": full_prompt},
                 {"role": "assistant", "content": "["}
@@ -222,33 +228,74 @@ class ClaudeCategorizer:
         # Parse JSON string using Pydantic's built-in validation
         # Note: Claude returns partial JSON (missing opening [) because we pre-fill it
         try:
-            from pydantic import TypeAdapter
             complete_json = "[" + json_text
             categories_adapter = TypeAdapter(List[TransactionCategory])
-            categories_list = categories_adapter.validate_json(complete_json)
+            categories = categories_adapter.validate_json(complete_json)
         except Exception as e:
             logger.error(f"Failed to parse Claude response as JSON: {e}")
             logger.error(f"Raw response: {json_text[:200]}...")
             raise e
 
-        return self._validate_categories(categories_list)
+        return self._validate_categories(categories)
 
-    def _validate_categories(self, categories_list: List[TransactionCategory]) -> dict:
-        """Validate Claude's categorization response against allowed categories.
+    def _validate_category(self, category: str) -> bool:
+        """Check if a category is valid.
+
+        Args:
+            category: Category name to validate
 
         Returns:
-            dict: Maps transaction_id to tuple of (category, confidence)
+            True if category is valid, False otherwise
         """
-        # Pydantic has already converted these to TransactionCategory objects
+        return category in self.valid_category_names
 
-        # Validate categories and set to None if invalid
-        valid_names = {cat.name for cat in self.category_config.categories}
-        validated = {}
-        for item in categories_list:
-            if item.category in valid_names:
-                validated[item.transaction_id] = (item.category, item.confidence)
+    def _validate_categories(self, categories: List[TransactionCategory]) -> List[TransactionCategory]:
+        """Filter out invalid categories from the list.
+
+        Args:
+            categories: List of TransactionCategory objects to validate
+
+        Returns:
+            List containing only valid categories
+        """
+        validated = []
+        for category in categories:
+            if self._validate_category(category.category):
+                validated.append(category)
             else:
-                logger.warning(f"Invalid category '{item.category}' for {item.transaction_id}, setting to None")
-                validated[item.transaction_id] = (None, item.confidence)
-
+                logger.warning(f"Invalid category '{category.category}' for {category.transaction_id}, skipping")
         return validated
+
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Check if an error is a rate limit error."""
+        error_str = str(error)
+        return "rate_limit_error" in error_str or "rate limit" in error_str.lower()
+
+    def _get_retry_delay(self, attempt: int, is_rate_limit: bool) -> int:
+        """Calculate retry delay based on attempt number and error type."""
+        if is_rate_limit:
+            return self.RATE_LIMIT_BASE_DELAY * (2 ** attempt)
+        return self.BACKOFF_BASE_DELAY * (2 ** attempt)
+
+    def _log_rate_limit_error(self, attempt: int, is_last_attempt: bool) -> None:
+        """Log rate limit error with helpful tips."""
+        if attempt == 0:
+            logger.warning("Hit Claude API rate limit - this is normal with large transaction volumes")
+            logger.info("   Tip: Use '--days N' flag to sync fewer transactions and reduce API costs")
+            logger.info("   Or run sync multiple times to process transactions in chunks")
+
+        if is_last_attempt:
+            logger.error(f"Still hitting rate limits after {self.MAX_RETRIES} attempts")
+            logger.info("   Try running sync again later, or use '--days 7' to sync recent transactions only")
+        else:
+            delay = self._get_retry_delay(attempt, is_rate_limit=True)
+            logger.info(f"   Waiting {delay} seconds for rate limit to reset...")
+
+    def _log_general_error(self, error: Exception, attempt: int, is_last_attempt: bool) -> None:
+        """Log general categorization error."""
+        logger.error(f"Batch categorization failed (attempt {attempt + 1}/{self.MAX_RETRIES}): {error}")
+        if is_last_attempt:
+            logger.error(f"Failed after {self.MAX_RETRIES} attempts, skipping this batch")
+        else:
+            delay = self._get_retry_delay(attempt, is_rate_limit=False)
+            logger.info(f"Retrying in {delay} seconds...")
