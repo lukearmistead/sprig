@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List
 
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class Category(BaseModel):
@@ -24,30 +24,6 @@ class CategoryConfig(BaseModel):
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
     batch_size: int = 25
-
-    @model_validator(mode='after')
-    def validate_manual_categories(self):
-        """Validate that manual categories match valid category names."""
-        if not self.manual_categories:
-            return self
-
-        valid_categories = {cat.name for cat in self.categories}
-        invalid_manual_cats = [
-            manual_cat for manual_cat in self.manual_categories
-            if manual_cat.category not in valid_categories
-        ]
-
-        if invalid_manual_cats:
-            invalid_items = [
-                f"{manual_cat.transaction_id} -> '{manual_cat.category}'"
-                for manual_cat in invalid_manual_cats
-            ]
-            raise ValueError(
-                f"Invalid categories in manual_categories: {', '.join(invalid_items)}. "
-                f"Valid categories: {', '.join(sorted(valid_categories))}"
-            )
-
-        return self
 
     @classmethod
     def load(cls, config_path: Path = None):

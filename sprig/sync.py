@@ -177,7 +177,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
 
     # Initialize Claude categorizer (API key is mandatory)
     try:
-        claude_categorizer = ClaudeCategorizer()
+        claude_categorizer = ClaudeCategorizer(category_config)
     except ValueError as e:
         logger.error(f"Claude API key is required for categorization: {e}")
         logger.error("Please run 'python sprig.py auth' to set up your Claude API key")
@@ -262,41 +262,35 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
 
         # First, apply manual categorizations
         manual_results = manual_categorizer.categorize_batch(batch, batch_account_info)
+        manual_txn_ids = {r.transaction_id for r in manual_results}
 
         # Find transactions that weren't manually categorized
-        manual_txn_ids = set(manual_results.keys())
         remaining_transactions = [txn for txn in batch if txn.id not in manual_txn_ids]
 
         # Apply Claude categorization to remaining transactions
-        claude_results = {}
+        claude_results = []
         if remaining_transactions:
             claude_results = claude_categorizer.categorize_batch(
                 remaining_transactions, batch_account_info
             )
+        claude_txn_ids = {r.transaction_id for r in claude_results}
 
         # Update database with successful categorizations
         batch_success_count = 0
         batch_failed_count = 0
 
-        # Update manual categorizations (with confidence = 1.0)
-        for txn_id, category in manual_results.items():
-            db.update_transaction_category(txn_id, category, 1.0)
+        # Update manual categorizations
+        for result in manual_results:
+            db.update_transaction_category(result.transaction_id, result.category, result.confidence)
             batch_success_count += 1
 
-        # Update Claude categorizations (with AI confidence score)
-        for txn_id, result in claude_results.items():
-            if isinstance(result, tuple):
-                category, confidence = result
-                db.update_transaction_category(txn_id, category, confidence)
-            else:
-                # Fallback for legacy format
-                db.update_transaction_category(txn_id, result, 0.5)
+        # Update Claude categorizations
+        for result in claude_results:
+            db.update_transaction_category(result.transaction_id, result.category, result.confidence)
             batch_success_count += 1
 
-        # Count transactions that failed Claude categorization
+        # Count transactions that failed categorization
         # These are transactions that weren't manually categorized and didn't get Claude results
-        manual_txn_ids = set(manual_results.keys())
-        claude_txn_ids = set(claude_results.keys())
         failed_txn_ids = set()
         for txn in batch:
             if txn.id not in manual_txn_ids and txn.id not in claude_txn_ids:
