@@ -1,4 +1,13 @@
-"""Tests for transaction categorization functionality."""
+"""Tests for transaction categorization functionality.
+
+This test file follows a test-first development approach for the Pydantic AI migration.
+Tests define the expected behavior of the new function-based categorization API:
+- categorize_manually(): Applies manual category overrides from config
+- categorize_inferentially(): Uses AI agent for intelligent categorization
+
+The functions being tested don't exist yet - this is intentional.
+Implementation will follow in subsequent commits.
+"""
 
 from datetime import date
 from unittest.mock import Mock, patch
@@ -361,6 +370,51 @@ class TestCategorizeBatchIntegration:
             assert result[1].transaction_id == "txn_3"
             assert result[1].category == "groceries"
 
+    def test_categorize_with_account_info_context(self):
+        """Test that account_info is passed to agent for context."""
+        transactions = [
+            TellerTransaction(
+                id="txn_cc",
+                account_id="acc_credit",
+                amount=-50.00,  # Negative on credit card (payment/refund)
+                description="Payment received",
+                date="2024-01-01",
+                type="card_payment",
+                status="posted"
+            )
+        ]
+
+        category_config = CategoryConfig.load()
+        # Provide rich account info that should help with categorization
+        account_info = {
+            "txn_cc": {
+                "name": "Chase Sapphire",
+                "subtype": "credit_card",
+                "last_four": "4567",
+                "counterparty": "ACH Transfer"
+            }
+        }
+
+        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+            mock_result = Mock()
+            mock_result.data = [
+                TransactionCategory(transaction_id="txn_cc", category="transfer", confidence=0.95)
+            ]
+            mock_agent.run_sync.return_value = mock_result
+
+            result = categorize_inferentially(transactions, category_config, account_info)
+
+            # Verify agent was called
+            mock_agent.run_sync.assert_called_once()
+            call_args = str(mock_agent.run_sync.call_args)
+
+            # Verify account context was included in the call
+            assert "credit_card" in call_args or "Chase Sapphire" in call_args
+
+            # Verify categorization result
+            assert len(result) == 1
+            assert result[0].category == "transfer"
+
 
 class TestManualCategorization:
     """Test manual categorization functionality."""
@@ -467,6 +521,71 @@ class TestManualCategorization:
         result = categorize_manually(transactions, category_config, account_info)
 
         assert result == []
+
+    def test_categorize_manually_only_matching_transactions(self):
+        """Test that only transactions with matching IDs are categorized."""
+        transactions = [
+            TellerTransaction(
+                id="txn_match",
+                account_id="acc_1",
+                amount=25.50,
+                description="Restaurant",
+                date=date(2024, 1, 1),
+                type="debit",
+                status="posted"
+            ),
+            TellerTransaction(
+                id="txn_no_match",
+                account_id="acc_1",
+                amount=50.00,
+                description="Grocery Store",
+                date=date(2024, 1, 2),
+                type="debit",
+                status="posted"
+            )
+        ]
+
+        category_config = CategoryConfig.load()
+        from sprig.models.category_config import ManualCategory
+        # Only configure one transaction
+        category_config.manual_categories = [
+            ManualCategory(transaction_id="txn_match", category="dining")
+        ]
+
+        account_info = {}
+        result = categorize_manually(transactions, category_config, account_info)
+
+        # Only the matching transaction should be categorized
+        assert len(result) == 1
+        assert result[0].transaction_id == "txn_match"
+        assert result[0].category == "dining"
+
+    def test_categorize_manually_confidence_always_max(self):
+        """Test that manual categorization always returns confidence of 1.0."""
+        transactions = [
+            TellerTransaction(
+                id="txn_123",
+                account_id="acc_1",
+                amount=25.50,
+                description="Restaurant",
+                date=date(2024, 1, 1),
+                type="debit",
+                status="posted"
+            )
+        ]
+
+        category_config = CategoryConfig.load()
+        from sprig.models.category_config import ManualCategory
+        category_config.manual_categories = [
+            ManualCategory(transaction_id="txn_123", category="dining")
+        ]
+
+        account_info = {}
+        result = categorize_manually(transactions, category_config, account_info)
+
+        # Manual categorization should always have 100% confidence
+        assert len(result) == 1
+        assert result[0].confidence == 1.0
 
 
 class TestEdgeCases:
