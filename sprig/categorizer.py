@@ -14,54 +14,43 @@ import sprig.credentials as credentials
 logger = get_logger("sprig.categorizer")
 
 
-class ManualCategorizer:
-    """Applies manual categorization from config."""
+def categorize_manually(
+    transactions: List[TellerTransaction],
+    category_config: CategoryConfig,
+    account_info: dict = None
+) -> List[TransactionCategory]:
+    """Categorize transactions using manual categories from config.
 
-    CONFIDENCE = 1.0
+    Args:
+        transactions: List of transactions to categorize
+        category_config: CategoryConfig containing manual_categories and valid categories
+        account_info: Optional account information (unused, for interface compatibility)
 
-    def __init__(self, category_config: CategoryConfig):
-        """Initialize with category configuration.
+    Returns:
+        List of TransactionCategory for manually categorized transactions
+    """
+    valid_category_names = {cat.name for cat in category_config.categories}
+    categorized_transactions = []
 
-        Args:
-            category_config: CategoryConfig containing manual_categories
-        """
-        self.category_config = category_config
-        self.valid_category_names = {cat.name for cat in category_config.categories}
+    for manual_category in category_config.manual_categories:
+        # Validate category
+        if manual_category.category not in valid_category_names:
+            logger.warning(
+                f"Invalid category '{manual_category.category}' for "
+                f"{manual_category.transaction_id}, skipping"
+            )
+            continue
 
-    def categorize_batch(self, transactions: List[TellerTransaction], account_info: dict = None) -> List[TransactionCategory]:
-        """Categorize transactions using manual categories from config.
+        # Find matching transaction and categorize it
+        for txn in transactions:
+            if txn.id == manual_category.transaction_id:
+                categorized_transactions.append(TransactionCategory(
+                    transaction_id=txn.id,
+                    category=manual_category.category,
+                    confidence=1.0  # Manual categorization always has 100% confidence
+                ))
 
-        Args:
-            transactions: List of transactions to categorize
-            account_info: Unused, for interface compatibility with ClaudeCategorizer
-
-        Returns:
-            List of TransactionCategory for manually categorized transactions
-        """
-        categorized_transactions = []
-        for manual_category in self.category_config.manual_categories:
-            if not self._validate_category(manual_category.category):
-                logger.warning(f"Invalid category '{manual_category.category}' for {manual_category.transaction_id}, skipping")
-                continue
-            for txn in transactions:
-                if txn.id == manual_category.transaction_id:
-                    categorized_transactions.append(TransactionCategory(
-                        transaction_id=txn.id,
-                        category=manual_category.category,
-                        confidence=self.CONFIDENCE
-                    ))
-        return categorized_transactions
-
-    def _validate_category(self, category: str) -> bool:
-        """Check if a category is valid.
-
-        Args:
-            category: Category name to validate
-
-        Returns:
-            True if category is valid, False otherwise
-        """
-        return category in self.valid_category_names
+    return categorized_transactions
 
 
 class ClaudeCategorizer:

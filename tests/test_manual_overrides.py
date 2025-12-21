@@ -152,19 +152,17 @@ def test_manual_categories_applied_before_claude_categorization():
         with (
             patch("sprig.sync.CategoryConfig") as mock_category_config_class,
             patch("sprig.sync.ClaudeCategorizer") as mock_categorizer_class,
-            patch("sprig.sync.ManualCategorizer") as mock_manual_categorizer_class,
+            patch("sprig.sync.categorize_manually") as mock_categorize_manually,
         ):
             # Mock CategoryConfig.load to return our test config
             mock_category_config_class.load.return_value = test_category_config
 
-            # Mock manual categorizer
-            mock_manual_categorizer = Mock()
+            # Mock categorize_manually function
             manual_results = [
                 TransactionCategory(transaction_id="txn_override_1", category="dining", confidence=1.0),
                 TransactionCategory(transaction_id="txn_override_2", category="groceries", confidence=1.0),
             ]
-            mock_manual_categorizer.categorize_batch.return_value = manual_results
-            mock_manual_categorizer_class.return_value = mock_manual_categorizer
+            mock_categorize_manually.return_value = manual_results
 
             # Mock Claude categorizer
             mock_categorizer = Mock()
@@ -231,12 +229,10 @@ def test_category_override_validates_category():
         category_config = CategoryConfig.load(config_path)
         assert len(category_config.manual_categories) == 2
 
-        # Create a ManualCategorizer and test that it filters invalid categories
-        from sprig.categorizer import ManualCategorizer
+        # Test that categorize_manually filters invalid categories
+        from sprig.categorizer import categorize_manually
         from sprig.models import TellerTransaction
         from datetime import date
-
-        manual_categorizer = ManualCategorizer(category_config)
 
         # Create mock transactions
         transactions = [
@@ -263,7 +259,7 @@ def test_category_override_validates_category():
         ]
 
         # Categorize should filter out invalid category
-        results = manual_categorizer.categorize_batch(transactions)
+        results = categorize_manually(transactions, category_config)
         assert len(results) == 1
         assert results[0].transaction_id == "txn_valid"
         assert results[0].category == "dining"
