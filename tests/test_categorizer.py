@@ -398,7 +398,7 @@ class TestCategorizeBatchIntegration:
         with patch('sprig.categorizer.categorization_agent') as mock_agent:
             mock_result = Mock()
             mock_result.data = [
-                TransactionCategory(transaction_id="txn_cc", category="transfer", confidence=0.95)
+                TransactionCategory(transaction_id="txn_cc", category="transfers", confidence=0.95)
             ]
             mock_agent.run_sync.return_value = mock_result
 
@@ -413,7 +413,7 @@ class TestCategorizeBatchIntegration:
 
             # Verify categorization result
             assert len(result) == 1
-            assert result[0].category == "transfer"
+            assert result[0].category == "transfers"
 
 
 class TestManualCategorization:

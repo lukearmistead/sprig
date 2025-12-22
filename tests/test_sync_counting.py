@@ -73,7 +73,7 @@ def test_failed_categorization_counting():
         with (
             patch("sprig.sync.CategoryConfig") as mock_config_class,
             patch("sprig.sync.categorize_manually") as mock_categorize_manually,
-            patch("sprig.sync.ClaudeCategorizer") as mock_claude_class,
+            patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
         ):
             # Mock category config
             mock_config = Mock()
@@ -83,14 +83,12 @@ def test_failed_categorization_counting():
             # Mock categorize_manually (no manual overrides)
             mock_categorize_manually.return_value = []
 
-            # Mock Claude categorizer - only categorize one transaction, fail the others
+            # Mock categorize_inferentially - only categorize one transaction, fail the others
             from sprig.models import TransactionCategory
-            mock_claude = Mock()
-            mock_claude.categorize_batch.return_value = [
+            mock_categorize_inferentially.return_value = [
                 TransactionCategory(transaction_id="txn_success_1", category="dining", confidence=0.95)
                 # txn_fail_1 and txn_fail_2 are NOT in the results = failed categorization
             ]
-            mock_claude_class.return_value = mock_claude
 
             # Run categorization with small batch size to test counting
             categorize_uncategorized_transactions(db, batch_size=25)
@@ -167,7 +165,7 @@ def test_all_transactions_fail_categorization():
         with (
             patch("sprig.sync.CategoryConfig") as mock_config_class,
             patch("sprig.sync.categorize_manually") as mock_categorize_manually,
-            patch("sprig.sync.ClaudeCategorizer") as mock_claude_class,
+            patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
         ):
             # Mock category config
             mock_config = Mock()
@@ -177,10 +175,8 @@ def test_all_transactions_fail_categorization():
             # Mock categorize_manually (no manual overrides)
             mock_categorize_manually.return_value = []
 
-            # Mock Claude categorizer - complete failure, empty results
-            mock_claude = Mock()
-            mock_claude.categorize_batch.return_value = []  # All transactions failed
-            mock_claude_class.return_value = mock_claude
+            # Mock categorize_inferentially - complete failure, empty results
+            mock_categorize_inferentially.return_value = []  # All transactions failed
 
             # Run categorization
             categorize_uncategorized_transactions(db, batch_size=25)

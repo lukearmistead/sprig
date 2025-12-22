@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import categorize_manually, ClaudeCategorizer
+from sprig.categorizer import categorize_manually, categorize_inferentially
 from sprig.models.category_config import CategoryConfig
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
@@ -174,14 +174,6 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     # Load category configuration
     category_config = CategoryConfig.load()
 
-    # Initialize Claude categorizer (API key is mandatory)
-    try:
-        claude_categorizer = ClaudeCategorizer(category_config)
-    except ValueError as e:
-        logger.error(f"Claude API key is required for categorization: {e}")
-        logger.error("Please run 'python sprig.py auth' to set up your Claude API key")
-        raise ValueError("Claude API key not configured")
-
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(
         f"Database returned {len(uncategorized)} uncategorized transaction rows"
@@ -266,11 +258,11 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
         # Find transactions that weren't manually categorized
         remaining_transactions = [txn for txn in batch if txn.id not in manual_txn_ids]
 
-        # Apply Claude categorization to remaining transactions
+        # Apply AI categorization to remaining transactions
         claude_results = []
         if remaining_transactions:
-            claude_results = claude_categorizer.categorize_batch(
-                remaining_transactions, batch_account_info
+            claude_results = categorize_inferentially(
+                remaining_transactions, category_config, batch_account_info
             )
         claude_txn_ids = {r.transaction_id for r in claude_results}
 
