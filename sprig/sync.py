@@ -171,16 +171,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
 
-    # Load category configuration
     category_config = CategoryConfig.load()
-
-    # Set up Pydantic AI environment (needed for AI categorization)
-    try:
-        credentials.setup_pydantic_ai_environment()
-    except ValueError as e:
-        logger.error(f"Claude API key is required for categorization: {e}")
-        logger.error("Please run 'python sprig.py auth' to set up your Claude API key")
-        raise
 
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(

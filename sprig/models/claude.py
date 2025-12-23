@@ -30,6 +30,11 @@ class TransactionView(BaseModel):
     account_last_four: Optional[str] = None
 
 
+class TransactionBatch(BaseModel):
+    """Batch of transactions for AI categorization."""
+    transactions: List[TransactionView]
+
+
 class ClaudeContentBlock(BaseModel):
     """Claude API content block."""
     type: str

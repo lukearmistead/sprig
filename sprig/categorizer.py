@@ -1,12 +1,13 @@
 """Transaction categorization using Claude and manual overrides."""
 
+import os
 from typing import List
 
-from pydantic import BaseModel
 from pydantic_ai import Agent
 
+from sprig import credentials
 from sprig.logger import get_logger
-from sprig.models import TellerTransaction, TransactionCategory, TransactionView
+from sprig.models import TellerTransaction, TransactionCategory, TransactionView, TransactionBatch
 from sprig.models.category_config import CategoryConfig
 
 logger = get_logger("sprig.categorizer")
@@ -67,9 +68,36 @@ VALIDATION:
 Before returning your response, verify that EVERY category you used appears in the AVAILABLE CATEGORIES list above. If not, your response is invalid."""
 
 
-class TransactionBatch(BaseModel):
-    """Batch of transactions for AI categorization."""
-    transactions: List[TransactionView]
+def _build_transaction_views(
+    transactions: List[TellerTransaction],
+    account_info: dict
+) -> List[TransactionView]:
+    """Build transaction views with account context for categorization.
+
+    Args:
+        transactions: List of transactions to build views for
+        account_info: Account information keyed by transaction ID
+
+    Returns:
+        List of TransactionView objects with account context
+    """
+    views = []
+    for t in transactions:
+        info = account_info.get(t.id, {})
+        views.append(
+            TransactionView(
+                id=t.id,
+                date=str(t.date),
+                description=t.description,
+                amount=t.amount,
+                inferred_category=None,
+                counterparty=info.get('counterparty'),
+                account_name=info.get('name'),
+                account_subtype=info.get('subtype'),
+                account_last_four=info.get('last_four')
+            )
+        )
+    return views
 
 
 def _validate_category_results(
@@ -143,9 +171,6 @@ def categorize_inferentially(
 ) -> List[TransactionCategory]:
     """Categorize transactions using AI agent.
 
-    Note: Requires ANTHROPIC_API_KEY environment variable to be set.
-    Call credentials.setup_pydantic_ai_environment() before using this function.
-
     Args:
         transactions: List of transactions to categorize
         category_config: CategoryConfig containing valid categories
@@ -153,47 +178,38 @@ def categorize_inferentially(
 
     Returns:
         List of TransactionCategory for categorized transactions
+
+    Raises:
+        ValueError: If Claude API key is not configured in keyring
     """
     if not transactions:
         return []
 
     account_info = account_info or {}
 
-    # Build prompt with category descriptions
+    api_key = credentials.get_claude_api_key()
+    if not api_key:
+        raise ValueError(
+            "Claude API key not found in keyring. "
+            "Run 'python sprig.py auth' to configure it."
+        )
+
+    if 'ANTHROPIC_API_KEY' not in os.environ:
+        os.environ['ANTHROPIC_API_KEY'] = api_key.value
+
     categories_with_descriptions = [
         f"{cat.name}: {cat.description}" for cat in category_config.categories
     ]
 
-    # Create minimal transaction views with account info
-    minimal_transactions = []
-    for t in transactions:
-        info = account_info.get(t.id, {})
-        minimal_transactions.append(
-            TransactionView(
-                id=t.id,
-                date=str(t.date),
-                description=t.description,
-                amount=t.amount,
-                inferred_category=None,
-                counterparty=info.get('counterparty'),
-                account_name=info.get('name'),
-                account_subtype=info.get('subtype'),
-                account_last_four=info.get('last_four')
-            )
-        )
-
-    # Serialize transactions using Pydantic model
-    batch = TransactionBatch(transactions=minimal_transactions)
+    transaction_views = _build_transaction_views(transactions, account_info)
+    batch = TransactionBatch(transactions=transaction_views)
     transactions_json = batch.model_dump_json(indent=2)
 
-    # Format prompt with categories and transactions
     prompt = CATEGORIZATION_PROMPT.format(
         categories=", ".join(categories_with_descriptions),
         transactions=transactions_json
     )
 
-    # Create and run agent
-    # Note: Pydantic AI handles JSON schema injection and validation automatically
     agent = Agent(
         "anthropic:claude-haiku-4-5-20251001",
         output_type=list[TransactionCategory],
@@ -207,6 +223,5 @@ def categorize_inferentially(
         logger.error(f"Failed to categorize transactions: {e}")
         return []
 
-    # Validate categories against allowed list
     valid_category_names = {cat.name for cat in category_config.categories}
     return _validate_category_results(categories, valid_category_names)

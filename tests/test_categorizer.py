@@ -11,10 +11,20 @@ Implementation will follow in subsequent commits.
 
 from datetime import date
 from unittest.mock import Mock, patch
+import pytest
 
 from sprig.categorizer import categorize_manually, categorize_inferentially
 from sprig.models import TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
+from sprig.models.credentials import ClaudeAPIKey
+
+
+@pytest.fixture(autouse=True)
+def mock_credentials():
+    """Mock credentials for all inferential categorization tests."""
+    with patch('sprig.categorizer.credentials.get_claude_api_key') as mock:
+        mock.return_value = ClaudeAPIKey(value="sk-ant-api03-" + "a" * 95)
+        yield mock
 
 
 class TestBuildCategorizationPrompt:
