@@ -1,9 +1,10 @@
 """Transaction categorization using Claude and manual overrides."""
 
-import os
 from typing import List
 
 from pydantic_ai import Agent
+from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.providers.anthropic import AnthropicProvider
 
 from sprig import credentials
 from sprig.logger import get_logger
@@ -194,9 +195,6 @@ def categorize_inferentially(
             "Run 'python sprig.py auth' to configure it."
         )
 
-    if 'ANTHROPIC_API_KEY' not in os.environ:
-        os.environ['ANTHROPIC_API_KEY'] = api_key.value
-
     categories_with_descriptions = [
         f"{cat.name}: {cat.description}" for cat in category_config.categories
     ]
@@ -210,8 +208,11 @@ def categorize_inferentially(
         transactions=transactions_json
     )
 
+    provider = AnthropicProvider(api_key=api_key.value)
+    model = AnthropicModel("claude-haiku-4-5-20251001", provider=provider)
+
     agent = Agent(
-        "anthropic:claude-haiku-4-5-20251001",
+        model,
         output_type=list[TransactionCategory],
         retries=3,
     )
