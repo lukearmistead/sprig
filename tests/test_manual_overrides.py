@@ -153,6 +153,7 @@ def test_manual_categories_applied_before_claude_categorization():
             patch("sprig.sync.CategoryConfig") as mock_category_config_class,
             patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
             patch("sprig.sync.categorize_manually") as mock_categorize_manually,
+            patch("sprig.sync.credentials.setup_pydantic_ai_environment"),
         ):
             # Mock CategoryConfig.load to return our test config
             mock_category_config_class.load.return_value = test_category_config

@@ -1,15 +1,13 @@
 """Transaction categorization using Claude and manual overrides."""
 
-import os
 from typing import List
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel
 from pydantic_ai import Agent
 
 from sprig.logger import get_logger
 from sprig.models import TellerTransaction, TransactionCategory, TransactionView
 from sprig.models.category_config import CategoryConfig
-import sprig.credentials as credentials
 
 logger = get_logger("sprig.categorizer")
 
@@ -69,40 +67,34 @@ VALIDATION:
 Before returning your response, verify that EVERY category you used appears in the AVAILABLE CATEGORIES list above. If not, your response is invalid."""
 
 
-# Global agent instance (lazy-initialized)
-_categorization_agent = None
+class TransactionBatch(BaseModel):
+    """Batch of transactions for AI categorization."""
+    transactions: List[TransactionView]
 
 
-def _get_categorization_agent() -> Agent:
-    """Get or create the categorization agent with proper API key configuration."""
-    global _categorization_agent
+def _validate_category_results(
+    categories: List[TransactionCategory],
+    valid_category_names: set[str]
+) -> List[TransactionCategory]:
+    """Filter out invalid categories from AI results.
 
-    if _categorization_agent is None:
-        # Get API key from credentials and set as environment variable for Pydantic AI
-        api_key = credentials.get_claude_api_key()
-        if api_key:
-            os.environ['ANTHROPIC_API_KEY'] = api_key.value
+    Args:
+        categories: List of categories returned from AI
+        valid_category_names: Set of valid category names from config
 
-        # Create agent with output type and retries
-        _categorization_agent = Agent(
-            "anthropic:claude-haiku-4-5-20251001",
-            output_type=list[TransactionCategory],
-            retries=3,
-        )
-
-    return _categorization_agent
-
-
-# Lazy-loading wrapper for tests to mock
-class _AgentAccessor:
-    """Wrapper to provide lazy agent access while supporting mocking."""
-
-    def run_sync(self, *args, **kwargs):
-        """Delegate to the actual agent's run_sync method."""
-        return _get_categorization_agent().run_sync(*args, **kwargs)
-
-
-categorization_agent = _AgentAccessor()
+    Returns:
+        List containing only categories with valid names
+    """
+    validated = []
+    for category in categories:
+        if category.category in valid_category_names:
+            validated.append(category)
+        else:
+            logger.warning(
+                f"Invalid category '{category.category}' for "
+                f"{category.transaction_id}, skipping"
+            )
+    return validated
 
 
 def categorize_manually(
@@ -151,6 +143,9 @@ def categorize_inferentially(
 ) -> List[TransactionCategory]:
     """Categorize transactions using AI agent.
 
+    Note: Requires ANTHROPIC_API_KEY environment variable to be set.
+    Call credentials.setup_pydantic_ai_environment() before using this function.
+
     Args:
         transactions: List of transactions to categorize
         category_config: CategoryConfig containing valid categories
@@ -187,8 +182,9 @@ def categorize_inferentially(
             )
         )
 
-    transactions_adapter = TypeAdapter(List[TransactionView])
-    transactions_json = transactions_adapter.dump_json(minimal_transactions, indent=2).decode()
+    # Serialize transactions using Pydantic model
+    batch = TransactionBatch(transactions=minimal_transactions)
+    transactions_json = batch.model_dump_json(indent=2)
 
     # Format prompt with categories and transactions
     prompt = CATEGORIZATION_PROMPT.format(
@@ -196,9 +192,16 @@ def categorize_inferentially(
         transactions=transactions_json
     )
 
-    # Run agent to get categorizations
+    # Create and run agent
+    # Note: Pydantic AI handles JSON schema injection and validation automatically
+    agent = Agent(
+        "anthropic:claude-haiku-4-5-20251001",
+        output_type=list[TransactionCategory],
+        retries=3,
+    )
+
     try:
-        result = categorization_agent.run_sync(prompt)
+        result = agent.run_sync(prompt)
         categories = result.data
     except Exception as e:
         logger.error(f"Failed to categorize transactions: {e}")
@@ -206,14 +209,4 @@ def categorize_inferentially(
 
     # Validate categories against allowed list
     valid_category_names = {cat.name for cat in category_config.categories}
-    validated = []
-    for category in categories:
-        if category.category in valid_category_names:
-            validated.append(category)
-        else:
-            logger.warning(
-                f"Invalid category '{category.category}' for "
-                f"{category.transaction_id}, skipping"
-            )
-
-    return validated
+    return _validate_category_results(categories, valid_category_names)

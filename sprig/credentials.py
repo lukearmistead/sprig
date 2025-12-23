@@ -1,5 +1,6 @@
 """Credential management using system keyring."""
 
+import os
 from pathlib import Path
 from typing import Optional, List
 import keyring
@@ -100,6 +101,29 @@ def get_claude_api_key() -> Optional[ClaudeAPIKey]:
     """Get validated Claude API key."""
     raw = get(KEY_CLAUDE_API_KEY)
     return ClaudeAPIKey(value=raw) if raw else None
+
+
+def setup_pydantic_ai_environment() -> None:
+    """Set up environment variables required by Pydantic AI.
+
+    Pydantic AI expects the ANTHROPIC_API_KEY environment variable to be set.
+    This function retrieves the key from the keyring and sets it in the environment.
+
+    Raises:
+        ValueError: If Claude API key is not configured in keyring
+    """
+    if 'ANTHROPIC_API_KEY' in os.environ:
+        # Already set, don't override
+        return
+
+    api_key = get_claude_api_key()
+    if not api_key:
+        raise ValueError(
+            "Claude API key not found in keyring. "
+            "Run 'python sprig.py auth' to configure it."
+        )
+
+    os.environ['ANTHROPIC_API_KEY'] = api_key.value
 
 
 def get_access_tokens() -> List[TellerAccessToken]:

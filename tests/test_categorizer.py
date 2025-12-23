@@ -11,20 +11,10 @@ Implementation will follow in subsequent commits.
 
 from datetime import date
 from unittest.mock import Mock, patch
-import pytest
 
 from sprig.categorizer import categorize_manually, categorize_inferentially
 from sprig.models import TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
-from sprig.models.credentials import ClaudeAPIKey
-
-
-@pytest.fixture(autouse=True)
-def mock_credentials():
-    """Mock credentials for all tests."""
-    with patch('sprig.categorizer.credentials.get_claude_api_key') as mock:
-        mock.return_value = ClaudeAPIKey(value="sk-ant-api03-" + "a" * 95)
-        yield mock
 
 
 class TestBuildCategorizationPrompt:
@@ -51,15 +41,17 @@ class TestBuildCategorizationPrompt:
         # Provide empty account info for test
         account_info = {}
 
-        # Mock categorization_agent.run_sync to inspect the prompt
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
-            mock_agent.run_sync.return_value = Mock(data=[])
+        # Mock Agent to inspect the prompt
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent_instance = Mock()
+            mock_agent_instance.run_sync.return_value = Mock(data=[])
+            MockAgent.return_value = mock_agent_instance
 
             # Call categorize_inferentially which should build the prompt internally
             categorize_inferentially(transactions, category_config, account_info)
 
             # Get the prompt from the call args
-            call_args = mock_agent.run_sync.call_args
+            call_args = mock_agent_instance.run_sync.call_args
             prompt = str(call_args)
 
             # Should include actual categories from config
@@ -100,7 +92,9 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return valid categories
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.9),
@@ -140,7 +134,9 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return mix of valid and invalid categories
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.9),
@@ -188,7 +184,9 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return mix of valid and invalid
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_1", category="dining", confidence=0.9),
@@ -212,7 +210,9 @@ class TestInferentialCategorizerParsing:
         transactions = []
 
         # Mock agent to return empty list
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = []
             mock_agent.run_sync.return_value = mock_result
@@ -245,7 +245,9 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return all invalid categories
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_1", category="fake1", confidence=0.5),
@@ -306,7 +308,9 @@ class TestCategorizeBatchIntegration:
         }
 
         # Mock categorization_agent.run_sync
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_ABC123", category="dining", confidence=0.9),
@@ -352,7 +356,9 @@ class TestCategorizeBatchIntegration:
         account_info = {}
 
         # Mock agent to return mix of valid and invalid
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_1", category="dining", confidence=0.9),
@@ -395,7 +401,9 @@ class TestCategorizeBatchIntegration:
             }
         }
 
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_cc", category="transfers", confidence=0.95)
@@ -618,7 +626,9 @@ class TestEdgeCases:
             )
         ]
 
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="12345", category="dining", confidence=0.9),
@@ -657,7 +667,9 @@ class TestEdgeCases:
             )
         ]
 
-        with patch('sprig.categorizer.categorization_agent') as mock_agent:
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.data = [
                 TransactionCategory(transaction_id="txn_abc-123", category="dining", confidence=0.9),
