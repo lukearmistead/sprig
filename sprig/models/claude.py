@@ -1,6 +1,6 @@
 """Pydantic models for Claude API data validation."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,30 +30,12 @@ class TransactionView(BaseModel):
     account_last_four: Optional[str] = None
 
 
-class ClaudeContentBlock(BaseModel):
-    """Claude API content block."""
-    type: str
-    text: str
+class TransactionBatch(BaseModel):
+    """Batch of transactions for AI categorization."""
+    transactions: List[TransactionView]
 
 
 class ClaudeAPIKey(BaseModel):
     """Validated Claude API key."""
     key: str = Field(..., pattern=r'^sk-ant-api03-[A-Za-z0-9\-]{95}$', description="Claude API keys start with 'sk-ant-api03-' followed by exactly 95 alphanumeric characters and dashes")
-
-
-class ClaudeResponse(BaseModel):
-    """Claude API response."""
-    id: str
-    type: str
-    role: str
-    content: List[ClaudeContentBlock]
-    model: str
-    stop_reason: Optional[str] = None
-    stop_sequence: Optional[str] = None
-    usage: Dict[str, Any]
-
-    @property
-    def text(self) -> str:
-        """Direct access to the first content block's text."""
-        return self.content[0].text if self.content else ""
 

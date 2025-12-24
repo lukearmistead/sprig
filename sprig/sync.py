@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import ManualCategorizer, ClaudeCategorizer
+from sprig.categorizer import categorize_manually, categorize_inferentially
 from sprig.models.category_config import CategoryConfig
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
@@ -171,17 +171,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     """Categorize transactions that don't have an inferred_category assigned."""
     logger.debug("Starting categorization function")
 
-    # Initialize categorizers
     category_config = CategoryConfig.load()
-    manual_categorizer = ManualCategorizer(category_config)
-
-    # Initialize Claude categorizer (API key is mandatory)
-    try:
-        claude_categorizer = ClaudeCategorizer(category_config)
-    except ValueError as e:
-        logger.error(f"Claude API key is required for categorization: {e}")
-        logger.error("Please run 'python sprig.py auth' to set up your Claude API key")
-        raise ValueError("Claude API key not configured")
 
     uncategorized = db.get_uncategorized_transactions()
     logger.debug(
@@ -261,17 +251,17 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
         batch_account_info = {t.id: account_info[t.id] for t in batch}
 
         # First, apply manual categorizations
-        manual_results = manual_categorizer.categorize_batch(batch, batch_account_info)
+        manual_results = categorize_manually(batch, category_config, batch_account_info)
         manual_txn_ids = {r.transaction_id for r in manual_results}
 
         # Find transactions that weren't manually categorized
         remaining_transactions = [txn for txn in batch if txn.id not in manual_txn_ids]
 
-        # Apply Claude categorization to remaining transactions
+        # Apply AI categorization to remaining transactions
         claude_results = []
         if remaining_transactions:
-            claude_results = claude_categorizer.categorize_batch(
-                remaining_transactions, batch_account_info
+            claude_results = categorize_inferentially(
+                remaining_transactions, category_config, batch_account_info
             )
         claude_txn_ids = {r.transaction_id for r in claude_results}
 
