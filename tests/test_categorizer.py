@@ -54,7 +54,7 @@ class TestBuildCategorizationPrompt:
         # Mock Agent to inspect the prompt
         with patch('sprig.categorizer.Agent') as MockAgent:
             mock_agent_instance = Mock()
-            mock_agent_instance.run_sync.return_value = Mock(data=[])
+            mock_agent_instance.run_sync.return_value = Mock(output=[])
             MockAgent.return_value = mock_agent_instance
 
             # Call categorize_inferentially which should build the prompt internally
@@ -106,7 +106,7 @@ class TestInferentialCategorizerParsing:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="txn_456", category="groceries", confidence=0.85)
             ]
@@ -148,7 +148,7 @@ class TestInferentialCategorizerParsing:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="txn_456", category="invalid_category", confidence=0.5)
             ]
@@ -198,7 +198,7 @@ class TestInferentialCategorizerParsing:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_1", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="txn_2", category="wrong", confidence=0.5),
                 TransactionCategory(transaction_id="txn_3", category="transport", confidence=0.85)
@@ -224,7 +224,7 @@ class TestInferentialCategorizerParsing:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = []
+            mock_result.output = []
             mock_agent.run_sync.return_value = mock_result
 
             result = categorize_inferentially(transactions, self.category_config, {})
@@ -259,7 +259,7 @@ class TestInferentialCategorizerParsing:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_1", category="fake1", confidence=0.5),
                 TransactionCategory(transaction_id="txn_2", category="fake2", confidence=0.5)
             ]
@@ -322,7 +322,7 @@ class TestCategorizeBatchIntegration:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_ABC123", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="txn_DEF456", category="transport", confidence=0.85),
                 TransactionCategory(transaction_id="txn_GHI789", category="groceries", confidence=0.95)
@@ -370,7 +370,7 @@ class TestCategorizeBatchIntegration:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_1", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="txn_2", category="invalid_cat", confidence=0.5),
                 TransactionCategory(transaction_id="txn_3", category="groceries", confidence=0.85)
@@ -415,7 +415,7 @@ class TestCategorizeBatchIntegration:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_cc", category="transfers", confidence=0.95)
             ]
             mock_agent.run_sync.return_value = mock_result
@@ -640,7 +640,7 @@ class TestEdgeCases:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="12345", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="67890", category="transport", confidence=0.85)
             ]
@@ -681,7 +681,7 @@ class TestEdgeCases:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
-            mock_result.data = [
+            mock_result.output = [
                 TransactionCategory(transaction_id="txn_abc-123", category="dining", confidence=0.9),
                 TransactionCategory(transaction_id="txn_def_456", category="transport", confidence=0.85)
             ]

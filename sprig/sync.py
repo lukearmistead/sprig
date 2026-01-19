@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 import requests
 
-from sprig.categorizer import categorize_manually, categorize_inferentially
+from sprig.categorizer import categorize_inferentially
 from sprig.models.category_config import CategoryConfig
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
@@ -167,16 +167,35 @@ def sync_transactions_for_account(
         db.sync_transaction(transaction)
 
 
+def apply_manual_overrides(db: SprigDatabase, category_config: CategoryConfig):
+    """Apply manual overrides to ALL matching transactions."""
+    if not category_config.manual_categories:
+        return
+
+    valid_category_names = {cat.name for cat in category_config.categories}
+    applied = 0
+
+    for manual_cat in category_config.manual_categories:
+        if manual_cat.category not in valid_category_names:
+            logger.warning(f"Invalid category '{manual_cat.category}' for {manual_cat.transaction_id}")
+            continue
+
+        if db.update_transaction_category(manual_cat.transaction_id, manual_cat.category, 1.0):
+            applied += 1
+
+    if applied:
+        logger.info(f"Applied {applied} manual category override(s)")
+
+
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     """Categorize transactions that don't have an inferred_category assigned."""
-    logger.debug("Starting categorization function")
-
     category_config = CategoryConfig.load()
 
+    # Apply manual overrides first (to ALL matching transactions, including already-categorized)
+    apply_manual_overrides(db, category_config)
+
     uncategorized = db.get_uncategorized_transactions()
-    logger.debug(
-        f"Database returned {len(uncategorized)} uncategorized transaction rows"
-    )
+    logger.info(f"Found {len(uncategorized)} uncategorized transaction(s) in database")
 
     # Convert to TellerTransaction objects with account info
     transactions = []
@@ -202,35 +221,16 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
         }
 
     if not transactions:
-        logger.info(
-            "No uncategorized transactions found - all transactions already have categories!"
-        )
+        logger.info("All transactions already have categories")
         return
 
-    # Check for manual categories that match current transactions
-    manual_matches = 0
-    if category_config.manual_categories:
-        manual_map = {
-            mc.transaction_id: mc.category for mc in category_config.manual_categories
-        }
-        manual_matches = sum(1 for txn in transactions if txn.id in manual_map)
-
     total_transactions = len(transactions)
-    logger.debug(f"Converted to {total_transactions} TellerTransaction objects")
     total_batches = (total_transactions + batch_size - 1) // batch_size
     categorized_count = 0
     failed_count = 0
 
-    categorization_methods = ["Claude AI"]
-    if manual_matches > 0:
-        categorization_methods.insert(0, f"manual rules ({manual_matches} matches)")
-
-    logger.info(
-        f"Categorizing {total_transactions} uncategorized transaction(s) using {' and '.join(categorization_methods)}"
-    )
-    logger.info(
-        f"   Processing in {total_batches} batch(es) of up to {batch_size} transactions each"
-    )
+    logger.info(f"Categorizing {total_transactions} transaction(s) using Claude AI")
+    logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} each")
 
     if total_transactions > 100:
         logger.info("   Large transaction volume may hit Claude API rate limits")
@@ -243,49 +243,18 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
         batch = transactions[i : i + batch_size]
         batch_num = (i // batch_size) + 1
 
-        logger.info(
-            f"   Processing batch {batch_num}/{total_batches} ({len(batch)} transactions)..."
-        )
+        logger.info(f"   Batch {batch_num}/{total_batches} ({len(batch)} transactions)...")
 
-        # Get account info for this batch
         batch_account_info = {t.id: account_info[t.id] for t in batch}
+        results = categorize_inferentially(batch, category_config, batch_account_info)
+        result_ids = {r.transaction_id for r in results}
 
-        # First, apply manual categorizations
-        manual_results = categorize_manually(batch, category_config, batch_account_info)
-        manual_txn_ids = {r.transaction_id for r in manual_results}
-
-        # Find transactions that weren't manually categorized
-        remaining_transactions = [txn for txn in batch if txn.id not in manual_txn_ids]
-
-        # Apply AI categorization to remaining transactions
-        claude_results = []
-        if remaining_transactions:
-            claude_results = categorize_inferentially(
-                remaining_transactions, category_config, batch_account_info
-            )
-        claude_txn_ids = {r.transaction_id for r in claude_results}
-
-        # Update database with successful categorizations
-        batch_success_count = 0
-        batch_failed_count = 0
-
-        # Update manual categorizations
-        for result in manual_results:
+        # Update database with categorizations
+        for result in results:
             db.update_transaction_category(result.transaction_id, result.category, result.confidence)
-            batch_success_count += 1
 
-        # Update Claude categorizations
-        for result in claude_results:
-            db.update_transaction_category(result.transaction_id, result.category, result.confidence)
-            batch_success_count += 1
-
-        # Count transactions that failed categorization
-        # These are transactions that weren't manually categorized and didn't get Claude results
-        failed_txn_ids = set()
-        for txn in batch:
-            if txn.id not in manual_txn_ids and txn.id not in claude_txn_ids:
-                failed_txn_ids.add(txn.id)
-        batch_failed_count = len(failed_txn_ids)
+        batch_success_count = len(results)
+        batch_failed_count = len(batch) - batch_success_count
 
         categorized_count += batch_success_count
         failed_count += batch_failed_count

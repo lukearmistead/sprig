@@ -219,9 +219,15 @@ def categorize_inferentially(
 
     try:
         result = agent.run_sync(prompt)
-        categories = result.data
+        categories = result.output
     except Exception as e:
-        logger.error(f"Failed to categorize transactions: {e}")
+        error_msg = str(e)
+        logger.error(f"Failed to categorize {len(transactions)} transactions: {error_msg}")
+
+        # Re-raise rate limit errors so sync can handle them specially
+        if "rate_limit" in error_msg.lower() or "rate limit" in error_msg.lower():
+            raise
+
         return []
 
     valid_category_names = {cat.name for cat in category_config.categories}

@@ -67,8 +67,13 @@ def test_category_config_allows_empty_manual_categories():
         assert category_config.manual_categories == []
 
 
-def test_manual_categories_applied_before_claude_categorization():
-    """Test that manual categories from config are applied before calling Claude."""
+def test_manual_overrides_applied_before_ai_categorization():
+    """Test that manual overrides are applied before AI categorization runs.
+
+    The new design applies manual overrides upfront via apply_manual_overrides(),
+    which updates the DB directly. Then only truly uncategorized transactions
+    are sent to Claude.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test.db"
         config_path = Path(temp_dir) / "config.yml"
@@ -91,7 +96,7 @@ def test_manual_categories_applied_before_claude_categorization():
         # Insert uncategorized transactions
         transactions = [
             {
-                "id": "txn_override_1",  # Has category override
+                "id": "txn_override_1",  # Has manual override
                 "account_id": "acc_123",
                 "amount": -25.50,
                 "description": "Coffee Shop",
@@ -101,7 +106,7 @@ def test_manual_categories_applied_before_claude_categorization():
                 "details": {"counterparty": {"name": "Starbucks"}},
             },
             {
-                "id": "txn_override_2",  # Has category override
+                "id": "txn_override_2",  # Has manual override
                 "account_id": "acc_123",
                 "amount": -100.00,
                 "description": "Grocery Store",
@@ -125,7 +130,7 @@ def test_manual_categories_applied_before_claude_categorization():
         for txn in transactions:
             db.add_transaction(txn)
 
-        # Create config with category overrides
+        # Create config with manual overrides
         config_data = {
             "categories": [
                 {"name": "dining", "description": "Restaurants"},
@@ -141,62 +146,49 @@ def test_manual_categories_applied_before_claude_categorization():
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        # Load the test category config
         test_category_config = CategoryConfig.load(config_path)
 
-        # Import TransactionCategory for use in mocks
         from sprig.models import TransactionCategory
 
-        # Mock CategoryConfig.load to return our test config
-        # Mock the categorizer to verify it only receives non-overridden transactions
         with (
             patch("sprig.sync.CategoryConfig") as mock_category_config_class,
             patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
-            patch("sprig.sync.categorize_manually") as mock_categorize_manually,
         ):
-            # Mock CategoryConfig.load to return our test config
             mock_category_config_class.load.return_value = test_category_config
 
-            # Mock categorize_manually function
-            manual_results = [
-                TransactionCategory(transaction_id="txn_override_1", category="dining", confidence=1.0),
-                TransactionCategory(transaction_id="txn_override_2", category="groceries", confidence=1.0),
-            ]
-            mock_categorize_manually.return_value = manual_results
-
-            # Mock categorize_inferentially function
+            # Mock AI categorization - should only be called for txn_claude
             mock_categorize_inferentially.return_value = [
                 TransactionCategory(transaction_id="txn_claude", category="transport", confidence=0.9)
             ]
 
-            # Run categorization
             categorize_uncategorized_transactions(db, batch_size=25)
 
-            # Verify category overrides were applied
+            # Verify manual overrides were applied
             import sqlite3
-
             with sqlite3.connect(db_path) as conn:
                 cursor = conn.execute(
-                    "SELECT inferred_category FROM transactions WHERE id = 'txn_override_1'"
+                    "SELECT inferred_category, confidence FROM transactions WHERE id = 'txn_override_1'"
                 )
-                assert cursor.fetchone()[0] == "dining"
+                row = cursor.fetchone()
+                assert row[0] == "dining"
+                assert row[1] == 1.0  # Manual overrides have confidence 1.0
 
                 cursor = conn.execute(
-                    "SELECT inferred_category FROM transactions WHERE id = 'txn_override_2'"
+                    "SELECT inferred_category, confidence FROM transactions WHERE id = 'txn_override_2'"
                 )
-                assert cursor.fetchone()[0] == "groceries"
+                row = cursor.fetchone()
+                assert row[0] == "groceries"
+                assert row[1] == 1.0
 
                 cursor = conn.execute(
                     "SELECT inferred_category FROM transactions WHERE id = 'txn_claude'"
                 )
                 assert cursor.fetchone()[0] == "transport"
 
-            # Verify categorize_inferentially was called only once (for the non-overridden transaction)
+            # Verify AI was called only for the non-overridden transaction
             assert mock_categorize_inferentially.call_count == 1
-
-            # Verify only the non-overridden transaction was sent to AI categorizer
             call_args = mock_categorize_inferentially.call_args
-            transactions_sent = call_args[0][0]  # First positional argument
+            transactions_sent = call_args[0][0]
             assert len(transactions_sent) == 1
             assert transactions_sent[0].id == "txn_claude"
 
@@ -259,3 +251,137 @@ def test_category_override_validates_category():
         assert len(results) == 1
         assert results[0].transaction_id == "txn_valid"
         assert results[0].category == "dining"
+
+
+def test_manual_override_replaces_existing_ai_category():
+    """Test that apply_manual_overrides replaces existing AI-inferred categories."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        config_path = Path(temp_dir) / "config.yml"
+
+        # Create database with test transactions
+        db = SprigDatabase(db_path)
+
+        # Insert test account
+        account_data = {
+            "id": "acc_123",
+            "name": "Test Checking",
+            "type": "depository",
+            "subtype": "checking",
+            "currency": "USD",
+            "status": "open",
+            "last_four": "1234",
+        }
+        db.insert_record("accounts", account_data)
+
+        # Insert transaction WITH existing AI category (wrong category)
+        txn_data = {
+            "id": "txn_already_categorized",
+            "account_id": "acc_123",
+            "amount": -25.50,
+            "description": "Coffee Shop",
+            "date": date(2024, 1, 15),
+            "type": "card_payment",
+            "status": "posted",
+            "details": {"counterparty": {"name": "Starbucks"}},
+        }
+        db.add_transaction(txn_data)
+
+        # Set an AI-inferred category (simulating previous categorization)
+        db.update_transaction_category("txn_already_categorized", "shopping", 0.7)
+
+        # Verify the AI category is set
+        import sqlite3
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT inferred_category, confidence FROM transactions WHERE id = 'txn_already_categorized'"
+            )
+            row = cursor.fetchone()
+            assert row[0] == "shopping"
+            assert row[1] == 0.7
+
+        # Create config with manual override for this transaction
+        config_data = {
+            "categories": [
+                {"name": "dining", "description": "Restaurants"},
+                {"name": "shopping", "description": "Shopping"},
+            ],
+            "manual_categories": [
+                {"transaction_id": "txn_already_categorized", "category": "dining"},
+            ],
+        }
+
+        with open(config_path, "w") as f:
+            yaml.dump(config_data, f)
+
+        # Load the config and apply manual overrides
+        category_config = CategoryConfig.load(config_path)
+
+        from sprig.sync import apply_manual_overrides
+        apply_manual_overrides(db, category_config)
+
+        # Verify the manual override replaced the AI category
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT inferred_category, confidence FROM transactions WHERE id = 'txn_already_categorized'"
+            )
+            row = cursor.fetchone()
+            assert row[0] == "dining", f"Expected 'dining' but got '{row[0]}'"
+            assert row[1] == 1.0, f"Expected confidence 1.0 but got {row[1]}"
+
+
+def test_apply_manual_overrides_skips_invalid_categories():
+    """Test that apply_manual_overrides skips invalid category names."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test.db"
+        config_path = Path(temp_dir) / "config.yml"
+
+        db = SprigDatabase(db_path)
+
+        # Insert test account and transaction
+        db.insert_record("accounts", {
+            "id": "acc_123",
+            "name": "Test",
+            "type": "depository",
+            "subtype": "checking",
+            "currency": "USD",
+            "status": "open",
+            "last_four": "1234",
+        })
+        db.add_transaction({
+            "id": "txn_test",
+            "account_id": "acc_123",
+            "amount": -25.50,
+            "description": "Test",
+            "date": date(2024, 1, 15),
+            "type": "card_payment",
+            "status": "posted",
+            "details": {},
+        })
+
+        # Create config with invalid category
+        config_data = {
+            "categories": [
+                {"name": "dining", "description": "Restaurants"},
+            ],
+            "manual_categories": [
+                {"transaction_id": "txn_test", "category": "invalid_category"},
+            ],
+        }
+
+        with open(config_path, "w") as f:
+            yaml.dump(config_data, f)
+
+        category_config = CategoryConfig.load(config_path)
+
+        from sprig.sync import apply_manual_overrides
+        apply_manual_overrides(db, category_config)
+
+        # Verify the transaction was NOT updated (invalid category skipped)
+        import sqlite3
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT inferred_category FROM transactions WHERE id = 'txn_test'"
+            )
+            row = cursor.fetchone()
+            assert row[0] is None, f"Expected None but got '{row[0]}'"

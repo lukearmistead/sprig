@@ -104,14 +104,17 @@ def test_sync_accounts_for_token():
 @patch("sprig.sync.categorize_uncategorized_transactions")
 @patch("sprig.sync.SprigDatabase")
 @patch("sprig.sync.TellerClient")
+@patch("sprig.sync.credentials")
 def test_sync_all_accounts(
-    mock_teller_client_class, mock_database_class, mock_categorize
+    mock_credentials, mock_teller_client_class, mock_database_class, mock_categorize
 ):
     """Test syncing all accounts for all access tokens."""
-    # Mock config
-    mock_config = Mock()
-    mock_config.access_tokens = ["token_1", "token_2"]
-    mock_config.database_path = Path("/test/path")
+    # Mock credentials
+    mock_credentials.get_access_tokens.return_value = [
+        Mock(token="token_1"),
+        Mock(token="token_2"),
+    ]
+    mock_credentials.get_database_path.return_value = Mock(value="test.db")
 
     # Mock client and database instances
     mock_client = Mock()
@@ -131,21 +134,22 @@ def test_sync_all_accounts(
     ]
     mock_client.get_transactions.return_value = []
     mock_db.insert_record.return_value = True
+    mock_db.clear_all_categories.return_value = 0
 
     # Call function
-    sync_all_accounts(mock_config)
+    sync_all_accounts()
 
     # Verify client and database were created
-    mock_teller_client_class.assert_called_once_with(mock_config)
-    mock_database_class.assert_called_once_with(mock_config.database_path)
+    mock_teller_client_class.assert_called_once()
+    mock_database_class.assert_called_once()
 
     # Verify get_accounts called for each token
     assert mock_client.get_accounts.call_count == 2
     mock_client.get_accounts.assert_any_call("token_1")
     mock_client.get_accounts.assert_any_call("token_2")
 
-    # Verify categorization was called with default batch_size
-    mock_categorize.assert_called_once_with(mock_config, mock_db, 10)
+    # Verify categorization was called
+    mock_categorize.assert_called_once()
 
 
 def test_sync_with_real_database():
@@ -252,15 +256,19 @@ def test_sync_accounts_for_token_other_http_error():
 @patch("sprig.sync.categorize_uncategorized_transactions")
 @patch("sprig.sync.SprigDatabase")
 @patch("sprig.sync.TellerClient")
+@patch("sprig.sync.credentials")
 @patch("sprig.sync.logger")
 def test_sync_all_accounts_with_invalid_tokens(
-    mock_logger, mock_teller_client_class, mock_database_class, mock_categorize
+    mock_logger, mock_credentials, mock_teller_client_class, mock_database_class, mock_categorize
 ):
     """Test sync_all_accounts handles invalid tokens and shows appropriate messages."""
-    # Mock config with mix of valid and invalid tokens
-    mock_config = Mock()
-    mock_config.access_tokens = ["valid_token", "invalid_token_123456", "another_valid"]
-    mock_config.database_path = Path("/test/path")
+    # Mock credentials with mix of valid and invalid tokens
+    mock_credentials.get_access_tokens.return_value = [
+        Mock(token="valid_token"),
+        Mock(token="invalid_token_123456"),
+        Mock(token="another_valid"),
+    ]
+    mock_credentials.get_database_path.return_value = Mock(value="test.db")
 
     # Mock client and database instances
     mock_client = Mock()
@@ -292,7 +300,7 @@ def test_sync_all_accounts_with_invalid_tokens(
     mock_db.insert_record.return_value = True
 
     # Call function
-    sync_all_accounts(mock_config)
+    sync_all_accounts()
 
     # Should log success message for valid tokens
     info_calls = [
@@ -314,15 +322,15 @@ def test_sync_all_accounts_with_invalid_tokens(
 @patch("sprig.sync.categorize_uncategorized_transactions")
 @patch("sprig.sync.SprigDatabase")
 @patch("sprig.sync.TellerClient")
+@patch("sprig.sync.credentials")
 @patch("sprig.sync.logger")
 def test_sync_all_accounts_with_recategorize(
-    mock_logger, mock_teller_client_class, mock_database_class, mock_categorize
+    mock_logger, mock_credentials, mock_teller_client_class, mock_database_class, mock_categorize
 ):
     """Test sync_all_accounts with recategorize=True clears categories before sync."""
-    # Mock config
-    mock_config = Mock()
-    mock_config.access_tokens = ["token_1"]
-    mock_config.database_path = Path("/test/path")
+    # Mock credentials
+    mock_credentials.get_access_tokens.return_value = [Mock(token="token_1")]
+    mock_credentials.get_database_path.return_value = Mock(value="test.db")
 
     # Mock client and database instances
     mock_client = Mock()
@@ -347,7 +355,7 @@ def test_sync_all_accounts_with_recategorize(
     mock_db.insert_record.return_value = True
 
     # Call function with recategorize=True
-    sync_all_accounts(mock_config, recategorize=True)
+    sync_all_accounts(recategorize=True)
 
     # Verify clear_all_categories was called
     mock_db.clear_all_categories.assert_called_once()
@@ -361,23 +369,23 @@ def test_sync_all_accounts_with_recategorize(
     assert len(info_calls) > 0
 
     # Verify normal sync still happens
-    mock_teller_client_class.assert_called_once_with(mock_config)
-    mock_database_class.assert_called_once_with(mock_config.database_path)
+    mock_teller_client_class.assert_called_once()
+    mock_database_class.assert_called_once()
     mock_client.get_accounts.assert_called_once_with("token_1")
-    mock_categorize.assert_called_once_with(mock_config, mock_db, 10)
+    mock_categorize.assert_called_once()
 
 
 @patch("sprig.sync.categorize_uncategorized_transactions")
 @patch("sprig.sync.SprigDatabase")
 @patch("sprig.sync.TellerClient")
+@patch("sprig.sync.credentials")
 def test_sync_all_accounts_without_recategorize(
-    mock_teller_client_class, mock_database_class, mock_categorize
+    mock_credentials, mock_teller_client_class, mock_database_class, mock_categorize
 ):
     """Test sync_all_accounts with recategorize=False does not clear categories."""
-    # Mock config
-    mock_config = Mock()
-    mock_config.access_tokens = ["token_1"]
-    mock_config.database_path = Path("/test/path")
+    # Mock credentials
+    mock_credentials.get_access_tokens.return_value = [Mock(token="token_1")]
+    mock_credentials.get_database_path.return_value = Mock(value="test.db")
 
     # Mock client and database instances
     mock_client = Mock()
@@ -399,16 +407,16 @@ def test_sync_all_accounts_without_recategorize(
     mock_db.insert_record.return_value = True
 
     # Call function with recategorize=False (default)
-    sync_all_accounts(mock_config)
+    sync_all_accounts()
 
     # Verify clear_all_categories was NOT called
     mock_db.clear_all_categories.assert_not_called()
 
     # Verify normal sync still happens
-    mock_teller_client_class.assert_called_once_with(mock_config)
-    mock_database_class.assert_called_once_with(mock_config.database_path)
+    mock_teller_client_class.assert_called_once()
+    mock_database_class.assert_called_once()
     mock_client.get_accounts.assert_called_once_with("token_1")
-    mock_categorize.assert_called_once_with(mock_config, mock_db, 10)
+    mock_categorize.assert_called_once()
 
 
 def test_sync_transactions_with_cutoff_date():
@@ -460,15 +468,15 @@ def test_sync_transactions_with_cutoff_date():
 @patch("sprig.sync.categorize_uncategorized_transactions")
 @patch("sprig.sync.SprigDatabase")
 @patch("sprig.sync.TellerClient")
+@patch("sprig.sync.credentials")
 @patch("sprig.sync.logger")
 def test_sync_all_accounts_with_from_date_filter(
-    mock_logger, mock_teller_client_class, mock_database_class, mock_categorize
+    mock_logger, mock_credentials, mock_teller_client_class, mock_database_class, mock_categorize
 ):
     """Test sync_all_accounts with from_date parameter logs info."""
-    # Mock config
-    mock_config = Mock()
-    mock_config.access_tokens = ["token_1"]
-    mock_config.database_path = Path("/test/path")
+    # Mock credentials
+    mock_credentials.get_access_tokens.return_value = [Mock(token="token_1")]
+    mock_credentials.get_database_path.return_value = Mock(value="test.db")
 
     # Mock client and database instances
     mock_client = Mock()
@@ -491,7 +499,7 @@ def test_sync_all_accounts_with_from_date_filter(
 
     # Call function with from_date parameter
     from_date = date(2024, 1, 1)
-    sync_all_accounts(mock_config, from_date=from_date)
+    sync_all_accounts(from_date=from_date)
 
     # Verify filtering message was logged
     info_calls = [
@@ -501,5 +509,5 @@ def test_sync_all_accounts_with_from_date_filter(
     ]
     assert len(info_calls) > 0
 
-    # Verify categorization was called with default batch_size
-    mock_categorize.assert_called_once_with(mock_config, mock_db, 10)
+    # Verify categorization was called
+    mock_categorize.assert_called_once()

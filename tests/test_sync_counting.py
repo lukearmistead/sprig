@@ -58,9 +58,11 @@ def test_failed_categorization_counting():
             "accounts",
             {
                 "id": "acc_1",
-                "institution_id": "chase",
                 "name": "Checking",
+                "type": "depository",
                 "subtype": "checking",
+                "currency": "USD",
+                "status": "open",
                 "last_four": "1234",
             },
         )
@@ -72,16 +74,13 @@ def test_failed_categorization_counting():
         # Mock categorizers
         with (
             patch("sprig.sync.CategoryConfig") as mock_config_class,
-            patch("sprig.sync.categorize_manually") as mock_categorize_manually,
             patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
         ):
-            # Mock category config
+            # Mock category config (no manual overrides)
             mock_config = Mock()
             mock_config.manual_categories = []
+            mock_config.categories = []
             mock_config_class.load.return_value = mock_config
-
-            # Mock categorize_manually (no manual overrides)
-            mock_categorize_manually.return_value = []
 
             # Mock categorize_inferentially - only categorize one transaction, fail the others
             from sprig.models import TransactionCategory
@@ -94,13 +93,15 @@ def test_failed_categorization_counting():
             categorize_uncategorized_transactions(db, batch_size=25)
 
             # Verify database updates
-            categorized_txns = db.connection.execute(
-                "SELECT id, inferred_category FROM transactions WHERE inferred_category IS NOT NULL"
-            ).fetchall()
+            import sqlite3
+            with sqlite3.connect(db_path) as conn:
+                categorized_txns = conn.execute(
+                    "SELECT id, inferred_category FROM transactions WHERE inferred_category IS NOT NULL"
+                ).fetchall()
 
-            uncategorized_txns = db.connection.execute(
-                "SELECT id FROM transactions WHERE inferred_category IS NULL"
-            ).fetchall()
+                uncategorized_txns = conn.execute(
+                    "SELECT id FROM transactions WHERE inferred_category IS NULL"
+                ).fetchall()
 
             # Should have 1 categorized and 2 uncategorized
             assert len(categorized_txns) == 1
@@ -150,9 +151,11 @@ def test_all_transactions_fail_categorization():
             "accounts",
             {
                 "id": "acc_1",
-                "institution_id": "chase",
                 "name": "Checking",
+                "type": "depository",
                 "subtype": "checking",
+                "currency": "USD",
+                "status": "open",
                 "last_four": "1234",
             },
         )
@@ -164,16 +167,13 @@ def test_all_transactions_fail_categorization():
         # Mock categorizers
         with (
             patch("sprig.sync.CategoryConfig") as mock_config_class,
-            patch("sprig.sync.categorize_manually") as mock_categorize_manually,
             patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
         ):
-            # Mock category config
+            # Mock category config (no manual overrides)
             mock_config = Mock()
             mock_config.manual_categories = []
+            mock_config.categories = []
             mock_config_class.load.return_value = mock_config
-
-            # Mock categorize_manually (no manual overrides)
-            mock_categorize_manually.return_value = []
 
             # Mock categorize_inferentially - complete failure, empty results
             mock_categorize_inferentially.return_value = []  # All transactions failed
@@ -182,13 +182,15 @@ def test_all_transactions_fail_categorization():
             categorize_uncategorized_transactions(db, batch_size=25)
 
             # Verify no transactions were categorized
-            categorized_txns = db.connection.execute(
-                "SELECT id FROM transactions WHERE inferred_category IS NOT NULL"
-            ).fetchall()
+            import sqlite3
+            with sqlite3.connect(db_path) as conn:
+                categorized_txns = conn.execute(
+                    "SELECT id FROM transactions WHERE inferred_category IS NOT NULL"
+                ).fetchall()
 
-            uncategorized_txns = db.connection.execute(
-                "SELECT id FROM transactions WHERE inferred_category IS NULL"
-            ).fetchall()
+                uncategorized_txns = conn.execute(
+                    "SELECT id FROM transactions WHERE inferred_category IS NULL"
+                ).fetchall()
 
             # Should have 0 categorized and 2 uncategorized
             assert len(categorized_txns) == 0
