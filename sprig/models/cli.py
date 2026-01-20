@@ -1,6 +1,6 @@
-"""CLI parameter models with Pydantic validation."""
+"""CLI parameter and result models with Pydantic validation."""
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, PastDate
 
@@ -24,3 +24,9 @@ class SyncParams(BaseModel):
         default=None,
         description="Only sync transactions from this past date onwards"
     )
+
+
+class SyncResult(BaseModel):
+    """Result from syncing accounts."""
+    valid_tokens: int
+    invalid_tokens: List[str]

@@ -4,11 +4,6 @@ import json
 import sqlite3
 from datetime import date
 from pathlib import Path
-from typing import Dict
-
-from sprig.logger import get_logger
-
-logger = get_logger("sprig.database")
 
 
 class SprigDatabase:
@@ -19,11 +14,10 @@ class SprigDatabase:
         self._initialize_database()
 
     def _initialize_database(self):
-        """Create database file and tables if they don't exist."""
+        """Create database tables if they don't exist."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         with sqlite3.connect(self.db_path) as conn:
-            # Create accounts table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS accounts (
                     id TEXT PRIMARY KEY,
@@ -40,7 +34,6 @@ class SprigDatabase:
                 )
             """)
 
-            # Create transactions table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS transactions (
                     id TEXT PRIMARY KEY,
@@ -58,209 +51,96 @@ class SprigDatabase:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-
             conn.commit()
 
-    def insert_record(self, table_name: str, data: Dict) -> bool:
-        """Insert data into specified table."""
-        try:
-            # Prepare data for SQL insertion
-            insert_data = {}
-            for key, value in data.items():
-                if isinstance(value, (dict, list)):
-                    insert_data[key] = json.dumps(value)
-                elif isinstance(value, date):
-                    insert_data[key] = value.isoformat()
-                else:
-                    insert_data[key] = value
-
-            # Build and execute INSERT statement
-            with sqlite3.connect(self.db_path) as conn:
-                columns = list(insert_data.keys())
-                placeholders = ["?" for _ in columns]
-                values = list(insert_data.values())
-
-                sql = f"INSERT OR REPLACE INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-                conn.execute(sql, values)
-                conn.commit()
-                return True
-
-        except Exception as e:
-            logger.error(f"Error inserting into {table_name}: {e}")
-            return False
-
-    def get_uncategorized_transactions(self):
-        """Get transactions that don't have an inferred category assigned."""
+    def _query(self, sql: str, params=None, as_row=False):
+        """Execute a SELECT query and return all results."""
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
-                SELECT t.id, t.description, t.amount, t.date, t.type,
-                       t.account_id, a.name, a.subtype,
-                       json_extract(t.details, '$.counterparty.name') as counterparty,
-                       a.last_four
-                FROM transactions t
-                LEFT JOIN accounts a ON t.account_id = a.id
-                WHERE t.inferred_category IS NULL
-                ORDER BY t.date DESC
-            """)
-            return cursor.fetchall()
+            if as_row:
+                conn.row_factory = sqlite3.Row
+            return conn.execute(sql, params or ()).fetchall()
 
-    def update_transaction_category(
-        self, transaction_id: str, category: str, confidence: float = None
-    ) -> bool:
-        """Update the inferred category and confidence for a specific transaction.
+    def _execute(self, sql: str, params=None):
+        """Execute an INSERT/UPDATE/DELETE and commit."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(sql, params or ())
+            conn.commit()
 
-        Args:
-            transaction_id: Transaction ID
-            category: Category name
-            confidence: Confidence score from 0 to 1
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    "UPDATE transactions SET inferred_category = ?, confidence = ? WHERE id = ?",
-                    (category, confidence, transaction_id),
-                )
-                conn.commit()
-                return True
-        except Exception as e:
-            logger.error(
-                f"Error updating category for transaction {transaction_id}: {e}"
-            )
-            return False
-
-    def _prepare_data_for_sql(self, data: Dict) -> Dict:
-        """Prepare data for SQL insertion by converting complex types to strings.
-
-        Args:
-            data: Raw data dictionary
-
-        Returns:
-            Dictionary with SQL-compatible values
-        """
-        prepared_data = {}
+    def _prepare_data(self, data: dict) -> dict:
+        """Convert dicts/lists to JSON and dates to ISO strings."""
+        result = {}
         for key, value in data.items():
             if isinstance(value, (dict, list)):
-                prepared_data[key] = json.dumps(value)
+                result[key] = json.dumps(value)
             elif isinstance(value, date):
-                prepared_data[key] = value.isoformat()
+                result[key] = value.isoformat()
             else:
-                prepared_data[key] = value
-        return prepared_data
+                result[key] = value
+        return result
 
-    def sync_transaction(self, transaction) -> bool:
-        """Sync transaction data while preserving existing categorization.
+    def save_account(self, account_data: dict):
+        """Insert or replace an account."""
+        data = self._prepare_data(account_data)
+        columns = list(data.keys())
+        placeholders = ", ".join(["?"] * len(columns))
+        sql = f"INSERT OR REPLACE INTO accounts ({', '.join(columns)}) VALUES ({placeholders})"
+        self._execute(sql, list(data.values()))
 
-        For existing transactions: updates raw Teller fields, preserves inferred_category/confidence
-        For new transactions: inserts with NULL categories
+    def sync_transaction(self, transaction):
+        """Upsert transaction, preserving any existing category."""
+        data = self._prepare_data(transaction.model_dump())
 
-        Args:
-            transaction: TellerTransaction object or dict with transaction data
+        # Fields that come from Teller (exclude our category fields)
+        teller_fields = [k for k in data.keys() if k not in ("inferred_category", "confidence")]
+
+        columns = ", ".join(teller_fields)
+        placeholders = ", ".join(["?"] * len(teller_fields))
+        updates = ", ".join(f"{k} = excluded.{k}" for k in teller_fields if k != "id")
+
+        sql = f"""
+            INSERT INTO transactions ({columns}) VALUES ({placeholders})
+            ON CONFLICT(id) DO UPDATE SET {updates}
         """
-        try:
-            # Convert to dict if it's a Pydantic model
-            if hasattr(transaction, "model_dump"):
-                txn_data = transaction.model_dump()
-            else:
-                txn_data = transaction
+        self._execute(sql, [data[k] for k in teller_fields])
 
-            # Validate required fields
-            if not txn_data or "id" not in txn_data:
-                raise ValueError("Transaction data must contain 'id' field")
-
-            # Prepare data for SQL insertion
-            insert_data = self._prepare_data_for_sql(txn_data)
-            transaction_id = insert_data["id"]
-
-            with sqlite3.connect(self.db_path) as conn:
-                # Check if transaction exists
-                cursor = conn.execute(
-                    "SELECT id FROM transactions WHERE id = ?", (transaction_id,)
-                )
-                exists = cursor.fetchone() is not None
-
-                if exists:
-                    # Update existing transaction, preserve categories
-                    # Build field-value pairs explicitly to maintain order
-                    update_pairs = []
-                    update_values = []
-                    for key, value in insert_data.items():
-                        if key != "id":
-                            update_pairs.append(f"{key} = ?")
-                            update_values.append(value)
-
-                    update_values.append(transaction_id)  # WHERE clause value
-
-                    sql = f"UPDATE transactions SET {', '.join(update_pairs)} WHERE id = ?"
-                    conn.execute(sql, update_values)
-                else:
-                    # Insert new transaction with NULL categories
-                    columns = list(insert_data.keys())
-                    placeholders = ["?" for _ in columns]
-                    values = list(insert_data.values())
-
-                    sql = f"INSERT INTO transactions ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-                    conn.execute(sql, values)
-
-                conn.commit()
-                return True
-
-        except Exception as e:
-            transaction_id = (
-                txn_data.get("id", "unknown") if "txn_data" in locals() else "unknown"
-            )
-            logger.error(f"Error syncing transaction {transaction_id}: {e}")
-            return False
-
-    def add_transaction(self, transaction_data: Dict) -> bool:
-        """Add a transaction for testing/manual insertion (always inserts).
-
-        Args:
-            transaction_data: Dict with transaction fields
-        """
-        try:
-            # Prepare data for SQL insertion
-            insert_data = self._prepare_data_for_sql(transaction_data)
-
-            with sqlite3.connect(self.db_path) as conn:
-                columns = list(insert_data.keys())
-                placeholders = ["?" for _ in columns]
-                values = list(insert_data.values())
-
-                sql = f"INSERT INTO transactions ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-                conn.execute(sql, values)
-                conn.commit()
-                return True
-
-        except Exception as e:
-            logger.error(f"Error adding transaction: {e}")
-            return False
+    def update_transaction_category(self, transaction_id: str, category: str, confidence: float = None):
+        """Set category and confidence for a transaction."""
+        self._execute(
+            "UPDATE transactions SET inferred_category = ?, confidence = ? WHERE id = ?",
+            (category, confidence, transaction_id)
+        )
 
     def clear_all_categories(self):
         """Clear all inferred_category and confidence values."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "UPDATE transactions SET inferred_category = NULL, confidence = NULL"
-            )
-            rows_updated = cursor.rowcount
-            conn.commit()
-            return rows_updated
+        self._execute("UPDATE transactions SET inferred_category = NULL, confidence = NULL")
+
+    def get_uncategorized_transactions(self):
+        """Get transactions without a category, with account info."""
+        return self._query("""
+            SELECT t.id, t.description, t.amount, t.date, t.type, t.account_id,
+                   a.name AS account_name, a.subtype AS account_subtype,
+                   json_extract(t.details, '$.counterparty.name') AS counterparty,
+                   a.last_four AS account_last_four
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE t.inferred_category IS NULL
+            ORDER BY t.date DESC
+        """, as_row=True)
+
+    def add_transaction(self, data: dict):
+        """Insert a transaction directly (for testing)."""
+        prepared = self._prepare_data(data)
+        columns = ", ".join(prepared.keys())
+        placeholders = ", ".join(["?"] * len(prepared))
+        self._execute(f"INSERT INTO transactions ({columns}) VALUES ({placeholders})", list(prepared.values()))
 
     def get_transactions_for_export(self):
-        """Get all transactions for export with account details.
-
-        Returns 10 fields: id, date, description, amount, inferred_category,
-        confidence, counterparty, account_name, account_subtype, account_last_four
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
-                SELECT t.id, t.date, t.description, t.amount, t.inferred_category,
-                       t.confidence,
-                       json_extract(t.details, '$.counterparty.name') as counterparty,
-                       a.name as account_name,
-                       a.subtype as account_subtype,
-                       a.last_four as account_last_four
-                FROM transactions t
-                LEFT JOIN accounts a ON t.account_id = a.id
-                ORDER BY t.date DESC
-            """)
-            return cursor.fetchall()
+        """Get all transactions with account info for CSV export."""
+        return self._query("""
+            SELECT t.id, t.date, t.description, t.amount, t.inferred_category, t.confidence,
+                   json_extract(t.details, '$.counterparty.name') as counterparty,
+                   a.name as account_name, a.subtype as account_subtype, a.last_four as account_last_four
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            ORDER BY t.date DESC
+        """)

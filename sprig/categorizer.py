@@ -5,6 +5,7 @@ from typing import List
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sprig import credentials
 from sprig.logger import get_logger
@@ -14,7 +15,6 @@ from sprig.models.category_config import CategoryConfig
 logger = get_logger("sprig.categorizer")
 
 
-# Categorization prompt template for AI agent
 CATEGORIZATION_PROMPT = """Analyze each transaction and assign it to exactly ONE category from the provided list.
 
 AVAILABLE CATEGORIES:
@@ -67,38 +67,6 @@ CRITICAL REQUIREMENTS:
 
 VALIDATION:
 Before returning your response, verify that EVERY category you used appears in the AVAILABLE CATEGORIES list above. If not, your response is invalid."""
-
-
-def _build_transaction_views(
-    transactions: List[TellerTransaction],
-    account_info: dict
-) -> List[TransactionView]:
-    """Build transaction views with account context for categorization.
-
-    Args:
-        transactions: List of transactions to build views for
-        account_info: Account information keyed by transaction ID
-
-    Returns:
-        List of TransactionView objects with account context
-    """
-    views = []
-    for t in transactions:
-        info = account_info.get(t.id, {})
-        views.append(
-            TransactionView(
-                id=t.id,
-                date=str(t.date),
-                description=t.description,
-                amount=t.amount,
-                inferred_category=None,
-                counterparty=info.get('counterparty'),
-                account_name=info.get('name'),
-                account_subtype=info.get('subtype'),
-                account_last_four=info.get('last_four')
-            )
-        )
-    return views
 
 
 def _validate_category_results(
@@ -165,17 +133,20 @@ def categorize_manually(
     return categorized_transactions
 
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    reraise=True,
+)
 def categorize_inferentially(
-    transactions: List[TellerTransaction],
+    transaction_views: List[TransactionView],
     category_config: CategoryConfig,
-    account_info: dict = None
 ) -> List[TransactionCategory]:
-    """Categorize transactions using AI agent.
+    """Categorize transactions using AI agent with exponential backoff retry.
 
     Args:
-        transactions: List of transactions to categorize
+        transaction_views: List of TransactionView objects to categorize
         category_config: CategoryConfig containing valid categories
-        account_info: Optional account information for context
 
     Returns:
         List of TransactionCategory for categorized transactions
@@ -183,10 +154,8 @@ def categorize_inferentially(
     Raises:
         ValueError: If Claude API key is not configured in keyring
     """
-    if not transactions:
+    if not transaction_views:
         return []
-
-    account_info = account_info or {}
 
     api_key = credentials.get_claude_api_key()
     if not api_key:
@@ -199,7 +168,6 @@ def categorize_inferentially(
         f"{cat.name}: {cat.description}" for cat in category_config.categories
     ]
 
-    transaction_views = _build_transaction_views(transactions, account_info)
     batch = TransactionBatch(transactions=transaction_views)
     transactions_json = batch.model_dump_json(indent=2)
 
@@ -222,7 +190,7 @@ def categorize_inferentially(
         categories = result.output
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Failed to categorize {len(transactions)} transactions: {error_msg}")
+        logger.error(f"Failed to categorize {len(transaction_views)} transactions: {error_msg}")
 
         # Re-raise rate limit errors so sync can handle them specially
         if "rate_limit" in error_msg.lower() or "rate limit" in error_msg.lower():
@@ -232,3 +200,59 @@ def categorize_inferentially(
 
     valid_category_names = {cat.name for cat in category_config.categories}
     return _validate_category_results(categories, valid_category_names)
+
+
+def categorize_in_batches(
+    transaction_views: List[TransactionView],
+    category_config: CategoryConfig,
+    batch_size: int,
+) -> List[TransactionCategory]:
+    """Categorize transactions in batches with retry logic.
+
+    Args:
+        transaction_views: List of TransactionView objects to categorize
+        category_config: CategoryConfig containing valid categories
+        batch_size: Number of transactions to categorize per API call
+
+    Returns:
+        List of TransactionCategory for all categorized transactions
+    """
+    if not transaction_views:
+        return []
+
+    total_transactions = len(transaction_views)
+    total_batches = (total_transactions + batch_size - 1) // batch_size
+    all_results = []
+
+    logger.info(f"Categorizing {total_transactions} transaction(s) using Claude AI")
+    logger.info(f"   Processing in {total_batches} batch(es) of up to {batch_size} each")
+
+    if total_transactions > 100:
+        logger.info("   Large transaction volume may hit Claude API rate limits")
+
+    for i in range(0, len(transaction_views), batch_size):
+        batch = transaction_views[i : i + batch_size]
+        batch_num = (i // batch_size) + 1
+
+        results = categorize_inferentially(batch, category_config)
+        all_results.extend(results)
+
+        success_count = len(results)
+        batch_size_actual = len(batch)
+
+        logger.info(f"   Batch {batch_num}/{total_batches} ({batch_size_actual} transactions)...")
+        if success_count == batch_size_actual:
+            logger.info(f"      Batch {batch_num} complete: {success_count} categorized")
+        else:
+            logger.warning(f"      Batch {batch_num} partial: {success_count}/{batch_size_actual} categorized")
+
+    categorized_count = len(all_results)
+    failed_count = total_transactions - categorized_count
+
+    logger.info("Categorization complete")
+    logger.info(f"   Successfully categorized: {categorized_count} transactions")
+    if failed_count > 0:
+        logger.warning(f"   Failed to categorize: {failed_count} transactions")
+    logger.info(f"   Success rate: {(categorized_count / total_transactions * 100):.1f}%")
+
+    return all_results

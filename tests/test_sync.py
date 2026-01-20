@@ -10,7 +10,9 @@ from sprig.sync import (
     sync_all_accounts,
     sync_accounts_for_token,
     sync_transactions_for_account,
+    categorize_uncategorized_transactions,
 )
+from sprig.models.cli import SyncResult
 
 
 def test_sync_transactions_for_account():
@@ -79,7 +81,7 @@ def test_sync_accounts_for_token():
 
     mock_client.get_accounts.return_value = mock_accounts
     mock_client.get_transactions.return_value = []  # No transactions for simplicity
-    mock_db.insert_record.return_value = True
+    mock_db.save_account.return_value = True
 
     # Call function
     sync_accounts_for_token(mock_client, mock_db, "test_token")
@@ -88,14 +90,9 @@ def test_sync_accounts_for_token():
     mock_client.get_accounts.assert_called_once_with("test_token")
     mock_client.get_transactions.assert_called_once_with("test_token", "acc_123")
 
-    # Verify account insert (should have all Pydantic model fields)
-    account_calls = [
-        call
-        for call in mock_db.insert_record.call_args_list
-        if call[0][0] == "accounts"
-    ]
-    assert len(account_calls) == 1
-    inserted_account = account_calls[0][0][1]
+    # Verify account was saved
+    mock_db.save_account.assert_called_once()
+    inserted_account = mock_db.save_account.call_args[0][0]
     assert inserted_account["id"] == "acc_123"
     assert inserted_account["name"] == "Test Account"
     assert inserted_account["type"] == "depository"
@@ -133,7 +130,7 @@ def test_sync_all_accounts(
         }
     ]
     mock_client.get_transactions.return_value = []
-    mock_db.insert_record.return_value = True
+    mock_db.save_account.return_value = True
     mock_db.clear_all_categories.return_value = 0
 
     # Call function
@@ -220,13 +217,13 @@ def test_sync_accounts_for_token_invalid_token():
     mock_client.get_accounts.side_effect = error
 
     # Call function
-    result = sync_accounts_for_token(mock_client, mock_db, "invalid_token")
+    success = sync_accounts_for_token(mock_client, mock_db, "invalid_token")
 
     # Should return False for invalid token
-    assert not result
+    assert success is False
 
     # Should not insert anything to database
-    mock_db.insert_record.assert_not_called()
+    mock_db.save_account.assert_not_called()
 
     # Should have attempted to get accounts
     mock_client.get_accounts.assert_called_once_with("invalid_token")
@@ -297,24 +294,23 @@ def test_sync_all_accounts_with_invalid_tokens(
 
     mock_client.get_accounts.side_effect = mock_get_accounts
     mock_client.get_transactions.return_value = []
-    mock_db.insert_record.return_value = True
+    mock_db.save_account.return_value = True
 
     # Call function
-    sync_all_accounts()
+    result = sync_all_accounts()
 
-    # Should log success message for valid tokens
-    info_calls = [
-        call
-        for call in mock_logger.info.call_args_list
-        if "Successfully synced 2 valid token(s)" in str(call)
-    ]
-    assert len(info_calls) > 0
+    # Should return result with 2 valid tokens
+    assert result.valid_tokens == 2
 
-    # Should log warning about invalid tokens
+    # Should have 1 invalid token
+    assert len(result.invalid_tokens) == 1
+    assert result.invalid_tokens[0] == "invalid_toke..."
+
+    # Should still log warning about invalid tokens (from sync_accounts_for_token)
     warning_calls = [
         call
         for call in mock_logger.warning.call_args_list
-        if "invalid/expired token(s)" in str(call)
+        if "invalid/expired token" in str(call).lower()
     ]
     assert len(warning_calls) > 0
 
@@ -352,26 +348,21 @@ def test_sync_all_accounts_with_recategorize(
         }
     ]
     mock_client.get_transactions.return_value = []
-    mock_db.insert_record.return_value = True
+    mock_db.save_account.return_value = True
 
     # Call function with recategorize=True
-    sync_all_accounts(recategorize=True)
+    result = sync_all_accounts(recategorize=True)
 
     # Verify clear_all_categories was called
     mock_db.clear_all_categories.assert_called_once()
-
-    # Verify message about clearing categories was logged
-    info_calls = [
-        call
-        for call in mock_logger.info.call_args_list
-        if "Cleared categories for 10 transaction(s)" in str(call)
-    ]
-    assert len(info_calls) > 0
 
     # Verify normal sync still happens
     mock_teller_client_class.assert_called_once()
     mock_database_class.assert_called_once()
     mock_client.get_accounts.assert_called_once_with("token_1")
+
+    # Should return sync result
+    assert result.valid_tokens == 1
     mock_categorize.assert_called_once()
 
 
@@ -404,7 +395,7 @@ def test_sync_all_accounts_without_recategorize(
         }
     ]
     mock_client.get_transactions.return_value = []
-    mock_db.insert_record.return_value = True
+    mock_db.save_account.return_value = True
 
     # Call function with recategorize=False (default)
     sync_all_accounts()
@@ -450,10 +441,10 @@ def test_sync_transactions_with_cutoff_date():
     mock_client.get_transactions.return_value = mock_transactions
     mock_db.sync_transaction.return_value = True
 
-    # Call function with cutoff_date filter
-    cutoff_date = date(2024, 2, 1)
+    # Call function with from_date filter
+    from_date = date(2024, 2, 1)
     sync_transactions_for_account(
-        mock_client, mock_db, "test_token", "acc_456", cutoff_date=cutoff_date
+        mock_client, mock_db, "test_token", "acc_456", from_date=from_date
     )
 
     # Verify API call
@@ -495,19 +486,63 @@ def test_sync_all_accounts_with_from_date_filter(
         }
     ]
     mock_client.get_transactions.return_value = []
-    mock_db.insert_record.return_value = True
+    mock_db.save_account.return_value = True
 
     # Call function with from_date parameter
     from_date = date(2024, 1, 1)
-    sync_all_accounts(from_date=from_date)
+    result = sync_all_accounts(from_date=from_date)
 
-    # Verify filtering message was logged
-    info_calls = [
-        call
-        for call in mock_logger.info.call_args_list
-        if "Filtering transactions from 2024-01-01" in str(call)
-    ]
-    assert len(info_calls) > 0
+    # Verify function returns a result
+    assert isinstance(result, SyncResult)
 
     # Verify categorization was called
     mock_categorize.assert_called_once()
+
+
+@patch("sprig.sync.SprigDatabase")
+@patch("sprig.sync.categorize_uncategorized_transactions")
+@patch("sprig.sync.TellerClient")
+@patch("sprig.sync.credentials")
+def test_sync_all_accounts_returns_sync_result(
+    mock_credentials, mock_teller_client_class, mock_categorize, mock_database_class
+):
+    """Test that sync_all_accounts returns a SyncResult object."""
+    # Mock credentials
+    mock_credentials.get_access_tokens.return_value = [
+        Mock(token="valid_token_123"),
+        Mock(token="invalid_token_456"),
+    ]
+    mock_credentials.get_database_path.return_value = Mock(value="test.db")
+
+    # Mock client and database instances
+    mock_client = Mock()
+    mock_db = Mock()
+    mock_teller_client_class.return_value = mock_client
+    mock_database_class.return_value = mock_db
+
+    # Mock first token succeeds
+    mock_client.get_accounts.side_effect = [
+        [{"id": "acc_1", "name": "Test", "type": "depository", "currency": "USD", "status": "open"}],
+        requests.HTTPError(response=Mock(status_code=401)),
+    ]
+    mock_client.get_transactions.return_value = [
+        {
+            "id": "txn_1",
+            "account_id": "acc_1",
+            "amount": 100.0,
+            "description": "Test",
+            "date": "2024-01-15",
+            "type": "deposit",
+            "status": "posted",
+        }
+    ]
+    mock_db.save_account.return_value = True
+    mock_db.sync_transaction.return_value = True
+
+    result = sync_all_accounts()
+
+    assert isinstance(result, SyncResult)
+    assert result.valid_tokens == 1
+    assert result.invalid_tokens == ["invalid_toke..."]
+
+

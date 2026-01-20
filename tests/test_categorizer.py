@@ -17,6 +17,7 @@ from sprig.categorizer import categorize_manually, categorize_inferentially
 from sprig.models import TellerTransaction, TransactionCategory
 from sprig.models.category_config import CategoryConfig
 from sprig.models.credentials import ClaudeAPIKey
+from sprig.models.claude import TransactionView
 
 
 @pytest.fixture(autouse=True)
@@ -33,23 +34,23 @@ class TestBuildCategorizationPrompt:
     def test_build_prompt_includes_descriptions(self):
         """Test that prompt includes category descriptions."""
 
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="txn_123",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Restaurant",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four="1234",
             )
         ]
 
         # Load actual category config
         category_config = CategoryConfig.load()
-
-        # Provide empty account info for test
-        account_info = {}
 
         # Mock Agent to inspect the prompt
         with patch('sprig.categorizer.Agent') as MockAgent:
@@ -58,7 +59,7 @@ class TestBuildCategorizationPrompt:
             MockAgent.return_value = mock_agent_instance
 
             # Call categorize_inferentially which should build the prompt internally
-            categorize_inferentially(transactions, category_config, account_info)
+            categorize_inferentially(transaction_views, category_config)
 
             # Get the prompt from the call args
             call_args = mock_agent_instance.run_sync.call_args
@@ -80,24 +81,30 @@ class TestInferentialCategorizerParsing:
 
     def test_validate_categories_valid_response(self):
         """Test validating valid response from agent."""
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="txn_123",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Restaurant",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_456",
-                account_id="acc_1",
-                amount=50.00,
+                date="2024-01-02",
                 description="Grocery Store",
-                date=date(2024, 1, 2),
-                type="debit",
-                status="posted"
+                amount=50.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four=None,
             )
         ]
 
@@ -112,7 +119,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert len(result) == 2
             assert result[0].transaction_id == "txn_123"
@@ -122,24 +129,30 @@ class TestInferentialCategorizerParsing:
 
     def test_validate_categories_invalid_category(self):
         """Test that invalid categories are filtered out."""
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="txn_123",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Restaurant",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_456",
-                account_id="acc_1",
-                amount=50.00,
+                date="2024-01-02",
                 description="Unknown",
-                date=date(2024, 1, 2),
-                type="debit",
-                status="posted"
+                amount=50.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             )
         ]
 
@@ -154,7 +167,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             # Invalid category should be filtered out
             assert len(result) == 1
@@ -163,33 +176,42 @@ class TestInferentialCategorizerParsing:
 
     def test_validate_categories_mixed_valid_invalid(self):
         """Test mix of valid and invalid categories."""
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="txn_1",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Restaurant",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_2",
-                account_id="acc_1",
-                amount=30.00,
+                date="2024-01-02",
                 description="Unknown",
-                date=date(2024, 1, 2),
-                type="debit",
-                status="posted"
+                amount=30.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_3",
-                account_id="acc_1",
-                amount=45.00,
+                date="2024-01-03",
                 description="Gas Station",
-                date=date(2024, 1, 3),
-                type="debit",
-                status="posted"
+                amount=45.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             )
         ]
 
@@ -205,7 +227,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             # Only valid categories should be returned
             assert len(result) == 2
@@ -217,7 +239,7 @@ class TestInferentialCategorizerParsing:
 
     def test_validate_categories_empty_list(self):
         """Test handling empty list."""
-        transactions = []
+        transaction_views = []
 
         # Mock agent to return empty list
         with patch('sprig.categorizer.Agent') as MockAgent:
@@ -227,30 +249,36 @@ class TestInferentialCategorizerParsing:
             mock_result.output = []
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert result == []
 
     def test_validate_categories_all_invalid(self):
         """Test when all categories are invalid."""
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="txn_1",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Unknown 1",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_2",
-                account_id="acc_1",
-                amount=30.00,
+                date="2024-01-02",
                 description="Unknown 2",
-                date=date(2024, 1, 2),
-                type="debit",
-                status="posted"
+                amount=30.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             )
         ]
 
@@ -265,7 +293,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             # All invalid, so empty list
             assert result == []
@@ -278,44 +306,48 @@ class TestCategorizeBatchIntegration:
 
     def test_categorize_batch_full_flow(self):
         """Test full categorization flow with mocked agent."""
-        # Create test transactions with matching IDs
-        transactions = [
-            TellerTransaction(
+        # Create test transaction views
+        transaction_views = [
+            TransactionView(
                 id="txn_ABC123",
-                account_id="acc_1",
-                amount=25.50,
-                description="Restaurant",
                 date="2024-01-01",
-                type="debit",
-                status="posted"
+                description="Restaurant",
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_DEF456",
-                account_id="acc_1",
-                amount=45.00,
-                description="Gas Station",
                 date="2024-01-02",
-                type="debit",
-                status="posted"
+                description="Gas Station",
+                amount=45.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_GHI789",
-                account_id="acc_1",
-                amount=85.30,
-                description="Supermarket",
                 date="2024-01-03",
-                type="debit",
-                status="posted"
+                description="Supermarket",
+                amount=85.30,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four=None,
             )
         ]
 
-        # Run categorization with account info
+        # Run categorization
         category_config = CategoryConfig.load()
-        account_info = {
-            "txn_ABC123": {"name": "Checking", "subtype": "checking"},
-            "txn_DEF456": {"name": "Checking", "subtype": "checking"},
-            "txn_GHI789": {"name": "Checking", "subtype": "checking"}
-        }
 
         # Mock categorization_agent.run_sync
         with patch('sprig.categorizer.Agent') as MockAgent:
@@ -329,7 +361,7 @@ class TestCategorizeBatchIntegration:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, category_config, account_info)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Assert correct categories returned as list
             assert len(result) == 3
@@ -348,22 +380,24 @@ class TestCategorizeBatchIntegration:
 
     def test_categorize_batch_with_invalid_categories(self):
         """Test categorization with some invalid categories from agent."""
-        # Create test transactions
-        transactions = [
-            TellerTransaction(
+        # Create test transaction views
+        transaction_views = [
+            TransactionView(
                 id="txn_1",
-                account_id="acc_1",
-                amount=25.50,
-                description="Restaurant",
                 date="2024-01-01",
-                type="debit",
-                status="posted"
+                description="Restaurant",
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             )
         ]
 
-        # Run categorization with empty account info
+        # Run categorization
         category_config = CategoryConfig.load()
-        account_info = {}
 
         # Mock agent to return mix of valid and invalid
         with patch('sprig.categorizer.Agent') as MockAgent:
@@ -377,7 +411,7 @@ class TestCategorizeBatchIntegration:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, category_config, account_info)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Assert invalid category is filtered out
             assert len(result) == 2
@@ -387,29 +421,23 @@ class TestCategorizeBatchIntegration:
             assert result[1].category == "groceries"
 
     def test_categorize_with_account_info_context(self):
-        """Test that account_info is passed to agent for context."""
-        transactions = [
-            TellerTransaction(
+        """Test that account context from TransactionView is used for categorization."""
+        transaction_views = [
+            TransactionView(
                 id="txn_cc",
-                account_id="acc_credit",
-                amount=-50.00,  # Negative on credit card (payment/refund)
-                description="Payment received",
                 date="2024-01-01",
-                type="card_payment",
-                status="posted"
+                description="Payment received",
+                amount=-50.00,  # Negative on credit card (payment/refund)
+                inferred_category=None,
+                confidence=None,
+                counterparty="ACH Transfer",
+                account_name="Chase Sapphire",
+                account_subtype="credit_card",
+                account_last_four="4567",
             )
         ]
 
         category_config = CategoryConfig.load()
-        # Provide rich account info that should help with categorization
-        account_info = {
-            "txn_cc": {
-                "name": "Chase Sapphire",
-                "subtype": "credit_card",
-                "last_four": "4567",
-                "counterparty": "ACH Transfer"
-            }
-        }
 
         with patch('sprig.categorizer.Agent') as MockAgent:
             mock_agent = Mock()
@@ -420,7 +448,7 @@ class TestCategorizeBatchIntegration:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, category_config, account_info)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Verify agent was called
             mock_agent.run_sync.assert_called_once()
@@ -615,24 +643,30 @@ class TestEdgeCases:
 
     def test_response_with_numeric_transaction_ids(self):
         """Test transaction IDs that are numeric strings."""
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="12345",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Restaurant",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="67890",
-                account_id="acc_1",
-                amount=45.00,
+                date="2024-01-02",
                 description="Gas Station",
-                date=date(2024, 1, 2),
-                type="debit",
-                status="posted"
+                amount=45.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             )
         ]
 
@@ -646,7 +680,7 @@ class TestEdgeCases:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert len(result) == 2
             assert result[0].transaction_id == "12345"
@@ -656,24 +690,30 @@ class TestEdgeCases:
 
     def test_response_with_special_characters(self):
         """Test transaction IDs with special characters."""
-        transactions = [
-            TellerTransaction(
+        transaction_views = [
+            TransactionView(
                 id="txn_abc-123",
-                account_id="acc_1",
-                amount=25.50,
+                date="2024-01-01",
                 description="Restaurant",
-                date=date(2024, 1, 1),
-                type="debit",
-                status="posted"
+                amount=25.50,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             ),
-            TellerTransaction(
+            TransactionView(
                 id="txn_def_456",
-                account_id="acc_1",
-                amount=45.00,
+                date="2024-01-02",
                 description="Gas Station",
-                date=date(2024, 1, 2),
-                type="debit",
-                status="posted"
+                amount=45.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name=None,
+                account_subtype=None,
+                account_last_four=None,
             )
         ]
 
@@ -687,7 +727,7 @@ class TestEdgeCases:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transactions, self.category_config, {})
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert len(result) == 2
             assert result[0].transaction_id == "txn_abc-123"
@@ -700,3 +740,196 @@ class TestEdgeCases:
         category_config = CategoryConfig.load()
         category_names = {cat.name for cat in category_config.categories}
         assert "undefined" in category_names  # undefined should still be a valid category
+
+
+class TestCategorizeBatchProcessing:
+    """Test batch processing with categorize_in_batches function."""
+
+    def test_categorize_in_batches_splits_into_batches(self):
+        """Test that categorize_in_batches splits transactions into correct batch sizes."""
+        from sprig.categorizer import categorize_in_batches
+
+        # Create 25 transaction views to test batching
+        transaction_views = [
+            TransactionView(
+                id=f"txn_{i}",
+                date="2024-01-15",
+                description=f"Transaction {i}",
+                amount=-10.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four="1234",
+            )
+            for i in range(25)
+        ]
+
+        category_config = CategoryConfig.load()
+        batch_size = 10
+
+        call_count = 0
+        batch_sizes = []
+
+        with patch('sprig.categorizer.categorize_inferentially') as mock_categorize:
+            def track_calls(views, config):
+                nonlocal call_count
+                call_count += 1
+                batch_sizes.append(len(views))
+                # Return mock results for the batch
+                return [
+                    TransactionCategory(transaction_id=v.id, category="general", confidence=0.8)
+                    for v in views
+                ]
+
+            mock_categorize.side_effect = track_calls
+
+            results = categorize_in_batches(transaction_views, category_config, batch_size)
+
+            # Should make 3 calls: 10, 10, 5
+            assert call_count == 3
+            assert batch_sizes == [10, 10, 5]
+            assert len(results) == 25
+
+    def test_categorize_in_batches_returns_all_results(self):
+        """Test that categorize_in_batches returns combined results from all batches."""
+        from sprig.categorizer import categorize_in_batches
+
+        transaction_views = [
+            TransactionView(
+                id=f"txn_{i}",
+                date="2024-01-15",
+                description=f"Transaction {i}",
+                amount=-10.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty=None,
+                account_name="Checking",
+                account_subtype="checking",
+                account_last_four="1234",
+            )
+            for i in range(20)
+        ]
+
+        category_config = CategoryConfig.load()
+
+        with patch('sprig.categorizer.categorize_inferentially') as mock_categorize:
+            def mock_categorize_func(views, config):
+                # Return results for each transaction in the batch
+                return [
+                    TransactionCategory(transaction_id=v.id, category="general", confidence=0.8)
+                    for v in views
+                ]
+
+            mock_categorize.side_effect = mock_categorize_func
+
+            results = categorize_in_batches(transaction_views, category_config, batch_size=10)
+
+            # Should return all 20 results
+            assert len(results) == 20
+            result_ids = {r.transaction_id for r in results}
+            expected_ids = {f"txn_{i}" for i in range(20)}
+            assert result_ids == expected_ids
+
+
+class TestCategorizationWithTransactionView:
+    """Test categorization using TransactionView directly (no TellerTransaction conversion)."""
+
+    def test_categorize_inferentially_accepts_transaction_views(self):
+        """Test that categorize_inferentially accepts TransactionView list directly."""
+        from sprig.models.claude import TransactionView
+
+        # Create TransactionView objects directly (as they'd come from database)
+        transaction_views = [
+            TransactionView(
+                id="txn_123",
+                date="2024-01-15",
+                description="STARBUCKS",
+                amount=-5.75,
+                inferred_category=None,
+                confidence=None,
+                counterparty="Starbucks",
+                account_name="Chase Sapphire",
+                account_subtype="credit_card",
+                account_last_four="4242",
+            ),
+            TransactionView(
+                id="txn_456",
+                date="2024-01-16",
+                description="WHOLE FOODS",
+                amount=-87.23,
+                inferred_category=None,
+                confidence=None,
+                counterparty="Whole Foods Market",
+                account_name="Chase Sapphire",
+                account_subtype="credit_card",
+                account_last_four="4242",
+            ),
+        ]
+
+        category_config = CategoryConfig.load()
+
+        # Mock agent response
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
+            mock_result = Mock()
+            mock_result.output = [
+                TransactionCategory(transaction_id="txn_123", category="dining", confidence=0.95),
+                TransactionCategory(transaction_id="txn_456", category="groceries", confidence=0.9)
+            ]
+            mock_agent.run_sync.return_value = mock_result
+
+            # Call with TransactionView list - NO account_info parameter
+            result = categorize_inferentially(transaction_views, category_config)
+
+            # Verify results
+            assert len(result) == 2
+            assert result[0].transaction_id == "txn_123"
+            assert result[0].category == "dining"
+            assert result[1].transaction_id == "txn_456"
+            assert result[1].category == "groceries"
+
+    def test_categorize_inferentially_includes_account_context_from_view(self):
+        """Test that account context from TransactionView is included in prompt."""
+        from sprig.models.claude import TransactionView
+
+        transaction_views = [
+            TransactionView(
+                id="txn_cc",
+                date="2024-01-20",
+                description="PAYMENT RECEIVED",
+                amount=-150.00,
+                inferred_category=None,
+                confidence=None,
+                counterparty="ACH Transfer",
+                account_name="Chase Sapphire Reserve",
+                account_subtype="credit_card",
+                account_last_four="9876",
+            ),
+        ]
+
+        category_config = CategoryConfig.load()
+
+        with patch('sprig.categorizer.Agent') as MockAgent:
+            mock_agent = Mock()
+            MockAgent.return_value = mock_agent
+            mock_result = Mock()
+            mock_result.output = [
+                TransactionCategory(transaction_id="txn_cc", category="transfers", confidence=0.9)
+            ]
+            mock_agent.run_sync.return_value = mock_result
+
+            result = categorize_inferentially(transaction_views, category_config)
+
+            # Verify agent was called with context
+            mock_agent.run_sync.assert_called_once()
+            call_args = str(mock_agent.run_sync.call_args)
+
+            # Account context should appear in the prompt
+            assert "credit_card" in call_args or "Chase Sapphire Reserve" in call_args
+
+            # Verify result
+            assert len(result) == 1
+            assert result[0].category == "transfers"

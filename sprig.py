@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sprig.auth import authenticate
 from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
-from sprig.models import SyncParams
+from sprig.models.cli import SyncParams
 from sprig.sync import sync_all_accounts
 import sprig.credentials as credentials
 
@@ -153,11 +153,28 @@ def main():
             sys.exit(1)
 
         try:
-            sync_all_accounts(
+            logger.info("Starting sync for access tokens")
+            if sync_params.from_date:
+                logger.info(f"Filtering transactions from {sync_params.from_date}")
+            if sync_params.recategorize:
+                logger.info("Clearing all existing categories")
+
+            result = sync_all_accounts(
                 recategorize=sync_params.recategorize,
                 from_date=sync_params.from_date,
                 batch_size=args.batch_size
             )
+
+            logger.info(f"Successfully synced {result.valid_tokens} valid token(s)")
+
+            if result.invalid_tokens:
+                logger.warning(f"\nFound {len(result.invalid_tokens)} invalid/expired token(s):")
+                for token in result.invalid_tokens:
+                    logger.warning(f"   - {token}")
+                logger.warning(
+                    "These may be from re-authenticated accounts. Consider removing them from ACCESS_TOKENS in .env"
+                )
+
         except ValueError as e:
             exit_with_auth_error(f"Configuration error: {e}")
     elif args.command == "export":
