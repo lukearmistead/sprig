@@ -8,8 +8,9 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from sprig import credentials
+from sprig.database import SprigDatabase
 from sprig.logger import get_logger
-from sprig.models import TellerTransaction, TransactionCategory, TransactionView, TransactionBatch
+from sprig.models import TransactionCategory, TransactionView, TransactionBatch
 from sprig.models.category_config import CategoryConfig
 
 logger = get_logger("sprig.categorizer")
@@ -92,45 +93,6 @@ def _validate_category_results(
                 f"{category.transaction_id}, skipping"
             )
     return validated
-
-
-def categorize_manually(
-    transactions: List[TellerTransaction],
-    category_config: CategoryConfig,
-    account_info: dict = None
-) -> List[TransactionCategory]:
-    """Categorize transactions using manual categories from config.
-
-    Args:
-        transactions: List of transactions to categorize
-        category_config: CategoryConfig containing manual_categories and valid categories
-        account_info: Optional account information (unused, for interface compatibility)
-
-    Returns:
-        List of TransactionCategory for manually categorized transactions
-    """
-    valid_category_names = {cat.name for cat in category_config.categories}
-    categorized_transactions = []
-
-    for manual_category in category_config.manual_categories:
-        # Validate category
-        if manual_category.category not in valid_category_names:
-            logger.warning(
-                f"Invalid category '{manual_category.category}' for "
-                f"{manual_category.transaction_id}, skipping"
-            )
-            continue
-
-        # Find matching transaction and categorize it
-        for txn in transactions:
-            if txn.id == manual_category.transaction_id:
-                categorized_transactions.append(TransactionCategory(
-                    transaction_id=txn.id,
-                    category=manual_category.category,
-                    confidence=1.0  # Manual categorization always has 100% confidence
-                ))
-
-    return categorized_transactions
 
 
 @retry(
@@ -256,3 +218,34 @@ def categorize_in_batches(
     logger.info(f"   Success rate: {(categorized_count / total_transactions * 100):.1f}%")
 
     return all_results
+
+
+def apply_manual_overrides(db: SprigDatabase, category_config: CategoryConfig):
+    """Apply manual category overrides from config."""
+    if not category_config.manual_categories:
+        return
+
+    valid_category_names = {cat.name for cat in category_config.categories}
+
+    for manual_cat in category_config.manual_categories:
+        if manual_cat.category not in valid_category_names:
+            logger.warning(f"Invalid category '{manual_cat.category}' for {manual_cat.transaction_id}")
+            continue
+        db.update_transaction_category(manual_cat.transaction_id, manual_cat.category, 1.0)
+
+
+def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
+    """Categorize transactions that don't have a category assigned."""
+    category_config = CategoryConfig.load()
+    apply_manual_overrides(db, category_config)
+
+    uncategorized = db.get_uncategorized_transactions()
+    transaction_views = [TransactionView.from_db_row(row) for row in uncategorized]
+
+    if not transaction_views:
+        return
+
+    results = categorize_in_batches(transaction_views, category_config, batch_size)
+
+    for result in results:
+        db.update_transaction_category(result.transaction_id, result.category, result.confidence)

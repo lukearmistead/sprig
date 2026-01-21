@@ -5,12 +5,11 @@ from typing import Optional
 
 import requests
 
-from sprig.categorizer import categorize_in_batches
+from sprig.categorizer import categorize_uncategorized_transactions
 from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.models.category_config import CategoryConfig
-from sprig.models.claude import TransactionView
 from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
 
@@ -65,34 +64,3 @@ class Syncer:
             if self.from_date and transaction.date < self.from_date:
                 continue
             self.db.sync_transaction(transaction)
-
-
-def apply_manual_overrides(db: SprigDatabase, category_config: CategoryConfig):
-    """Apply manual category overrides from config."""
-    if not category_config.manual_categories:
-        return
-
-    valid_category_names = {cat.name for cat in category_config.categories}
-
-    for manual_cat in category_config.manual_categories:
-        if manual_cat.category not in valid_category_names:
-            logger.warning(f"Invalid category '{manual_cat.category}' for {manual_cat.transaction_id}")
-            continue
-        db.update_transaction_category(manual_cat.transaction_id, manual_cat.category, 1.0)
-
-
-def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
-    """Categorize transactions that don't have a category assigned."""
-    category_config = CategoryConfig.load()
-    apply_manual_overrides(db, category_config)
-
-    uncategorized = db.get_uncategorized_transactions()
-    transaction_views = [TransactionView.from_db_row(row) for row in uncategorized]
-
-    if not transaction_views:
-        return
-
-    results = categorize_in_batches(transaction_views, category_config, batch_size)
-
-    for result in results:
-        db.update_transaction_category(result.transaction_id, result.category, result.confidence)
