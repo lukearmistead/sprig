@@ -8,6 +8,7 @@ from unittest.mock import patch
 import yaml
 
 from sprig.database import SprigDatabase
+from sprig.models import TellerAccount
 from sprig.models.category_config import CategoryConfig
 from sprig.sync import categorize_uncategorized_transactions
 
@@ -82,16 +83,15 @@ def test_manual_overrides_applied_before_ai_categorization():
         db = SprigDatabase(db_path)
 
         # Insert test account
-        account_data = {
-            "id": "acc_123",
-            "name": "Test Checking",
-            "type": "depository",
-            "subtype": "checking",
-            "currency": "USD",
-            "status": "open",
-            "last_four": "1234",
-        }
-        db.insert_record("accounts", account_data)
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test Checking",
+            type="depository",
+            subtype="checking",
+            currency="USD",
+            status="open",
+            last_four="1234",
+        ))
 
         # Insert uncategorized transactions
         transactions = [
@@ -152,12 +152,12 @@ def test_manual_overrides_applied_before_ai_categorization():
 
         with (
             patch("sprig.sync.CategoryConfig") as mock_category_config_class,
-            patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
+            patch("sprig.sync.categorize_in_batches") as mock_categorize_in_batches,
         ):
             mock_category_config_class.load.return_value = test_category_config
 
             # Mock AI categorization - should only be called for txn_claude
-            mock_categorize_inferentially.return_value = [
+            mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_claude", category="transport", confidence=0.9)
             ]
 
@@ -186,8 +186,8 @@ def test_manual_overrides_applied_before_ai_categorization():
                 assert cursor.fetchone()[0] == "transport"
 
             # Verify AI was called only for the non-overridden transaction
-            assert mock_categorize_inferentially.call_count == 1
-            call_args = mock_categorize_inferentially.call_args
+            assert mock_categorize_in_batches.call_count == 1
+            call_args = mock_categorize_in_batches.call_args
             transactions_sent = call_args[0][0]
             assert len(transactions_sent) == 1
             assert transactions_sent[0].id == "txn_claude"
@@ -263,16 +263,15 @@ def test_manual_override_replaces_existing_ai_category():
         db = SprigDatabase(db_path)
 
         # Insert test account
-        account_data = {
-            "id": "acc_123",
-            "name": "Test Checking",
-            "type": "depository",
-            "subtype": "checking",
-            "currency": "USD",
-            "status": "open",
-            "last_four": "1234",
-        }
-        db.insert_record("accounts", account_data)
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test Checking",
+            type="depository",
+            subtype="checking",
+            currency="USD",
+            status="open",
+            last_four="1234",
+        ))
 
         # Insert transaction WITH existing AI category (wrong category)
         txn_data = {
@@ -339,15 +338,15 @@ def test_apply_manual_overrides_skips_invalid_categories():
         db = SprigDatabase(db_path)
 
         # Insert test account and transaction
-        db.insert_record("accounts", {
-            "id": "acc_123",
-            "name": "Test",
-            "type": "depository",
-            "subtype": "checking",
-            "currency": "USD",
-            "status": "open",
-            "last_four": "1234",
-        })
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test",
+            type="depository",
+            subtype="checking",
+            currency="USD",
+            status="open",
+            last_four="1234",
+        ))
         db.add_transaction({
             "id": "txn_test",
             "account_id": "acc_123",

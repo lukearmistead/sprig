@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from sprig.database import SprigDatabase
+from sprig.models import TellerAccount
 from sprig.sync import categorize_uncategorized_transactions
 
 
@@ -54,18 +55,15 @@ def test_failed_categorization_counting():
         ]
 
         # Insert account
-        db.insert_record(
-            "accounts",
-            {
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            },
-        )
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Insert transactions (all uncategorized)
         for txn_data in test_transactions:
@@ -74,7 +72,7 @@ def test_failed_categorization_counting():
         # Mock categorizers
         with (
             patch("sprig.sync.CategoryConfig") as mock_config_class,
-            patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
+            patch("sprig.sync.categorize_in_batches") as mock_categorize_in_batches,
         ):
             # Mock category config (no manual overrides)
             mock_config = Mock()
@@ -82,9 +80,9 @@ def test_failed_categorization_counting():
             mock_config.categories = []
             mock_config_class.load.return_value = mock_config
 
-            # Mock categorize_inferentially - only categorize one transaction, fail the others
+            # Mock categorize_in_batches - only categorize one transaction, fail the others
             from sprig.models import TransactionCategory
-            mock_categorize_inferentially.return_value = [
+            mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_success_1", category="dining", confidence=0.95)
                 # txn_fail_1 and txn_fail_2 are NOT in the results = failed categorization
             ]
@@ -147,18 +145,15 @@ def test_all_transactions_fail_categorization():
         ]
 
         # Insert account
-        db.insert_record(
-            "accounts",
-            {
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            },
-        )
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Insert transactions (all uncategorized)
         for txn_data in test_transactions:
@@ -167,7 +162,7 @@ def test_all_transactions_fail_categorization():
         # Mock categorizers
         with (
             patch("sprig.sync.CategoryConfig") as mock_config_class,
-            patch("sprig.sync.categorize_inferentially") as mock_categorize_inferentially,
+            patch("sprig.sync.categorize_in_batches") as mock_categorize_in_batches,
         ):
             # Mock category config (no manual overrides)
             mock_config = Mock()
@@ -175,8 +170,8 @@ def test_all_transactions_fail_categorization():
             mock_config.categories = []
             mock_config_class.load.return_value = mock_config
 
-            # Mock categorize_inferentially - complete failure, empty results
-            mock_categorize_inferentially.return_value = []  # All transactions failed
+            # Mock categorize_in_batches - complete failure, empty results
+            mock_categorize_in_batches.return_value = []  # All transactions failed
 
             # Run categorization
             categorize_uncategorized_transactions(db, batch_size=25)
@@ -205,18 +200,15 @@ def test_sync_preserves_existing_categories():
         db = SprigDatabase(db_path)
 
         # Insert account
-        db.insert_record(
-            "accounts",
-            {
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            },
-        )
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Add initial transaction
         initial_transaction = {
@@ -261,8 +253,7 @@ def test_sync_preserves_existing_categories():
         )
 
         # Sync the transaction (should preserve category)
-        result = db.sync_transaction(updated_transaction)
-        assert result is True
+        db.sync_transaction(updated_transaction)
 
         # Verify category and confidence are preserved
         with sqlite3.connect(db_path) as conn:
@@ -289,18 +280,15 @@ def test_sync_adds_new_transaction_uncategorized():
         db = SprigDatabase(db_path)
 
         # Insert account
-        db.insert_record(
-            "accounts",
-            {
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            },
-        )
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Sync a new transaction
         from sprig.models.teller import TellerTransaction
@@ -316,8 +304,7 @@ def test_sync_adds_new_transaction_uncategorized():
             running_balance=955.0,
         )
 
-        result = db.sync_transaction(new_transaction)
-        assert result is True
+        db.sync_transaction(new_transaction)
 
         # Verify transaction was inserted with NULL category
         import sqlite3

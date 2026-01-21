@@ -29,6 +29,29 @@ class TransactionView(BaseModel):
     account_subtype: Optional[str] = None
     account_last_four: Optional[str] = None
 
+    @classmethod
+    def from_db_row(cls, row):
+        """Create TransactionView from sqlite3.Row object.
+
+        Args:
+            row: sqlite3.Row from get_uncategorized_transactions()
+
+        Returns:
+            TransactionView instance
+        """
+        return cls(
+            id=row["id"],
+            date=row["date"],
+            description=row["description"],
+            amount=row["amount"],
+            inferred_category=None,
+            confidence=None,
+            counterparty=row["counterparty"],
+            account_name=row["account_name"],
+            account_subtype=row["account_subtype"],
+            account_last_four=row["account_last_four"],
+        )
+
 
 class TransactionBatch(BaseModel):
     """Batch of transactions for AI categorization."""
