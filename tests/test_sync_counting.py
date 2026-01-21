@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from sprig.database import SprigDatabase
+from sprig.models import TellerAccount
 from sprig.sync import categorize_uncategorized_transactions
 
 
@@ -54,15 +55,15 @@ def test_failed_categorization_counting():
         ]
 
         # Insert account
-        db.save_account({
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            })
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Insert transactions (all uncategorized)
         for txn_data in test_transactions:
@@ -144,15 +145,15 @@ def test_all_transactions_fail_categorization():
         ]
 
         # Insert account
-        db.save_account({
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            })
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Insert transactions (all uncategorized)
         for txn_data in test_transactions:
@@ -199,15 +200,15 @@ def test_sync_preserves_existing_categories():
         db = SprigDatabase(db_path)
 
         # Insert account
-        db.save_account({
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            })
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Add initial transaction
         initial_transaction = {
@@ -279,15 +280,15 @@ def test_sync_adds_new_transaction_uncategorized():
         db = SprigDatabase(db_path)
 
         # Insert account
-        db.save_account({
-                "id": "acc_1",
-                "name": "Checking",
-                "type": "depository",
-                "subtype": "checking",
-                "currency": "USD",
-                "status": "open",
-                "last_four": "1234",
-            })
+        db.save_account(TellerAccount(
+                id="acc_1",
+                name="Checking",
+                type="depository",
+                subtype="checking",
+                currency="USD",
+                status="open",
+                last_four="1234",
+            ))
 
         # Sync a new transaction
         from sprig.models.teller import TellerTransaction

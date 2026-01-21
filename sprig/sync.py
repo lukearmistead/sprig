@@ -1,7 +1,6 @@
 """Transaction synchronization logic for Sprig."""
 
 from datetime import date
-from pathlib import Path
 from typing import Optional
 
 import requests
@@ -12,86 +11,60 @@ from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.models.category_config import CategoryConfig
 from sprig.models.claude import TransactionView
-from sprig.models.cli import SyncResult
 from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
 
 logger = get_logger("sprig.sync")
 
 
-def sync_all_accounts(
-    recategorize: bool = False,
-    from_date: Optional[date] = None,
-    batch_size: Optional[int] = None,
-) -> SyncResult:
-    """Sync accounts and transactions for all access tokens."""
-    access_tokens = credentials.get_access_tokens()
-    client = TellerClient()
+class Syncer:
+    """Handles syncing accounts and transactions from Teller API."""
 
-    db_path = credentials.get_database_path()
-    if not db_path:
-        raise ValueError("Database path not found in keyring")
+    def __init__(self, client: TellerClient, db: SprigDatabase, from_date: Optional[date] = None):
+        self.client = client
+        self.db = db
+        self.from_date = from_date
 
-    project_root = Path(__file__).parent.parent
-    db = SprigDatabase(project_root / db_path.value)
+    def sync_all(self, recategorize: bool = False, batch_size: Optional[int] = None):
+        """Sync accounts and transactions for all access tokens."""
+        access_tokens = credentials.get_access_tokens()
 
-    if recategorize:
-        db.clear_all_categories()
+        if recategorize:
+            self.db.clear_all_categories()
 
-    invalid_tokens = []
-    valid_tokens = 0
+        for token_obj in access_tokens:
+            self.sync_token(token_obj.token)
 
-    for token_obj in access_tokens:
-        if sync_accounts_for_token(client, db, token_obj.token, from_date):
-            valid_tokens += 1
-        else:
-            invalid_tokens.append(token_obj.token[:12] + "...")
+        category_config = CategoryConfig.load()
+        effective_batch_size = batch_size if batch_size is not None else category_config.batch_size
+        categorize_uncategorized_transactions(self.db, effective_batch_size)
 
-    category_config = CategoryConfig.load()
-    effective_batch_size = batch_size if batch_size is not None else category_config.batch_size
-    categorize_uncategorized_transactions(db, effective_batch_size)
+    def sync_token(self, token: str) -> bool:
+        """Sync accounts and transactions for a single token. Returns True on success."""
+        try:
+            accounts = self.client.get_accounts(token)
+        except requests.HTTPError as e:
+            if e.response and e.response.status_code == 401:
+                logger.warning(f"Skipping invalid/expired token {token[:12]}...")
+                return False
+            raise
 
-    return SyncResult(valid_tokens=valid_tokens, invalid_tokens=invalid_tokens)
+        for account_data in accounts:
+            account = TellerAccount(**account_data)
+            self.db.save_account(account)
+            self.sync_account(token, account.id)
 
+        return True
 
-def sync_accounts_for_token(
-    client: TellerClient,
-    db: SprigDatabase,
-    token: str,
-    from_date: Optional[date] = None,
-) -> bool:
-    """Sync accounts and transactions for a single token. Returns True on success."""
-    try:
-        accounts = client.get_accounts(token)
-    except requests.HTTPError as e:
-        if e.response and e.response.status_code == 401:
-            logger.warning(f"Skipping invalid/expired token {token[:12]}...")
-            return False
-        raise
+    def sync_account(self, token: str, account_id: str):
+        """Sync transactions for a specific account."""
+        transactions = self.client.get_transactions(token, account_id)
 
-    for account_data in accounts:
-        account = TellerAccount(**account_data)
-        db.save_account(account.model_dump())
-        sync_transactions_for_account(client, db, token, account.id, from_date)
-
-    return True
-
-
-def sync_transactions_for_account(
-    client: TellerClient,
-    db: SprigDatabase,
-    token: str,
-    account_id: str,
-    from_date: Optional[date] = None,
-):
-    """Sync transactions for a specific account."""
-    transactions = client.get_transactions(token, account_id)
-
-    for transaction_data in transactions:
-        transaction = TellerTransaction(**transaction_data)
-        if from_date and transaction.date < from_date:
-            continue
-        db.sync_transaction(transaction)
+        for transaction_data in transactions:
+            transaction = TellerTransaction(**transaction_data)
+            if self.from_date and transaction.date < self.from_date:
+                continue
+            self.db.sync_transaction(transaction)
 
 
 def apply_manual_overrides(db: SprigDatabase, category_config: CategoryConfig):

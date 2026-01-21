@@ -4,7 +4,7 @@ import pytest
 from datetime import date, timedelta
 from pydantic import ValidationError
 
-from sprig.models.cli import SyncParams, SyncResult
+from sprig.models.cli import SyncParams
 
 
 class TestSyncParams:
@@ -143,21 +143,3 @@ class TestSyncParams:
         """Test invalid leap year date raises error."""
         with pytest.raises(ValidationError):
             SyncParams(from_date="2023-02-29")
-
-
-class TestSyncResult:
-    """Test suite for SyncResult model."""
-
-    def test_sync_result_creation(self):
-        """Test creating a SyncResult with valid data."""
-        result = SyncResult(valid_tokens=2, invalid_tokens=["token1", "token2"])
-        assert result.valid_tokens == 2
-        assert result.invalid_tokens == ["token1", "token2"]
-
-    def test_sync_result_empty_invalid_tokens(self):
-        """Test SyncResult with no invalid tokens."""
-        result = SyncResult(valid_tokens=3, invalid_tokens=[])
-        assert result.valid_tokens == 3
-        assert result.invalid_tokens == []
-
-

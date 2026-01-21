@@ -8,6 +8,7 @@ from unittest.mock import patch
 import yaml
 
 from sprig.database import SprigDatabase
+from sprig.models import TellerAccount
 from sprig.models.category_config import CategoryConfig
 from sprig.sync import categorize_uncategorized_transactions
 
@@ -82,16 +83,15 @@ def test_manual_overrides_applied_before_ai_categorization():
         db = SprigDatabase(db_path)
 
         # Insert test account
-        account_data = {
-            "id": "acc_123",
-            "name": "Test Checking",
-            "type": "depository",
-            "subtype": "checking",
-            "currency": "USD",
-            "status": "open",
-            "last_four": "1234",
-        }
-        db.save_account( account_data)
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test Checking",
+            type="depository",
+            subtype="checking",
+            currency="USD",
+            status="open",
+            last_four="1234",
+        ))
 
         # Insert uncategorized transactions
         transactions = [
@@ -263,16 +263,15 @@ def test_manual_override_replaces_existing_ai_category():
         db = SprigDatabase(db_path)
 
         # Insert test account
-        account_data = {
-            "id": "acc_123",
-            "name": "Test Checking",
-            "type": "depository",
-            "subtype": "checking",
-            "currency": "USD",
-            "status": "open",
-            "last_four": "1234",
-        }
-        db.save_account( account_data)
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test Checking",
+            type="depository",
+            subtype="checking",
+            currency="USD",
+            status="open",
+            last_four="1234",
+        ))
 
         # Insert transaction WITH existing AI category (wrong category)
         txn_data = {
@@ -339,15 +338,15 @@ def test_apply_manual_overrides_skips_invalid_categories():
         db = SprigDatabase(db_path)
 
         # Insert test account and transaction
-        db.save_account( {
-            "id": "acc_123",
-            "name": "Test",
-            "type": "depository",
-            "subtype": "checking",
-            "currency": "USD",
-            "status": "open",
-            "last_four": "1234",
-        })
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test",
+            type="depository",
+            subtype="checking",
+            currency="USD",
+            status="open",
+            last_four="1234",
+        ))
         db.add_transaction({
             "id": "txn_test",
             "account_id": "acc_123",

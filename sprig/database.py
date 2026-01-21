@@ -5,6 +5,8 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
+from sprig.models import TellerAccount, TellerTransaction
+
 
 class SprigDatabase:
     """SQLite database for storing Teller data."""
@@ -66,29 +68,23 @@ class SprigDatabase:
             conn.execute(sql, params or ())
             conn.commit()
 
-    def _prepare_data(self, data: dict) -> dict:
-        """Convert dicts/lists to JSON and dates to ISO strings."""
-        result = {}
-        for key, value in data.items():
-            if isinstance(value, (dict, list)):
-                result[key] = json.dumps(value)
-            elif isinstance(value, date):
-                result[key] = value.isoformat()
-            else:
-                result[key] = value
-        return result
-
-    def save_account(self, account_data: dict):
+    def save_account(self, account: TellerAccount):
         """Insert or replace an account."""
-        data = self._prepare_data(account_data)
+        data = account.model_dump(mode='json')
+        for key in ('links', 'institution'):
+            if data.get(key) is not None:
+                data[key] = json.dumps(data[key])
         columns = list(data.keys())
         placeholders = ", ".join(["?"] * len(columns))
         sql = f"INSERT OR REPLACE INTO accounts ({', '.join(columns)}) VALUES ({placeholders})"
         self._execute(sql, list(data.values()))
 
-    def sync_transaction(self, transaction):
+    def sync_transaction(self, transaction: TellerTransaction):
         """Upsert transaction, preserving any existing category."""
-        data = self._prepare_data(transaction.model_dump())
+        data = transaction.model_dump(mode='json')
+        for key in ('links', 'details'):
+            if data.get(key) is not None:
+                data[key] = json.dumps(data[key])
 
         # Fields that come from Teller (exclude our category fields)
         teller_fields = [k for k in data.keys() if k not in ("inferred_category", "confidence")]
@@ -129,7 +125,14 @@ class SprigDatabase:
 
     def add_transaction(self, data: dict):
         """Insert a transaction directly (for testing)."""
-        prepared = self._prepare_data(data)
+        prepared = {}
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                prepared[key] = json.dumps(value)
+            elif isinstance(value, date):
+                prepared[key] = value.isoformat()
+            else:
+                prepared[key] = value
         columns = ", ".join(prepared.keys())
         placeholders = ", ".join(["?"] * len(prepared))
         self._execute(f"INSERT INTO transactions ({columns}) VALUES ({placeholders})", list(prepared.values()))

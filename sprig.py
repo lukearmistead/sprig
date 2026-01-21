@@ -14,10 +14,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Import after path setup
 from sprig.auth import authenticate
+from sprig.database import SprigDatabase
 from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
 from sprig.models.cli import SyncParams
-from sprig.sync import sync_all_accounts
+from sprig.sync import Syncer
+from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
 
 # Initialize logger
@@ -152,6 +154,10 @@ def main():
                 logger.error(f"  {field}: {msg}")
             sys.exit(1)
 
+        db_path = credentials.get_database_path()
+        if not db_path:
+            exit_with_auth_error("Database path not found in keyring")
+
         try:
             logger.info("Starting sync for access tokens")
             if sync_params.from_date:
@@ -159,22 +165,10 @@ def main():
             if sync_params.recategorize:
                 logger.info("Clearing all existing categories")
 
-            result = sync_all_accounts(
-                recategorize=sync_params.recategorize,
-                from_date=sync_params.from_date,
-                batch_size=args.batch_size
-            )
-
-            logger.info(f"Successfully synced {result.valid_tokens} valid token(s)")
-
-            if result.invalid_tokens:
-                logger.warning(f"\nFound {len(result.invalid_tokens)} invalid/expired token(s):")
-                for token in result.invalid_tokens:
-                    logger.warning(f"   - {token}")
-                logger.warning(
-                    "These may be from re-authenticated accounts. Consider removing them from ACCESS_TOKENS in .env"
-                )
-
+            project_root = Path(__file__).parent
+            db = SprigDatabase(project_root / db_path.value)
+            syncer = Syncer(TellerClient(), db, from_date=sync_params.from_date)
+            syncer.sync_all(recategorize=sync_params.recategorize, batch_size=args.batch_size)
         except ValueError as e:
             exit_with_auth_error(f"Configuration error: {e}")
     elif args.command == "export":

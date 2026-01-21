@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from sprig.database import SprigDatabase
+from sprig.models import TellerAccount
 
 
 def test_database_initialization():
@@ -28,13 +29,13 @@ def test_save_account():
     with tempfile.TemporaryDirectory() as temp_dir:
         db = SprigDatabase(Path(temp_dir) / "test.db")
 
-        db.save_account({
-            "id": "acc_123",
-            "name": "Test Account",
-            "type": "depository",
-            "currency": "USD",
-            "status": "open",
-        })
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Test Account",
+            type="depository",
+            currency="USD",
+            status="open",
+        ))
 
         # Verify insert
         with sqlite3.connect(db.db_path) as conn:
@@ -42,13 +43,13 @@ def test_save_account():
             assert row[0] == "Test Account"
 
         # Update same account
-        db.save_account({
-            "id": "acc_123",
-            "name": "Updated Account",
-            "type": "depository",
-            "currency": "USD",
-            "status": "open",
-        })
+        db.save_account(TellerAccount(
+            id="acc_123",
+            name="Updated Account",
+            type="depository",
+            currency="USD",
+            status="open",
+        ))
 
         # Verify update
         with sqlite3.connect(db.db_path) as conn:
@@ -63,15 +64,15 @@ def test_save_account_with_json_fields():
     with tempfile.TemporaryDirectory() as temp_dir:
         db = SprigDatabase(Path(temp_dir) / "test.db")
 
-        db.save_account({
-            "id": "acc_456",
-            "name": "Test Account",
-            "type": "depository",
-            "currency": "USD",
-            "status": "open",
-            "institution": {"name": "Test Bank", "id": "bank_123"},
-            "links": {"self": "https://api.example.com/accounts/acc_456"},
-        })
+        db.save_account(TellerAccount(
+            id="acc_456",
+            name="Test Account",
+            type="depository",
+            currency="USD",
+            status="open",
+            institution={"name": "Test Bank", "id": "bank_123"},
+            links={"self": "https://api.example.com/accounts/acc_456"},
+        ))
 
         with sqlite3.connect(db.db_path) as conn:
             row = conn.execute("SELECT institution FROM accounts WHERE id = 'acc_456'").fetchone()
@@ -179,8 +180,8 @@ def test_get_uncategorized_transactions():
     with tempfile.TemporaryDirectory() as temp_dir:
         db = SprigDatabase(Path(temp_dir) / "test.db")
 
-        db.save_account({"id": "acc_1", "name": "Chase Sapphire", "type": "credit",
-                        "subtype": "credit_card", "currency": "USD", "status": "open", "last_four": "4242"})
+        db.save_account(TellerAccount(id="acc_1", name="Chase Sapphire", type="credit",
+                        subtype="credit_card", currency="USD", status="open", last_four="4242"))
 
         db.add_transaction({"id": "txn_1", "account_id": "acc_1", "amount": -25.50,
                            "description": "COFFEE", "date": "2024-01-15", "type": "card_payment", "status": "posted"})
@@ -204,8 +205,8 @@ def test_get_transactions_for_export():
     with tempfile.TemporaryDirectory() as temp_dir:
         db = SprigDatabase(Path(temp_dir) / "test.db")
 
-        db.save_account({"id": "acc_1", "name": "Test Account", "type": "depository",
-                        "subtype": "checking", "currency": "USD", "status": "open"})
+        db.save_account(TellerAccount(id="acc_1", name="Test Account", type="depository",
+                        subtype="checking", currency="USD", status="open"))
 
         db.add_transaction({"id": "txn_1", "account_id": "acc_1", "amount": -25.50,
                            "description": "Test", "date": "2024-01-15", "type": "card_payment", "status": "posted"})
