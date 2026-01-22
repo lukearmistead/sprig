@@ -2,8 +2,7 @@
 
 from .teller import TellerAccount, TellerTransaction
 from .claude import TransactionCategory, TransactionView, TransactionBatch
-from .category_config import CategoryConfig, Category
-from .cli import SyncParams
+from .config import Config, Category
 
 __all__ = [
     "TellerAccount",
@@ -11,7 +10,6 @@ __all__ = [
     "TransactionCategory",
     "TransactionView",
     "TransactionBatch",
-    "CategoryConfig",
+    "Config",
     "Category",
-    "SyncParams",
 ]

@@ -1,7 +1,8 @@
-"""Category configuration models for Sprig."""
+"""Configuration models for Sprig."""
 
+from datetime import date
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import yaml
 from pydantic import BaseModel
@@ -19,11 +20,12 @@ class ManualCategory(BaseModel):
     category: str
 
 
-class CategoryConfig(BaseModel):
-    """Transaction category configuration from config.yml."""
+class Config(BaseModel):
+    """Application configuration from config.yml."""
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
-    batch_size: int = 25
+    batch_size: int = 10
+    from_date: Optional[date] = None
 
     @classmethod
     def load(cls, config_path: Path = None):

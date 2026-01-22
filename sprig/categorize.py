@@ -11,9 +11,9 @@ from sprig import credentials
 from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 from sprig.models import TransactionCategory, TransactionView, TransactionBatch
-from sprig.models.category_config import CategoryConfig
+from sprig.models.config import Config
 
-logger = get_logger("sprig.categorizer")
+logger = get_logger("sprig.categorize")
 
 
 CATEGORIZATION_PROMPT = """Analyze each transaction and assign it to exactly ONE category from the provided list.
@@ -102,13 +102,13 @@ def _validate_category_results(
 )
 def categorize_inferentially(
     transaction_views: List[TransactionView],
-    category_config: CategoryConfig,
+    category_config: Config,
 ) -> List[TransactionCategory]:
     """Categorize transactions using AI agent with exponential backoff retry.
 
     Args:
         transaction_views: List of TransactionView objects to categorize
-        category_config: CategoryConfig containing valid categories
+        category_config: Config containing valid categories
 
     Returns:
         List of TransactionCategory for categorized transactions
@@ -166,14 +166,14 @@ def categorize_inferentially(
 
 def categorize_in_batches(
     transaction_views: List[TransactionView],
-    category_config: CategoryConfig,
+    category_config: Config,
     batch_size: int,
 ) -> List[TransactionCategory]:
     """Categorize transactions in batches with retry logic.
 
     Args:
         transaction_views: List of TransactionView objects to categorize
-        category_config: CategoryConfig containing valid categories
+        category_config: Config containing valid categories
         batch_size: Number of transactions to categorize per API call
 
     Returns:
@@ -220,7 +220,7 @@ def categorize_in_batches(
     return all_results
 
 
-def apply_manual_overrides(db: SprigDatabase, category_config: CategoryConfig):
+def apply_manual_overrides(db: SprigDatabase, category_config: Config):
     """Apply manual category overrides from config."""
     if not category_config.manual_categories:
         return
@@ -236,7 +236,7 @@ def apply_manual_overrides(db: SprigDatabase, category_config: CategoryConfig):
 
 def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     """Categorize transactions that don't have a category assigned."""
-    category_config = CategoryConfig.load()
+    category_config = Config.load()
     apply_manual_overrides(db, category_config)
 
     uncategorized = db.get_uncategorized_transactions()
