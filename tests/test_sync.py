@@ -82,12 +82,49 @@ def test_sync_token():
 
 
 @patch("sprig.sync.categorize_uncategorized_transactions")
+@patch("sprig.sync.CategoryConfig")
 @patch("sprig.sync.credentials")
-def test_sync_all(mock_credentials, mock_categorize):
+def test_sync_all(mock_credentials, mock_config_class, mock_categorize):
     """Test syncing all accounts for all access tokens."""
     mock_credentials.get_access_tokens.return_value = [
         Mock(token="token_1"),
         Mock(token="token_2"),
+    ]
+
+    mock_config = Mock()
+    mock_config.batch_size = 10
+    mock_config_class.load.return_value = mock_config
+
+    mock_client = Mock()
+    mock_db = Mock()
+
+    mock_client.get_accounts.return_value = [
+        {
+            "id": "acc_123",
+            "name": "Test Account",
+            "type": "depository",
+            "currency": "USD",
+            "status": "open",
+        }
+    ]
+    mock_client.get_transactions.return_value = []
+    mock_db.save_account.return_value = True
+
+    syncer = Syncer(client=mock_client, db=mock_db)
+    syncer.sync_all()
+
+    assert mock_client.get_accounts.call_count == 2
+    mock_client.get_accounts.assert_any_call("token_1")
+    mock_client.get_accounts.assert_any_call("token_2")
+
+    mock_categorize.assert_called_once_with(mock_db, 10)
+
+
+@patch("sprig.sync.credentials")
+def test_pull_all(mock_credentials):
+    """Test pull_all fetches without categorization."""
+    mock_credentials.get_access_tokens.return_value = [
+        Mock(token="token_1"),
     ]
 
     mock_client = Mock()
@@ -104,16 +141,12 @@ def test_sync_all(mock_credentials, mock_categorize):
     ]
     mock_client.get_transactions.return_value = []
     mock_db.save_account.return_value = True
-    mock_db.clear_all_categories.return_value = 0
 
     syncer = Syncer(client=mock_client, db=mock_db)
-    syncer.sync_all()
+    syncer.pull_all()
 
-    assert mock_client.get_accounts.call_count == 2
-    mock_client.get_accounts.assert_any_call("token_1")
-    mock_client.get_accounts.assert_any_call("token_2")
-
-    mock_categorize.assert_called_once()
+    mock_client.get_accounts.assert_called_once_with("token_1")
+    mock_db.save_account.assert_called_once()
 
 
 def test_sync_with_real_database():
@@ -206,15 +239,20 @@ def test_sync_token_other_http_error():
 
 
 @patch("sprig.sync.categorize_uncategorized_transactions")
+@patch("sprig.sync.CategoryConfig")
 @patch("sprig.sync.credentials")
 @patch("sprig.sync.logger")
-def test_sync_all_with_invalid_tokens(mock_logger, mock_credentials, mock_categorize):
+def test_sync_all_with_invalid_tokens(mock_logger, mock_credentials, mock_config_class, mock_categorize):
     """Test sync_all handles invalid tokens and shows appropriate messages."""
     mock_credentials.get_access_tokens.return_value = [
         Mock(token="valid_token"),
         Mock(token="invalid_token_123456"),
         Mock(token="another_valid"),
     ]
+
+    mock_config = Mock()
+    mock_config.batch_size = 10
+    mock_config_class.load.return_value = mock_config
 
     mock_client = Mock()
     mock_db = Mock()
@@ -247,67 +285,6 @@ def test_sync_all_with_invalid_tokens(mock_logger, mock_credentials, mock_catego
     # Should log warning for the invalid token
     warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
     assert any("invalid/expired" in call.lower() for call in warning_calls)
-
-
-@patch("sprig.sync.categorize_uncategorized_transactions")
-@patch("sprig.sync.credentials")
-@patch("sprig.sync.logger")
-def test_sync_all_with_recategorize(mock_logger, mock_credentials, mock_categorize):
-    """Test sync_all with recategorize=True clears categories before sync."""
-    mock_credentials.get_access_tokens.return_value = [Mock(token="token_1")]
-
-    mock_client = Mock()
-    mock_db = Mock()
-
-    mock_db.clear_all_categories.return_value = 10
-
-    mock_client.get_accounts.return_value = [
-        {
-            "id": "acc_123",
-            "name": "Test Account",
-            "type": "depository",
-            "currency": "USD",
-            "status": "open",
-        }
-    ]
-    mock_client.get_transactions.return_value = []
-    mock_db.save_account.return_value = True
-
-    syncer = Syncer(client=mock_client, db=mock_db)
-    syncer.sync_all(recategorize=True)
-
-    mock_db.clear_all_categories.assert_called_once()
-    mock_client.get_accounts.assert_called_once_with("token_1")
-    mock_categorize.assert_called_once()
-
-
-@patch("sprig.sync.categorize_uncategorized_transactions")
-@patch("sprig.sync.credentials")
-def test_sync_all_without_recategorize(mock_credentials, mock_categorize):
-    """Test sync_all with recategorize=False does not clear categories."""
-    mock_credentials.get_access_tokens.return_value = [Mock(token="token_1")]
-
-    mock_client = Mock()
-    mock_db = Mock()
-
-    mock_client.get_accounts.return_value = [
-        {
-            "id": "acc_123",
-            "name": "Test Account",
-            "type": "depository",
-            "currency": "USD",
-            "status": "open",
-        }
-    ]
-    mock_client.get_transactions.return_value = []
-    mock_db.save_account.return_value = True
-
-    syncer = Syncer(client=mock_client, db=mock_db)
-    syncer.sync_all()
-
-    mock_db.clear_all_categories.assert_not_called()
-    mock_client.get_accounts.assert_called_once_with("token_1")
-    mock_categorize.assert_called_once()
 
 
 def test_sync_account_with_cutoff_date():
@@ -352,11 +329,16 @@ def test_sync_account_with_cutoff_date():
 
 
 @patch("sprig.sync.categorize_uncategorized_transactions")
+@patch("sprig.sync.CategoryConfig")
 @patch("sprig.sync.credentials")
 @patch("sprig.sync.logger")
-def test_sync_all_with_from_date_filter(mock_logger, mock_credentials, mock_categorize):
+def test_sync_all_with_from_date_filter(mock_logger, mock_credentials, mock_config_class, mock_categorize):
     """Test sync_all with from_date parameter."""
     mock_credentials.get_access_tokens.return_value = [Mock(token="token_1")]
+
+    mock_config = Mock()
+    mock_config.batch_size = 10
+    mock_config_class.load.return_value = mock_config
 
     mock_client = Mock()
     mock_db = Mock()

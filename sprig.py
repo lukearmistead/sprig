@@ -7,17 +7,16 @@ import argparse
 import sys
 from pathlib import Path
 
-from pydantic import ValidationError
-
 # Add the sprig package to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import after path setup
 from sprig.auth import authenticate
+from sprig.categorizer import categorize_uncategorized_transactions
 from sprig.database import SprigDatabase
 from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
-from sprig.models.cli import SyncParams
+from sprig.models.category_config import CategoryConfig
 from sprig.sync import Syncer
 from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
@@ -41,7 +40,7 @@ def setup_credentials() -> bool:
     # Get current credential values
     current_app_id = credentials.get_app_id()
     current_claude_key = credentials.get_claude_api_key()
-    
+
     current_app_id_str = current_app_id.value if current_app_id else None
     current_claude_key_str = current_claude_key.value if current_claude_key else None
 
@@ -70,13 +69,22 @@ def setup_credentials() -> bool:
         (credentials.get_environment, credentials.set_environment, "development"),
         (credentials.get_database_path, credentials.set_database_path, "sprig.db"),
     ]
-    
+
     for get_func, set_func, default_value in defaults:
         if not get_func():
             set_func(default_value)
 
     logger.info("Credentials updated successfully")
     return True
+
+
+def get_db() -> SprigDatabase:
+    """Get database instance from configured path."""
+    db_path = credentials.get_database_path()
+    if not db_path:
+        exit_with_auth_error("Database path not found in keyring")
+    project_root = Path(__file__).parent
+    return SprigDatabase(project_root / db_path.value)
 
 
 def main():
@@ -86,31 +94,14 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    # Pull command
+    subparsers.add_parser("pull", help="Fetch accounts and transactions from Teller")
+
+    # Categorize command
+    subparsers.add_parser("categorize", help="Categorize uncategorized transactions using Claude")
+
     # Sync command
-    sync_parser = subparsers.add_parser("sync", help="Sync transaction data")
-    sync_parser.add_argument(
-        "--full",
-        action="store_true",
-        help="Perform full resync of all data"
-    )
-    sync_parser.add_argument(
-        "--recategorize",
-        action="store_true",
-        help="Clear and recategorize all transactions"
-    )
-    sync_parser.add_argument(
-        "--from-date",
-        type=str,
-        metavar="YYYY-MM-DD",
-        help="Only sync transactions from this date onwards (reduces API costs)"
-    )
-    sync_parser.add_argument(
-        "--batch-size",
-        type=int,
-        metavar="SIZE",
-        default=10,
-        help="Number of transactions to categorize per API call (default: 10, lower = gentler on rate limits)"
-    )
+    subparsers.add_parser("sync", help="Pull from Teller and categorize")
 
     # Export command
     export_parser = subparsers.add_parser("export", help="Export transactions to CSV")
@@ -140,37 +131,33 @@ def main():
         parser.print_help()
         return
 
-    if args.command == "sync":
-        try:
-            sync_params = SyncParams(
-                recategorize=args.recategorize,
-                from_date=args.from_date
-            )
-        except ValidationError as e:
-            logger.error("Invalid sync parameters:")
-            for error in e.errors():
-                field = error['loc'][0]
-                msg = error['msg']
-                logger.error(f"  {field}: {msg}")
-            sys.exit(1)
+    if args.command == "pull":
+        config = CategoryConfig.load()
+        logger.info("Fetching accounts and transactions from Teller")
+        if config.from_date:
+            logger.info(f"Filtering transactions from {config.from_date}")
 
-        db_path = credentials.get_database_path()
-        if not db_path:
-            exit_with_auth_error("Database path not found in keyring")
+        db = get_db()
+        syncer = Syncer(TellerClient(), db, from_date=config.from_date)
+        syncer.pull_all()
 
-        try:
-            logger.info("Starting sync for access tokens")
-            if sync_params.from_date:
-                logger.info(f"Filtering transactions from {sync_params.from_date}")
-            if sync_params.recategorize:
-                logger.info("Clearing all existing categories")
+    elif args.command == "categorize":
+        config = CategoryConfig.load()
+        logger.info("Categorizing uncategorized transactions")
 
-            project_root = Path(__file__).parent
-            db = SprigDatabase(project_root / db_path.value)
-            syncer = Syncer(TellerClient(), db, from_date=sync_params.from_date)
-            syncer.sync_all(recategorize=sync_params.recategorize, batch_size=args.batch_size)
-        except ValueError as e:
-            exit_with_auth_error(f"Configuration error: {e}")
+        db = get_db()
+        categorize_uncategorized_transactions(db, config.batch_size)
+
+    elif args.command == "sync":
+        config = CategoryConfig.load()
+        logger.info("Starting sync")
+        if config.from_date:
+            logger.info(f"Filtering transactions from {config.from_date}")
+
+        db = get_db()
+        syncer = Syncer(TellerClient(), db, from_date=config.from_date)
+        syncer.sync_all()
+
     elif args.command == "export":
         db_path = credentials.get_database_path()
         if not db_path:
@@ -178,10 +165,11 @@ def main():
 
         project_root = Path(__file__).parent
         export_transactions_to_csv(project_root / db_path.value, args.output)
+
     elif args.command == "auth":
         if not setup_credentials():
             sys.exit(1)
-            
+
         app_id = credentials.get_app_id()
         authenticate(app_id.value if app_id else None, args.environment, args.port)
 

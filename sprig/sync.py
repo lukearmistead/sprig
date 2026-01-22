@@ -24,19 +24,17 @@ class Syncer:
         self.db = db
         self.from_date = from_date
 
-    def sync_all(self, recategorize: bool = False, batch_size: Optional[int] = None):
-        """Sync accounts and transactions for all access tokens."""
+    def pull_all(self):
+        """Fetch from Teller and store in DB. No categorization."""
         access_tokens = credentials.get_access_tokens()
-
-        if recategorize:
-            self.db.clear_all_categories()
-
         for token_obj in access_tokens:
             self.sync_token(token_obj.token)
 
+    def sync_all(self):
+        """Pull + categorize (the convenience workflow)."""
+        self.pull_all()
         category_config = CategoryConfig.load()
-        effective_batch_size = batch_size if batch_size is not None else category_config.batch_size
-        categorize_uncategorized_transactions(self.db, effective_batch_size)
+        categorize_uncategorized_transactions(self.db, category_config.batch_size)
 
     def sync_token(self, token: str) -> bool:
         """Sync accounts and transactions for a single token. Returns True on success."""

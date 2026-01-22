@@ -2,6 +2,9 @@
 # This file defines the categories used for transaction classification.
 # Categories are based on Teller's official category list with enhanced descriptions.
 
+# Only fetch transactions after this date (YYYY-MM-DD format)
+from_date: "2024-01-01"
+
 categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
