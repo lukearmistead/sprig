@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 from sprig.database import SprigDatabase
 from sprig.models import TellerAccount
-from sprig.categorizer import categorize_uncategorized_transactions
+from sprig.categorize import categorize_uncategorized_transactions
 
 
 def test_failed_categorization_counting():
@@ -71,8 +71,8 @@ def test_failed_categorization_counting():
 
         # Mock categorizers
         with (
-            patch("sprig.categorizer.CategoryConfig") as mock_config_class,
-            patch("sprig.categorizer.categorize_in_batches") as mock_categorize_in_batches,
+            patch("sprig.categorize.Config") as mock_config_class,
+            patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches,
         ):
             # Mock category config (no manual overrides)
             mock_config = Mock()
@@ -161,8 +161,8 @@ def test_all_transactions_fail_categorization():
 
         # Mock categorizers
         with (
-            patch("sprig.categorizer.CategoryConfig") as mock_config_class,
-            patch("sprig.categorizer.categorize_in_batches") as mock_categorize_in_batches,
+            patch("sprig.categorize.Config") as mock_config_class,
+            patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches,
         ):
             # Mock category config (no manual overrides)
             mock_config = Mock()

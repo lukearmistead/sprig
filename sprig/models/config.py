@@ -1,4 +1,4 @@
-"""Category configuration models for Sprig."""
+"""Configuration models for Sprig."""
 
 from datetime import date
 from pathlib import Path
@@ -20,8 +20,8 @@ class ManualCategory(BaseModel):
     category: str
 
 
-class CategoryConfig(BaseModel):
-    """Transaction category configuration from config.yml."""
+class Config(BaseModel):
+    """Application configuration from config.yml."""
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
     batch_size: int = 10

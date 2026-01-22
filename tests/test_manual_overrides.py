@@ -9,12 +9,12 @@ import yaml
 
 from sprig.database import SprigDatabase
 from sprig.models import TellerAccount
-from sprig.models.category_config import CategoryConfig
-from sprig.categorizer import categorize_uncategorized_transactions
+from sprig.models.config import Config
+from sprig.categorize import categorize_uncategorized_transactions
 
 
 def test_category_config_loads_manual_categories():
-    """Test that CategoryConfig can load manual_categories from YAML."""
+    """Test that Config can load manual_categories from YAML."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
@@ -34,7 +34,7 @@ def test_category_config_loads_manual_categories():
             yaml.dump(config_data, f)
 
         # Load config
-        category_config = CategoryConfig.load(config_path)
+        category_config = Config.load(config_path)
 
         # Verify manual categories were loaded
         assert category_config.manual_categories is not None
@@ -46,7 +46,7 @@ def test_category_config_loads_manual_categories():
 
 
 def test_category_config_allows_empty_manual_categories():
-    """Test that CategoryConfig works without manual_categories section."""
+    """Test that Config works without manual_categories section."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.yml"
 
@@ -62,7 +62,7 @@ def test_category_config_allows_empty_manual_categories():
             yaml.dump(config_data, f)
 
         # Load config
-        category_config = CategoryConfig.load(config_path)
+        category_config = Config.load(config_path)
 
         # Verify manual_categories is empty list
         assert category_config.manual_categories == []
@@ -146,13 +146,13 @@ def test_manual_overrides_applied_before_ai_categorization():
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        test_category_config = CategoryConfig.load(config_path)
+        test_category_config = Config.load(config_path)
 
         from sprig.models import TransactionCategory
 
         with (
-            patch("sprig.categorizer.CategoryConfig") as mock_category_config_class,
-            patch("sprig.categorizer.categorize_in_batches") as mock_categorize_in_batches,
+            patch("sprig.categorize.Config") as mock_category_config_class,
+            patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches,
         ):
             mock_category_config_class.load.return_value = test_category_config
 
@@ -254,9 +254,9 @@ def test_manual_override_replaces_existing_ai_category():
             yaml.dump(config_data, f)
 
         # Load the config and apply manual overrides
-        category_config = CategoryConfig.load(config_path)
+        category_config = Config.load(config_path)
 
-        from sprig.categorizer import apply_manual_overrides
+        from sprig.categorize import apply_manual_overrides
         apply_manual_overrides(db, category_config)
 
         # Verify the manual override replaced the AI category
@@ -311,9 +311,9 @@ def test_apply_manual_overrides_skips_invalid_categories():
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        category_config = CategoryConfig.load(config_path)
+        category_config = Config.load(config_path)
 
-        from sprig.categorizer import apply_manual_overrides
+        from sprig.categorize import apply_manual_overrides
         apply_manual_overrides(db, category_config)
 
         # Verify the transaction was NOT updated (invalid category skipped)

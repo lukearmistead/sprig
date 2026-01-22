@@ -2,10 +2,10 @@
 import unittest
 from unittest.mock import patch
 from datetime import date
-from sprig.categorizer import categorize_in_batches
+from sprig.categorize import categorize_in_batches
 from sprig.models.claude import TransactionView
 
-class TestCategorizerBatching(unittest.TestCase):
+class TestCategorizeBatching(unittest.TestCase):
     def setUp(self):
         self.transactions = [
             TransactionView(
@@ -21,10 +21,10 @@ class TestCategorizerBatching(unittest.TestCase):
                 account_last_four=None
             ) for i in range(5)
         ]
-        from sprig.models.category_config import CategoryConfig
-        self.config = CategoryConfig.load()
+        from sprig.models.config import Config
+        self.config = Config.load()
 
-    @patch('sprig.categorizer.categorize_inferentially')
+    @patch('sprig.categorize.categorize_inferentially')
     def test_categorize_in_batches_splits_into_correct_batch_sizes(self, mock_categorize):
         mock_categorize.return_value = []
         categorize_in_batches(self.transactions, self.config, batch_size=2)

@@ -1,23 +1,21 @@
-"""Transaction synchronization logic for Sprig."""
+"""Transaction pulling logic for Sprig."""
 
 from datetime import date
 from typing import Optional
 
 import requests
 
-from sprig.categorizer import categorize_uncategorized_transactions
 from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
-from sprig.models.category_config import CategoryConfig
 from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
 
-logger = get_logger("sprig.sync")
+logger = get_logger("sprig.pull")
 
 
-class Syncer:
-    """Handles syncing accounts and transactions from Teller API."""
+class Puller:
+    """Handles pulling accounts and transactions from Teller API."""
 
     def __init__(self, client: TellerClient, db: SprigDatabase, from_date: Optional[date] = None):
         self.client = client
@@ -25,19 +23,13 @@ class Syncer:
         self.from_date = from_date
 
     def pull_all(self):
-        """Fetch from Teller and store in DB. No categorization."""
+        """Fetch from Teller and store in DB."""
         access_tokens = credentials.get_access_tokens()
         for token_obj in access_tokens:
-            self.sync_token(token_obj.token)
+            self.pull_token(token_obj.token)
 
-    def sync_all(self):
-        """Pull + categorize (the convenience workflow)."""
-        self.pull_all()
-        category_config = CategoryConfig.load()
-        categorize_uncategorized_transactions(self.db, category_config.batch_size)
-
-    def sync_token(self, token: str) -> bool:
-        """Sync accounts and transactions for a single token. Returns True on success."""
+    def pull_token(self, token: str) -> bool:
+        """Pull accounts and transactions for a single token. Returns True on success."""
         try:
             accounts = self.client.get_accounts(token)
         except requests.HTTPError as e:
@@ -49,12 +41,12 @@ class Syncer:
         for account_data in accounts:
             account = TellerAccount(**account_data)
             self.db.save_account(account)
-            self.sync_account(token, account.id)
+            self.pull_account(token, account.id)
 
         return True
 
-    def sync_account(self, token: str, account_id: str):
-        """Sync transactions for a specific account."""
+    def pull_account(self, token: str, account_id: str):
+        """Pull transactions for a specific account."""
         transactions = self.client.get_transactions(token, account_id, start_date=self.from_date)
 
         for transaction_data in transactions:

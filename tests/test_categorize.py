@@ -3,9 +3,9 @@
 from unittest.mock import Mock, patch
 import pytest
 
-from sprig.categorizer import categorize_inferentially
+from sprig.categorize import categorize_inferentially
 from sprig.models import TransactionCategory
-from sprig.models.category_config import CategoryConfig
+from sprig.models.config import Config
 from sprig.models.credentials import ClaudeAPIKey
 from sprig.models.claude import TransactionView
 
@@ -13,7 +13,7 @@ from sprig.models.claude import TransactionView
 @pytest.fixture(autouse=True)
 def mock_credentials():
     """Mock credentials for all inferential categorization tests."""
-    with patch('sprig.categorizer.credentials.get_claude_api_key') as mock:
+    with patch('sprig.categorize.credentials.get_claude_api_key') as mock:
         mock.return_value = ClaudeAPIKey(value="sk-ant-api03-" + "a" * 95)
         yield mock
 
@@ -40,10 +40,10 @@ class TestBuildCategorizationPrompt:
         ]
 
         # Load actual category config
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
         # Mock Agent to inspect the prompt
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent_instance = Mock()
             mock_agent_instance.run_sync.return_value = Mock(output=[])
             MockAgent.return_value = mock_agent_instance
@@ -67,7 +67,7 @@ class TestInferentialCategorizerParsing:
 
     def setup_method(self):
         """Set up test category config."""
-        self.category_config = CategoryConfig.load()
+        self.category_config = Config.load()
 
     def test_validate_categories_valid_response(self):
         """Test validating valid response from agent."""
@@ -99,7 +99,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return valid categories
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -147,7 +147,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return mix of valid and invalid categories
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -206,7 +206,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return mix of valid and invalid
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -232,7 +232,7 @@ class TestInferentialCategorizerParsing:
         transaction_views = []
 
         # Mock agent to return empty list
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -273,7 +273,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return all invalid categories
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -337,10 +337,10 @@ class TestCategorizeBatchIntegration:
         ]
 
         # Run categorization
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
         # Mock categorization_agent.run_sync
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -387,10 +387,10 @@ class TestCategorizeBatchIntegration:
         ]
 
         # Run categorization
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
         # Mock agent to return mix of valid and invalid
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -427,9 +427,9 @@ class TestCategorizeBatchIntegration:
             )
         ]
 
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -457,7 +457,7 @@ class TestEdgeCases:
 
     def setup_method(self):
         """Set up test category config."""
-        self.category_config = CategoryConfig.load()
+        self.category_config = Config.load()
 
     def test_response_with_numeric_transaction_ids(self):
         """Test transaction IDs that are numeric strings."""
@@ -488,7 +488,7 @@ class TestEdgeCases:
             )
         ]
 
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -535,7 +535,7 @@ class TestEdgeCases:
             )
         ]
 
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -555,7 +555,7 @@ class TestEdgeCases:
 
     def test_category_config_loads(self):
         """Test that category config loads properly."""
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
         category_names = {cat.name for cat in category_config.categories}
         assert "undefined" in category_names  # undefined should still be a valid category
 
@@ -565,7 +565,7 @@ class TestCategorizeBatchProcessing:
 
     def test_categorize_in_batches_splits_into_batches(self):
         """Test that categorize_in_batches splits transactions into correct batch sizes."""
-        from sprig.categorizer import categorize_in_batches
+        from sprig.categorize import categorize_in_batches
 
         # Create 25 transaction views to test batching
         transaction_views = [
@@ -584,13 +584,13 @@ class TestCategorizeBatchProcessing:
             for i in range(25)
         ]
 
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
         batch_size = 10
 
         call_count = 0
         batch_sizes = []
 
-        with patch('sprig.categorizer.categorize_inferentially') as mock_categorize:
+        with patch('sprig.categorize.categorize_inferentially') as mock_categorize:
             def track_calls(views, config):
                 nonlocal call_count
                 call_count += 1
@@ -612,7 +612,7 @@ class TestCategorizeBatchProcessing:
 
     def test_categorize_in_batches_returns_all_results(self):
         """Test that categorize_in_batches returns combined results from all batches."""
-        from sprig.categorizer import categorize_in_batches
+        from sprig.categorize import categorize_in_batches
 
         transaction_views = [
             TransactionView(
@@ -630,9 +630,9 @@ class TestCategorizeBatchProcessing:
             for i in range(20)
         ]
 
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
-        with patch('sprig.categorizer.categorize_inferentially') as mock_categorize:
+        with patch('sprig.categorize.categorize_inferentially') as mock_categorize:
             def mock_categorize_func(views, config):
                 # Return results for each transaction in the batch
                 return [
@@ -686,10 +686,10 @@ class TestCategorizationWithTransactionView:
             ),
         ]
 
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
         # Mock agent response
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -728,9 +728,9 @@ class TestCategorizationWithTransactionView:
             ),
         ]
 
-        category_config = CategoryConfig.load()
+        category_config = Config.load()
 
-        with patch('sprig.categorizer.Agent') as MockAgent:
+        with patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
