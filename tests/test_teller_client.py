@@ -1,13 +1,14 @@
 """Tests for sprig.teller_client module."""
 
 import tempfile
+from datetime import date
 from pathlib import Path
 from unittest.mock import Mock, patch
 import pytest
 
 import requests
 
-from sprig.teller_client import TellerClient
+from sprig.teller_client import TellerClient, _is_rate_limit_error
 from sprig.models.credentials import CertPath, KeyPath
 
 
@@ -56,7 +57,8 @@ def test_make_request(mock_get, mock_certs):
     mock_get.assert_called_once_with(
         "https://api.teller.io/test/endpoint",
         auth=("test_token", ""),
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
+        params=None,
     )
     
     # Verify response handling
@@ -124,8 +126,8 @@ def test_get_transactions(mock_make_request, mock_certs):
     mock_make_request.return_value = mock_transactions
     
     result = client.get_transactions("test_token", "acc_456")
-    
-    mock_make_request.assert_called_once_with("test_token", "/accounts/acc_456/transactions")
+
+    mock_make_request.assert_called_once_with("test_token", "/accounts/acc_456/transactions", params=None)
     assert result == mock_transactions
 
 
@@ -165,7 +167,8 @@ def test_get_accounts_integration_style(mock_get, mock_certs):
     mock_get.assert_called_once_with(
         "https://api.teller.io/accounts",
         auth=("live_token_example", ""),
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
+        params=None,
     )
     
     # Verify realistic response
@@ -173,3 +176,105 @@ def test_get_accounts_integration_style(mock_get, mock_certs):
     assert result[0]["name"] == "Chase Sapphire Preferred"
     assert result[0]["type"] == "credit"
     assert result[0]["last_four"] == "1234"
+
+
+def test_is_rate_limit_error_with_429():
+    """Test _is_rate_limit_error returns True for 429 errors."""
+    mock_response = Mock()
+    mock_response.status_code = 429
+    error = requests.HTTPError()
+    error.response = mock_response
+    assert _is_rate_limit_error(error) is True
+
+
+def test_is_rate_limit_error_with_other_status():
+    """Test _is_rate_limit_error returns False for non-429 errors."""
+    mock_response = Mock()
+    mock_response.status_code = 500
+    error = requests.HTTPError()
+    error.response = mock_response
+    assert _is_rate_limit_error(error) is False
+
+
+def test_is_rate_limit_error_with_non_http_error():
+    """Test _is_rate_limit_error returns False for non-HTTP errors."""
+    error = ValueError("not an HTTP error")
+    assert _is_rate_limit_error(error) is False
+
+
+@patch('requests.Session.get')
+def test_make_request_with_params(mock_get, mock_certs):
+    """Test _make_request passes params to session.get."""
+    client = TellerClient()
+
+    mock_response = Mock()
+    mock_response.json.return_value = {"test": "data"}
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    params = {"from_date": "2024-01-01"}
+    client._make_request("test_token", "/test/endpoint", params=params)
+
+    mock_get.assert_called_once_with(
+        "https://api.teller.io/test/endpoint",
+        auth=("test_token", ""),
+        headers={"Content-Type": "application/json"},
+        params=params,
+    )
+
+
+@patch('requests.Session.get')
+def test_make_request_retries_on_429(mock_get, mock_certs):
+    """Test _make_request retries on 429 rate limit errors."""
+    client = TellerClient()
+
+    # First two calls fail with 429, third succeeds
+    mock_response_429 = Mock()
+    mock_response_429.status_code = 429
+    error_429 = requests.HTTPError()
+    error_429.response = mock_response_429
+    mock_response_429.raise_for_status.side_effect = error_429
+
+    mock_response_ok = Mock()
+    mock_response_ok.json.return_value = {"success": True}
+    mock_response_ok.raise_for_status.return_value = None
+
+    mock_get.side_effect = [mock_response_429, mock_response_429, mock_response_ok]
+
+    result = client._make_request("test_token", "/test/endpoint")
+
+    assert result == {"success": True}
+    assert mock_get.call_count == 3
+
+
+@patch('sprig.teller_client.TellerClient._make_request')
+def test_get_transactions_with_start_date(mock_make_request, mock_certs):
+    """Test get_transactions passes start_date as from_date param."""
+    client = TellerClient()
+
+    mock_make_request.return_value = []
+
+    start = date(2024, 4, 1)
+    client.get_transactions("test_token", "acc_123", start_date=start)
+
+    mock_make_request.assert_called_once_with(
+        "test_token",
+        "/accounts/acc_123/transactions",
+        params={"from_date": "2024-04-01"},
+    )
+
+
+@patch('sprig.teller_client.TellerClient._make_request')
+def test_get_transactions_without_start_date(mock_make_request, mock_certs):
+    """Test get_transactions passes None params when no start_date."""
+    client = TellerClient()
+
+    mock_make_request.return_value = []
+
+    client.get_transactions("test_token", "acc_123")
+
+    mock_make_request.assert_called_once_with(
+        "test_token",
+        "/accounts/acc_123/transactions",
+        params=None,
+    )

@@ -57,7 +57,7 @@ class Syncer:
 
     def sync_account(self, token: str, account_id: str):
         """Sync transactions for a specific account."""
-        transactions = self.client.get_transactions(token, account_id)
+        transactions = self.client.get_transactions(token, account_id, start_date=self.from_date)
 
         for transaction_data in transactions:
             transaction = TellerTransaction(**transaction_data)
