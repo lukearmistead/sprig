@@ -41,7 +41,7 @@ def test_sync_account():
     syncer = Syncer(client=mock_client, db=mock_db)
     syncer.sync_account("test_token", "acc_456")
 
-    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456")
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456", start_date=None)
     assert mock_db.sync_transaction.call_count == 2
 
     calls = mock_db.sync_transaction.call_args_list
@@ -72,7 +72,7 @@ def test_sync_token():
     syncer.sync_token("test_token")
 
     mock_client.get_accounts.assert_called_once_with("test_token")
-    mock_client.get_transactions.assert_called_once_with("test_token", "acc_123")
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_123", start_date=None)
 
     mock_db.save_account.assert_called_once()
     inserted_account = mock_db.save_account.call_args[0][0]
@@ -343,8 +343,9 @@ def test_sync_account_with_cutoff_date():
     syncer = Syncer(from_date=from_date, client=mock_client, db=mock_db)
     syncer.sync_account("test_token", "acc_456")
 
-    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456")
+    mock_client.get_transactions.assert_called_once_with("test_token", "acc_456", start_date=from_date)
 
+    # Client-side filtering still applies (API may return some older transactions)
     assert mock_db.sync_transaction.call_count == 1
     calls = mock_db.sync_transaction.call_args_list
     assert calls[0][0][0].id == "txn_new"
