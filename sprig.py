@@ -95,8 +95,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Pull command
-    subparsers.add_parser("pull", help="Fetch accounts and transactions from Teller")
+    # Fetch command
+    subparsers.add_parser("fetch", help="Fetch accounts and transactions from Teller")
 
     # Categorize command
     subparsers.add_parser("categorize", help="Categorize uncategorized transactions using Claude")
@@ -129,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def cmd_pull():
+def cmd_fetch():
     """Fetch accounts and transactions from Teller."""
     config = Config.load()
     logger.info("Fetching accounts and transactions from Teller")
@@ -166,8 +166,8 @@ def cmd_auth(environment: str, port: int):
 
 
 def cmd_sync():
-    """Pull from Teller, categorize, and export."""
-    cmd_pull()
+    """Fetch from Teller, categorize, and export."""
+    cmd_fetch()
     cmd_categorize()
     cmd_export()
 
@@ -181,7 +181,7 @@ def main():
         return
 
     commands = {
-        "pull": cmd_pull,
+        "fetch": cmd_fetch,
         "categorize": cmd_categorize,
         "sync": cmd_sync,
         "export": lambda: cmd_export(args.output),
