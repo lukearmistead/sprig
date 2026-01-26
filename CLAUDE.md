@@ -14,6 +14,7 @@ User-controlled finance tool. Local-first, no cloud. CLI only, no UI. Flexibilit
 | Bank OAuth | `auth.py` | `test_auth.py` |
 | API calls | `teller_client.py` | `test_teller_client.py` |
 | Data storage | `database.py` | `test_database.py` |
+| Fetching | `fetch.py` | `test_fetch.py` |
 | Sync logic | `sync.py` | `test_sync.py`, `test_sync_counting.py` |
 | Categorization | `categorizer.py` | `test_categorizer.py`, `test_categorizer_error_handling.py` |
 | CSV export | `export.py` | `test_export.py` |

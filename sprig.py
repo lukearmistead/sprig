@@ -17,7 +17,7 @@ from sprig.database import SprigDatabase
 from sprig.export import export_transactions_to_csv
 from sprig.logger import get_logger
 from sprig.models.config import Config
-from sprig.pull import Puller
+from sprig.fetch import Fetcher
 from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
 
@@ -136,8 +136,8 @@ def cmd_pull():
     if config.from_date:
         logger.info(f"Filtering transactions from {config.from_date}")
     db = get_db()
-    puller = Puller(TellerClient(), db, from_date=config.from_date)
-    puller.pull_all()
+    fetcher = Fetcher(TellerClient(), db, from_date=config.from_date)
+    fetcher.fetch_all()
 
 
 def cmd_categorize():
