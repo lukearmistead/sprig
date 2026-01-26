@@ -7,10 +7,9 @@ You can use Sprig to download a CSV like this:
 
 | id | date | description | amount | inferred_category | confidence | counterparty | account_name | account_subtype | account_last_four |
 |----|------|-------------|--------|-------------------|------------|--------------|--------------|-----------------|-------------------|
-| tx_abc123 | 2025-11-15 | WHOLE FOODS | -87.32 | groceries | 0.95 | Whole Foods Market | Checking | checking | 1234 |
-| tx_abc124 | 2025-11-14 | UBER EATS | -24.50 | dining | 0.92 | Uber Eats | Checking | checking | 1234 |
-| tx_abc125 | 2025-11-13 | SHELL GAS | -45.00 | transport | 0.88 | Shell | Credit Card | credit_card | 5678 |
-| tx_abc126 | 2025-11-12 | Paycheck Deposit | +2500.00 | income | 0.98 | Acme Corp | Checking | checking | 1234 |
+| tx_abc123 | 2025-11-15 | SAFEWAY | -87.32 | groceries | 0.95 | Safeway | Checking | checking | 1234 |
+| tx_abc124 | 2025-11-14 | SHELL GAS | -45.00 | transport | 0.92 | Shell | Credit Card | credit_card | 5678 |
+| tx_abc125 | 2025-11-12 | REI | -142.50 | shopping | 0.94 | REI | Credit Card | credit_card | 5678 |
 
 ---
 
@@ -65,22 +64,21 @@ You'll be prompted to enter your Teller APP_ID and Claude API key, then a browse
 ### Step 4: Get Your Data
 
 ```bash
-# Download and categorize recent transactions (last 30 days to start)
-python sprig.py sync --from-date 2024-10-20
-
-# Export to spreadsheet
-python sprig.py export
+# Download, categorize, and export transactions
+python sprig.py sync
 ```
 
 **Done!** Your transactions are in `exports/transactions-YYYY-MM-DD.csv`.
 
-**Want to customize categories?** You can edit `config.yml` to create your own categories (business expenses, coffee, etc.) and then run `python sprig.py sync --recategorize` to apply them. [See customization guide below](#customizing-your-categories).
+**Want to customize categories?** You can edit `config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
+
+**Note:** Set `from_date` in `config.yml` to control how far back transactions are fetched (default: 2024-01-01).
 
 ---
 
 ## How to Use Sprig
 
-### Three Simple Commands
+### Commands
 
 #### 1. `python sprig.py auth` - Connect Your Banks
 
@@ -128,16 +126,41 @@ Categorization complete
 
 **Time:** Usually 10-30 seconds depending on transaction volume
 
-**Options:**
+**Tip:** Set `from_date` in `config.yml` to control how far back to fetch transactions.
+
+---
+
+#### 3. `python sprig.py fetch` - Fetch Transactions Only
+
+**When to use:** When you want to download transactions without categorizing or exporting
+
+**What it does:**
+- Connects to your banks and downloads transactions
+- Stores them in the local database (sprig.db)
+- Does NOT categorize or export
+
 ```bash
-python sprig.py sync --from-date 2024-11-01  # Only sync from this date onwards (reduces API costs)
-python sprig.py sync --batch-size 5          # Smaller batches (gentler on rate limits)
-python sprig.py sync --recategorize          # Clear and recategorize all transactions
+python sprig.py fetch
 ```
 
 ---
 
-#### 3. `python sprig.py export` - Create Your Spreadsheet
+#### 4. `python sprig.py categorize` - Categorize Only
+
+**When to use:** When you have uncategorized transactions and want to run categorization separately
+
+**What it does:**
+- Finds uncategorized transactions in the database
+- Sends them to Claude AI for categorization
+- Updates the database with categories
+
+```bash
+python sprig.py categorize
+```
+
+---
+
+#### 5. `python sprig.py export` - Create Your Spreadsheet
 
 **When to use:** After syncing, whenever you want to analyze your data
 
@@ -161,43 +184,46 @@ python sprig.py export -o ~/Documents/my-finances.csv
 
 ### Recategorization
 
-After improving your categories or prompts, use `--recategorize` to re-run AI categorization on all transactions:
+After improving your categories in `config.yml`, you can re-categorize transactions by:
 
-```bash
-# Update your categories in config.yml, then:
-python sprig.py sync --recategorize
+1. **Delete the database and re-sync:**
+   ```bash
+   rm sprig.db
+   python sprig.py sync
+   ```
 
-# This will:
-# 1. Clear all existing categories
-# 2. Re-categorize every transaction with updated AI
-# 3. Apply your improved category definitions
-```
+2. **Or manually clear categories:** Use a SQLite tool to set `inferred_category` to NULL for transactions you want recategorized, then run `python sprig.py categorize`.
 
 ---
 
 ### Default Transaction Categories
 
-When Claude categorizes your transactions, it uses these categories:
+When Claude categorizes your transactions, it uses these 14 categories:
 
 | Category | Examples |
 |----------|----------|
-| **groceries** | Whole Foods, Trader Joe's, Safeway |
-| **dining** | Restaurants, cafes, UberEats, DoorDash |
-| **fuel** | Shell, Chevron, gas stations |
-| **transport** | Uber, Lyft, public transit, parking |
-| **entertainment** | Netflix, Spotify, movie theaters |
-| **utilities** | Electric bill, water, internet, phone |
-| **shopping** | Amazon, Target, clothing stores |
-| **health** | Doctor visits, pharmacy, gym |
-| **income** | Paychecks, refunds, transfers in |
+| **dining** | Restaurants, cafes, food delivery |
+| **groceries** | Supermarkets, convenience stores |
+| **transport** | Gas, rideshares, parking, car maintenance |
+| **travel** | Flights, hotels, vacation rentals |
+| **shopping** | Clothing, electronics, retail |
+| **home** | Rent, mortgage, property taxes |
+| **utilities** | Electric, water, internet, phone |
+| **health** | Medical, pharmacy, gym |
+| **entertainment** | Streaming, movies, hobbies |
+| **income** | Salary, refunds, reimbursements |
+| **savings** | Investments, retirement contributions |
+| **general** | Bank fees, donations, gifts |
+| **transfers** | Credit card payments, loan payments |
+| **undefined** | Unclear or unclassifiable transactions |
 
-**Plus more categories!** You can customize these by editing `config.yml` in the Sprig directory.
+You can customize these by editing `config.yml` in the Sprig directory.
 
 ---
 
 ### Customizing Your Categories
 
-Sprig uses 13 default categories, but you can completely customize them to match your budgeting needs.
+Sprig uses 14 default categories, but you can completely customize them to match your budgeting needs.
 
 #### How to Change Categories
 
@@ -213,10 +239,7 @@ categories:
     description: "Another description explaining what belongs here"
 ```
 
-3. **Apply your changes** by recategorizing all transactions:
-```bash
-python sprig.py sync --recategorize
-```
+3. **Apply your changes** by re-syncing (delete `sprig.db` first to recategorize all transactions)
 
 #### Example Customizations
 
@@ -257,7 +280,7 @@ categories:
 
 - **Category names** should be simple, lowercase, with underscores (no spaces)
 - **Descriptions** should be detailed - Claude uses them to make categorization decisions
-- **After changes**, always run `--recategorize` to apply new categories to existing transactions
+- **After changes**, delete `sprig.db` and re-sync to apply new categories to existing transactions
 - **Keep backups** - copy your `config.yml` before making major changes
 
 #### Why Customize?
@@ -302,13 +325,15 @@ ruff check .  # Linting
 
 ### Project Structure
 - **`sprig/auth.py`** - Teller Connect authentication server
+- **`sprig/categorize.py`** - Claude AI categorization
+- **`sprig/credentials.py`** - Credential management (keyring)
 - **`sprig/database.py`** - SQLite operations
-- **`sprig/teller_client.py`** - Teller API client with mTLS
-- **`sprig/categorizer.py`** - Claude AI categorization
-- **`sprig/sync.py`** - Transaction sync orchestration
 - **`sprig/export.py`** - CSV export
+- **`sprig/fetch.py`** - Transaction fetching from Teller
+- **`sprig/logger.py`** - Logging configuration
+- **`sprig/teller_client.py`** - Teller API client with mTLS
 - **`sprig/models/`** - Pydantic data models
-- **`config.yml`** - Category definitions
+- **`config.yml`** - Category definitions and settings
 
 ### Contributing
 1. Clone repo → create feature branch → add tests → submit PR
@@ -385,15 +410,13 @@ pip install -r requirements.txt
 **Problem:** Large transaction volumes may hit Claude API rate limits
 
 **Solutions:**
-- Use `--from-date YYYY-MM-DD` to process recent transactions first
-- Use `--batch-size 5` for smaller, gentler API requests
+- Set `from_date` in `config.yml` to a more recent date to process fewer transactions
 - Run `sync` multiple times - it only processes uncategorized transactions
 - Wait a few minutes between runs if you hit limits
 
 **What you'll see:**
 ```
 Hit Claude API rate limit - this is normal with large transaction volumes
-Tip: Use '--from-date YYYY-MM-DD' flag to sync fewer transactions and reduce API costs
 Waiting 60 seconds for rate limit to reset...
 ```
 
@@ -478,7 +501,7 @@ Absolutely! Edit the `config.yml` file in your Sprig directory to customize cate
 - Remove categories you don't need
 - Update descriptions to improve categorization accuracy
 
-After making changes, run `python sprig.py sync --recategorize` to apply your new categories to all existing transactions.
+After making changes, delete `sprig.db` and run `python sprig.py sync` to apply your new categories to all transactions.
 
 ### Where is my data stored?
 
