@@ -9,7 +9,7 @@ You can use Sprig to download a CSV like this:
 |----|------|-------------|--------|-------------------|------------|--------------|--------------|-----------------|-------------------|
 | tx_abc123 | 2025-11-15 | SAFEWAY | -87.32 | groceries | 0.95 | Safeway | Checking | checking | 1234 |
 | tx_abc124 | 2025-11-14 | SHELL GAS | -45.00 | transport | 0.92 | Shell | Credit Card | credit_card | 5678 |
-| tx_abc126 | 2025-11-12 | Paycheck Deposit | +2500.00 | income | 0.98 | Acme Corp | Checking | checking | 1234 |
+| tx_abc125 | 2025-11-12 | REI | -142.50 | shopping | 0.94 | REI | Credit Card | credit_card | 5678 |
 
 ---
 
@@ -130,7 +130,7 @@ Categorization complete
 
 ---
 
-#### 3. `python sprig.py pull` - Fetch Transactions Only
+#### 3. `python sprig.py fetch` - Fetch Transactions Only
 
 **When to use:** When you want to download transactions without categorizing or exporting
 
@@ -140,7 +140,7 @@ Categorization complete
 - Does NOT categorize or export
 
 ```bash
-python sprig.py pull
+python sprig.py fetch
 ```
 
 ---
