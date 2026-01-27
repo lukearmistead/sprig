@@ -7,6 +7,8 @@ from typing import List, Optional
 import yaml
 from pydantic import BaseModel
 
+from sprig.paths import get_default_config_path
+
 
 class Category(BaseModel):
     """Individual transaction category."""
@@ -30,7 +32,7 @@ class Config(BaseModel):
     @classmethod
     def load(cls, config_path: Path = None):
         """Load category configuration from YAML file."""
-        config_path = config_path or Path(__file__).parent.parent.parent / "config.yml"
+        config_path = config_path or get_default_config_path()
 
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f)

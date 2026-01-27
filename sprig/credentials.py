@@ -13,7 +13,22 @@ from sprig.models.credentials import (
     Environment,
 )
 from sprig.models.teller import TellerAccessToken
+from sprig.paths import (
+    get_sprig_home,
+    get_default_db_path,
+    get_default_certs_dir,
+    get_default_exports_dir,
+    get_default_config_path,
+)
 
+# Re-export for backward compatibility
+__all__ = [
+    "get_sprig_home",
+    "get_default_db_path",
+    "get_default_certs_dir",
+    "get_default_exports_dir",
+    "get_default_config_path",
+]
 
 # Keyring service name
 SERVICE_NAME = "sprig"
@@ -115,9 +130,9 @@ def get_cert_path() -> Optional[CertPath]:
     raw = get(KEY_CERT_PATH)
     if not raw:
         return None
-    # Resolve relative to project root
-    project_root = Path(__file__).parent.parent
-    full_path = project_root / raw
+    path = Path(raw)
+    # If absolute, use as-is; otherwise resolve relative to ~/.sprig/
+    full_path = path if path.is_absolute() else get_sprig_home() / raw
     return CertPath(value=full_path)
 
 
@@ -126,9 +141,9 @@ def get_key_path() -> Optional[KeyPath]:
     raw = get(KEY_KEY_PATH)
     if not raw:
         return None
-    # Resolve relative to project root
-    project_root = Path(__file__).parent.parent
-    full_path = project_root / raw
+    path = Path(raw)
+    # If absolute, use as-is; otherwise resolve relative to ~/.sprig/
+    full_path = path if path.is_absolute() else get_sprig_home() / raw
     return KeyPath(value=full_path)
 
 

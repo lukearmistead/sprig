@@ -19,6 +19,24 @@ You can use Sprig to download a CSV like this:
 
 ### Step 1: Install Sprig
 
+**Option A: Download Standalone Executable (Easiest)**
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/lukearmistead/sprig/releases):
+- **macOS**: `sprig`
+- **Windows**: `sprig.exe`
+
+Move the executable somewhere in your PATH (e.g., `/usr/local/bin` on macOS) or run it directly from the download location.
+
+**macOS users:** The first time you run Sprig, macOS may block it because it's not from the App Store. To allow it:
+1. Try to run `./sprig` — you'll see a security warning
+2. Open **System Settings** → **Privacy & Security**
+3. Scroll down to see "sprig was blocked from use"
+4. Click **Open Anyway** and confirm
+
+This only needs to be done once.
+
+**Option B: Install with Python (For Developers)**
+
 ```bash
 # Download Sprig
 git clone https://github.com/lukearmistead/sprig.git
@@ -31,8 +49,8 @@ python -m venv venv
 source venv/bin/activate
 # On Windows, use: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install the package
+pip install -e .
 ```
 
 ### Step 2: Set Up Your Accounts
@@ -43,7 +61,7 @@ You'll need accounts with two services (both free to start):
    - Go to [teller.io](https://teller.io) and create a free developer account
    - Create a new application (use "Personal Project" for company name)
    - Go to [Certificate Settings](https://teller.io/settings/certificates), click "Create Certificate" and download the zip
-   - Extract and save `certificate.pem` and `private_key.pem` to the `certs/` folder in Sprig
+   - Extract and save `certificate.pem` and `private_key.pem` to `~/.sprig/certs/`
    - Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
 
 2. **Anthropic** - Powers AI transaction categorization (required)
@@ -54,25 +72,25 @@ You'll need accounts with two services (both free to start):
 ### Step 3: Set Up and Connect Your Banks
 
 ```bash
-python sprig.py auth
+sprig auth
 ```
 
 You'll be prompted to enter your Teller APP_ID and Claude API key, then a browser opens for secure bank login.
 
-**To update credentials:** Just run `python sprig.py auth` again - it shows your current values.
+**To update credentials:** Just run `sprig auth` again - it shows your current values.
 
 ### Step 4: Get Your Data
 
 ```bash
 # Download, categorize, and export transactions
-python sprig.py sync
+sprig sync
 ```
 
-**Done!** Your transactions are in `exports/transactions-YYYY-MM-DD.csv`.
+**Done!** Your transactions are in `~/.sprig/exports/transactions-YYYY-MM-DD.csv`.
 
-**Want to customize categories?** You can edit `config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
+**Want to customize categories?** You can edit `~/.sprig/config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
 
-**Note:** Set `from_date` in `config.yml` to control how far back transactions are fetched (default: 2024-01-01).
+**Note:** Set `from_date` in `~/.sprig/config.yml` to control how far back transactions are fetched (default: 2024-01-01).
 
 ---
 
@@ -80,7 +98,7 @@ python sprig.py sync
 
 ### Commands
 
-#### 1. `python sprig.py auth` - Connect Your Banks
+#### 1. `sprig auth` - Connect Your Banks
 
 **When to use:** First time setup, or when adding new bank accounts
 
@@ -99,13 +117,13 @@ Successfully added 2 account(s)!
 
 ---
 
-#### 2. `python sprig.py sync` - Download Transactions
+#### 2. `sprig sync` - Download Transactions
 
 **When to use:** Daily, weekly, or whenever you want fresh transaction data
 
 **What it does:**
 - Connects to your banks and downloads recent transactions
-- Stores them in a local database (sprig.db)
+- Stores them in a local database (`~/.sprig/sprig.db`)
 - If you have Claude API configured, automatically categorizes transactions
 
 **What you'll see:**
@@ -124,28 +142,26 @@ Categorization complete
    Success rate: 100.0%
 ```
 
-**Time:** Usually 10-30 seconds depending on transaction volume
-
-**Tip:** Set `from_date` in `config.yml` to control how far back to fetch transactions.
+**Tip:** Set `from_date` in `~/.sprig/config.yml` to control how far back to fetch transactions.
 
 ---
 
-#### 3. `python sprig.py fetch` - Fetch Transactions Only
+#### 3. `sprig fetch` - Fetch Transactions Only
 
 **When to use:** When you want to download transactions without categorizing or exporting
 
 **What it does:**
 - Connects to your banks and downloads transactions
-- Stores them in the local database (sprig.db)
+- Stores them in the local database (`~/.sprig/sprig.db`)
 - Does NOT categorize or export
 
 ```bash
-python sprig.py fetch
+sprig fetch
 ```
 
 ---
 
-#### 4. `python sprig.py categorize` - Categorize Only
+#### 4. `sprig categorize` - Categorize Only
 
 **When to use:** When you have uncategorized transactions and want to run categorization separately
 
@@ -155,44 +171,44 @@ python sprig.py fetch
 - Updates the database with categories
 
 ```bash
-python sprig.py categorize
+sprig categorize
 ```
 
 ---
 
-#### 5. `python sprig.py export` - Create Your Spreadsheet
+#### 5. `sprig export` - Create Your Spreadsheet
 
 **When to use:** After syncing, whenever you want to analyze your data
 
 **What it does:**
 - Reads all transactions from the database
 - Creates a CSV file with all your transaction data
-- Saves it to `exports/transactions-YYYY-MM-DD.csv`
+- Saves it to `~/.sprig/exports/transactions-YYYY-MM-DD.csv`
 
 **What you'll see:**
 ```
-Starting export to exports/transactions-2025-11-17.csv
-Exported 347 transaction(s) to exports/transactions-2025-11-17.csv
+Starting export to ~/.sprig/exports/transactions-2025-11-17.csv
+Exported 347 transaction(s) to ~/.sprig/exports/transactions-2025-11-17.csv
 ```
 
 **Optional:** Export to a custom location:
 ```bash
-python sprig.py export -o ~/Documents/my-finances.csv
+sprig export -o ~/Documents/my-finances.csv
 ```
 
 ---
 
 ### Recategorization
 
-After improving your categories in `config.yml`, you can re-categorize transactions by:
+After improving your categories in `~/.sprig/config.yml`, you can re-categorize transactions by:
 
 1. **Delete the database and re-sync:**
    ```bash
-   rm sprig.db
-   python sprig.py sync
+   rm ~/.sprig/sprig.db
+   sprig sync
    ```
 
-2. **Or manually clear categories:** Use a SQLite tool to set `inferred_category` to NULL for transactions you want recategorized, then run `python sprig.py categorize`.
+2. **Or manually clear categories:** Use a SQLite tool to set `inferred_category` to NULL for transactions you want recategorized, then run `sprig categorize`.
 
 ---
 
@@ -217,7 +233,7 @@ When Claude categorizes your transactions, it uses these 14 categories:
 | **transfers** | Credit card payments, loan payments |
 | **undefined** | Unclear or unclassifiable transactions |
 
-You can customize these by editing `config.yml` in the Sprig directory.
+You can customize these by editing `~/.sprig/config.yml`.
 
 ---
 
@@ -227,8 +243,8 @@ Sprig uses 14 default categories, but you can completely customize them to match
 
 #### How to Change Categories
 
-1. **Edit the config file** in your Sprig directory:
-   - Open `config.yml` with any text editor
+1. **Edit the config file** at `~/.sprig/config.yml`:
+   - Open `~/.sprig/config.yml` with any text editor
 
 2. **Modify categories** using this format:
 ```yaml
@@ -239,7 +255,7 @@ categories:
     description: "Another description explaining what belongs here"
 ```
 
-3. **Apply your changes** by re-syncing (delete `sprig.db` first to recategorize all transactions)
+3. **Apply your changes** by re-syncing (delete `~/.sprig/sprig.db` first to recategorize all transactions)
 
 #### Example Customizations
 
@@ -280,8 +296,8 @@ categories:
 
 - **Category names** should be simple, lowercase, with underscores (no spaces)
 - **Descriptions** should be detailed - Claude uses them to make categorization decisions
-- **After changes**, delete `sprig.db` and re-sync to apply new categories to existing transactions
-- **Keep backups** - copy your `config.yml` before making major changes
+- **After changes**, delete `~/.sprig/sprig.db` and re-sync to apply new categories to existing transactions
+- **Keep backups** - copy your `~/.sprig/config.yml` before making major changes
 
 #### Why Customize?
 
@@ -352,7 +368,7 @@ ruff check .  # Linting
 
 **Solution:**
 1. Download `certificate.pem` and `private_key.pem` from [Certificate Settings](https://teller.io/settings/certificates)
-2. Move both files into the `certs/` folder in your Sprig directory
+2. Move both files into `~/.sprig/certs/`
 
 ---
 
@@ -361,7 +377,7 @@ ruff check .  # Linting
 **Problem:** Your bank connection expired or was revoked
 
 **Solution:**
-1. Run `python sprig.py auth` again to reconnect your banks
+1. Run `sprig auth` again to reconnect your banks
 
 **Why this happens:** Bank connections can expire for security, or if you changed your bank password
 
@@ -369,7 +385,7 @@ ruff check .  # Linting
 
 #### "ModuleNotFoundError" or "No module named..."
 
-**Problem:** Python dependencies aren't installed
+**Problem:** Python dependencies aren't installed (only applies if using Python install)
 
 **Solution:**
 ```bash
@@ -379,9 +395,11 @@ cd /path/to/sprig
 # Activate virtual environment
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install the package
+pip install -e .
 ```
+
+**Note:** This error doesn't apply if you're using the standalone executable.
 
 ---
 
@@ -390,7 +408,7 @@ pip install -r requirements.txt
 **Problem:** Credentials not set up
 
 **Solution:**
-1. Run `python sprig.py auth` - it will prompt you to enter credentials
+1. Run `sprig auth` - it will prompt you to enter credentials
 2. Make sure you enter your Teller APP_ID and Claude API key correctly
 3. Your credentials are stored securely in your system keyring
 
@@ -410,8 +428,8 @@ pip install -r requirements.txt
 **Problem:** Large transaction volumes may hit Claude API rate limits
 
 **Solutions:**
-- Set `from_date` in `config.yml` to a more recent date to process fewer transactions
-- Run `sync` multiple times - it only processes uncategorized transactions
+- Set `from_date` in `~/.sprig/config.yml` to a more recent date to process fewer transactions
+- Run `sprig sync` multiple times - it only processes uncategorized transactions
 - Wait a few minutes between runs if you hit limits
 
 **What you'll see:**
@@ -448,17 +466,14 @@ Your bank login credentials are only entered on your bank's official website, ne
 
 ### Do I need to be technical to use this?
 
-**For technical users:** You'll be able to figure out the setup without much trouble.
+**For non-technical users:** Use the standalone executable - just download and run. You'll need:
+- Basic comfort with terminal/command line
+- Creating accounts on Teller.io and Anthropic
+- Downloading certificate files to `~/.sprig/certs/`
 
-**For non-technical users:** You'll need basic comfort with:
-- Running terminal/command line commands
-- Editing text files (like .env)
-- Creating accounts on websites (Teller, Anthropic)
-- Installing software
+**For technical users:** Use the Python install if you want to contribute or customize.
 
-If you can install Python and copy/paste commands, you can use Sprig. The most involved step is getting the credentials set up in your .env file. The Quick Start guide walks you through everything step-by-step.
-
-**Note:** Non-technical users may find the credential setup (Teller and Claude accounts) to be the most challenging part, but it's a one-time setup.
+The credential setup (Teller and Claude accounts) is a one-time process. The Quick Start guide walks you through everything step-by-step.
 
 ### What banks are supported?
 
@@ -485,40 +500,42 @@ Teller.io's free tier includes 100 bank connections (individual accounts you can
 ### What if I don't want AI categorization?
 
 Sprig requires a Claude API key for transaction categorization. You can minimize AI usage by:
-- Adding manual category overrides in `config.yml` for specific transactions
+- Adding manual category overrides in `~/.sprig/config.yml` for specific transactions
 - Manual overrides take precedence over AI categorization
 - Only transactions without manual overrides will be categorized by Claude AI
 
 ### Can I categorize old transactions?
 
-Yes. Run `python sprig.py sync` and Claude will automatically categorize any uncategorized transactions in your database.
+Yes. Run `sprig sync` and Claude will automatically categorize any uncategorized transactions in your database.
 
 ### Can I change the categories Sprig uses?
 
-Absolutely! Edit the `config.yml` file in your Sprig directory to customize categories for your needs. You can:
+Absolutely! Edit `~/.sprig/config.yml` to customize categories for your needs. You can:
 - Rename existing categories (e.g., "transport" → "car_expenses")
 - Add new categories (e.g., "coffee", "pet_care", "business_meals")
 - Remove categories you don't need
 - Update descriptions to improve categorization accuracy
 
-After making changes, delete `sprig.db` and run `python sprig.py sync` to apply your new categories to all transactions.
+After making changes, delete `~/.sprig/sprig.db` and run `sprig sync` to apply your new categories to all transactions.
 
 ### Where is my data stored?
 
-- **Transactions:** `sprig.db` (SQLite database in your Sprig folder)
-- **Exports:** `exports/` folder (CSV files)
-- **Credentials:** Secure system keyring (macOS Keychain, Windows Credential Locker, Linux Secret Service)
-- **Certificates:** `certs/` folder
-- **Category config:** `config.yml` file
+All Sprig data is stored in `~/.sprig/`:
 
-To backup your data, just copy the `sprig.db` file.
+- **Transactions:** `~/.sprig/sprig.db` (SQLite database)
+- **Exports:** `~/.sprig/exports/` (CSV files)
+- **Credentials:** Secure system keyring (macOS Keychain, Windows Credential Locker, Linux Secret Service)
+- **Certificates:** `~/.sprig/certs/`
+- **Category config:** `~/.sprig/config.yml`
+
+To backup your data, copy the `~/.sprig/` folder.
 
 ### Can I run this on a schedule?
 
-Yes! You can set up a cron job (Mac/Linux) or Task Scheduler (Windows) to run `python sprig.py sync && python sprig.py export` daily.
+Yes! You can set up a cron job (Mac/Linux) or Task Scheduler (Windows) to run `sprig sync` daily.
 
 Example cron (runs daily at 6 AM):
 ```
-0 6 * * * cd /path/to/sprig && source venv/bin/activate && python sprig.py sync && python sprig.py export
+0 6 * * * /usr/local/bin/sprig sync
 ```
 
