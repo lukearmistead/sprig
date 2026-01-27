@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""
-Sprig - Teller.io transaction data collection tool.
-"""
+"""Sprig CLI - Teller.io transaction data collection tool."""
 
 import argparse
 import sys
 from pathlib import Path
 
-# Add the sprig package to the path
-sys.path.insert(0, str(Path(__file__).parent))
-
-# Import after path setup
 from sprig.auth import authenticate
 from sprig.categorize import categorize_uncategorized_transactions
 from sprig.database import SprigDatabase
@@ -21,7 +15,6 @@ from sprig.fetch import Fetcher
 from sprig.teller_client import TellerClient
 import sprig.credentials as credentials
 
-# Initialize logger
 logger = get_logger()
 
 
@@ -37,21 +30,18 @@ def setup_credentials() -> bool:
     logger.info("Sprig credential setup")
     logger.info("=" * 25)
 
-    # Get current credential values
     current_app_id = credentials.get_app_id()
     current_claude_key = credentials.get_claude_api_key()
 
     current_app_id_str = current_app_id.value if current_app_id else None
     current_claude_key_str = current_claude_key.value if current_claude_key else None
 
-    # Prompt with current values shown
     app_id_prompt = f"Teller APP_ID (current: {current_app_id_str or 'none'}): " if current_app_id_str else "Teller APP_ID (app_xxx): "
     claude_key_prompt = f"Claude API Key (current: {credentials.mask(current_claude_key_str, 12)}): " if current_claude_key_str else "Claude API Key (sk-ant-api03-xxx): "
 
     app_id = input(app_id_prompt).strip() or current_app_id_str
     claude_key = input(claude_key_prompt).strip() or current_claude_key_str
 
-    # Validate and store using clean interfaces
     if not app_id:
         logger.error("Teller APP_ID is required")
         return False
@@ -62,17 +52,18 @@ def setup_credentials() -> bool:
     credentials.set_app_id(app_id)
     credentials.set_claude_api_key(claude_key)
 
-    # Set defaults for other credentials if not already set
     defaults = [
         (credentials.get_cert_path, credentials.set_cert_path, "certs/certificate.pem"),
         (credentials.get_key_path, credentials.set_key_path, "certs/private_key.pem"),
         (credentials.get_environment, credentials.set_environment, "development"),
-        (credentials.get_database_path, credentials.set_database_path, "sprig.db"),
     ]
 
     for get_func, set_func, default_value in defaults:
         if not get_func():
             set_func(default_value)
+
+    credentials.get_sprig_home()
+    credentials.get_default_certs_dir()
 
     logger.info("Credentials updated successfully")
     return True
@@ -81,10 +72,12 @@ def setup_credentials() -> bool:
 def get_db() -> SprigDatabase:
     """Get database instance from configured path."""
     db_path = credentials.get_database_path()
-    if not db_path:
-        exit_with_auth_error("Database path not found in keyring")
-    project_root = Path(__file__).parent
-    return SprigDatabase(project_root / db_path.value)
+    if db_path:
+        path = Path(db_path.value)
+        full_path = path if path.is_absolute() else credentials.get_sprig_home() / db_path.value
+    else:
+        full_path = credentials.get_default_db_path()
+    return SprigDatabase(full_path)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,23 +88,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Fetch command
     subparsers.add_parser("fetch", help="Fetch accounts and transactions from Teller")
-
-    # Categorize command
     subparsers.add_parser("categorize", help="Categorize uncategorized transactions using Claude")
-
-    # Sync command
     subparsers.add_parser("sync", help="Pull from Teller, categorize, and export")
 
-    # Export command
     export_parser = subparsers.add_parser("export", help="Export transactions to CSV")
     export_parser.add_argument(
         "-o", "--output",
-        help="Output filename (default: exports/transactions_YYYY-MM-DD.csv)"
+        help="Output filename (default: ~/.sprig/exports/transactions_YYYY-MM-DD.csv)"
     )
 
-    # Auth command
     auth_parser = subparsers.add_parser("auth", help="Setup credentials and authenticate with Teller")
     auth_parser.add_argument(
         "--environment",
@@ -151,10 +137,12 @@ def cmd_categorize():
 def cmd_export(output: str = None):
     """Export transactions to CSV."""
     db_path = credentials.get_database_path()
-    if not db_path:
-        exit_with_auth_error("Database path not found in keyring")
-    project_root = Path(__file__).parent
-    export_transactions_to_csv(project_root / db_path.value, output)
+    if db_path:
+        path = Path(db_path.value)
+        full_path = path if path.is_absolute() else credentials.get_sprig_home() / db_path.value
+    else:
+        full_path = credentials.get_default_db_path()
+    export_transactions_to_csv(full_path, output)
 
 
 def cmd_auth(environment: str, port: int):
