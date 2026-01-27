@@ -10,12 +10,12 @@ from sprig.export import export_transactions_to_csv
 
 
 def test_export_transactions_to_csv_with_data():
-    """Test CSV export with mock transaction data (9-field format)."""
-    # Mock transaction data (new SQLite row format with JOINed account data)
-    # Format: id, date, description, amount, inferred_category, counterparty, account_name, account_subtype, account_last_four
+    """Test CSV export with mock transaction data (10-field format)."""
+    # Mock transaction data (SQLite row format with JOINed account data)
+    # Format: id, date, description, amount, inferred_category, confidence, counterparty, account_name, account_subtype, account_last_four
     mock_transactions = [
-        ('txn_1', '2024-01-01', 'Coffee Shop', -25.50, 'dining', 'Coffee Shop Inc', 'Checking', 'checking', '1234'),
-        ('txn_2', '2024-01-02', 'Gas Station', -45.00, 'transport', 'Shell Gas', 'Checking', 'checking', '1234'),
+        ('txn_1', '2024-01-01', 'Coffee Shop', -25.50, 'dining', 0.95, 'Coffee Shop Inc', 'Checking', 'checking', '1234'),
+        ('txn_2', '2024-01-02', 'Gas Station', -45.00, 'transport', 0.87, 'Shell Gas', 'Checking', 'checking', '1234'),
     ]
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -42,9 +42,9 @@ def test_export_transactions_to_csv_with_data():
                 reader = csv.reader(csvfile)
                 rows = list(reader)
 
-                # Check header (new 9-field format)
+                # Check header (10-field format including confidence)
                 expected_header = [
-                    'id', 'date', 'description', 'amount', 'inferred_category',
+                    'id', 'date', 'description', 'amount', 'inferred_category', 'confidence',
                     'counterparty', 'account_name', 'account_subtype', 'account_last_four'
                 ]
                 assert rows[0] == expected_header
@@ -77,38 +77,31 @@ def test_export_transactions_to_csv_no_data():
 
 
 def test_export_transactions_to_csv_default_filename():
-    """Test CSV export with default filename."""
-    # Mock transaction data (new 9-field format)
+    """Test CSV export with default filename uses ~/.sprig/exports/."""
+    # Mock transaction data (new 10-field format)
     mock_transactions = [
-        ('txn_1', '2024-01-01', 'Coffee Shop', -25.50, 'dining', 'Coffee Shop Inc', 'Checking', 'checking', '1234'),
+        ('txn_1', '2024-01-01', 'Coffee Shop', -25.50, 'dining', 0.95, 'Coffee Shop Inc', 'Checking', 'checking', '1234'),
     ]
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_db_path = Path(temp_dir) / "test.db"
-        
-        # Change to temp directory to test exports/ creation
-        original_cwd = Path.cwd()
-        try:
-            import os
-            os.chdir(temp_dir)
-            
-            # Mock the database
-            with patch('sprig.export.SprigDatabase') as mock_db_class:
-                mock_db = Mock()
-                mock_db.get_transactions_for_export.return_value = mock_transactions
-                mock_db_class.return_value = mock_db
-                
-                # Test export with default filename
-                export_transactions_to_csv(temp_db_path)
-                
-                # Verify exports directory was created
-                exports_dir = Path(temp_dir) / "exports"
-                assert exports_dir.exists()
-                assert exports_dir.is_dir()
-                
-                # Verify CSV file exists with date pattern  
-                csv_files = list(exports_dir.glob("transactions-*.csv"))
-                assert len(csv_files) == 1
-                
-        finally:
-            os.chdir(original_cwd)
+        temp_exports_dir = Path(temp_dir) / "exports"
+        temp_exports_dir.mkdir()  # Create the directory since mock won't
+
+        # Mock the database and the exports directory
+        with patch('sprig.export.SprigDatabase') as mock_db_class, \
+             patch('sprig.export.get_default_exports_dir', return_value=temp_exports_dir):
+            mock_db = Mock()
+            mock_db.get_transactions_for_export.return_value = mock_transactions
+            mock_db_class.return_value = mock_db
+
+            # Test export with default filename
+            export_transactions_to_csv(temp_db_path)
+
+            # Verify exports directory exists
+            assert temp_exports_dir.exists()
+            assert temp_exports_dir.is_dir()
+
+            # Verify CSV file exists with date pattern
+            csv_files = list(temp_exports_dir.glob("transactions-*.csv"))
+            assert len(csv_files) == 1

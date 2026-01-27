@@ -2,8 +2,8 @@
 
 import csv
 from datetime import datetime
-from pathlib import Path
 
+from sprig.paths import get_default_exports_dir
 from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 
@@ -13,9 +13,7 @@ logger = get_logger("sprig.export")
 def export_transactions_to_csv(database_path, output_path=None):
     """Export all transactions to CSV file."""
     if output_path is None:
-        # Create exports directory if it doesn't exist
-        exports_dir = Path("exports")
-        exports_dir.mkdir(exist_ok=True)
+        exports_dir = get_default_exports_dir()
         output_path = exports_dir / f"transactions-{datetime.now().strftime('%Y-%m-%d-%H%M%S')}.csv"
 
     logger.info(f"Starting export to {output_path}")

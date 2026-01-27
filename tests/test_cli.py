@@ -15,18 +15,18 @@ def test_cli_help():
     assert "auth" in result.stdout
     assert "sync" in result.stdout
     assert "export" in result.stdout
-    assert "pull" in result.stdout
+    assert "fetch" in result.stdout
     assert "categorize" in result.stdout
 
 
-def test_pull_command_exists():
-    """Test that pull command exists and accepts help flag."""
+def test_fetch_command_exists():
+    """Test that fetch command exists and accepts help flag."""
     result = subprocess.run([
-        sys.executable, "sprig.py", "pull", "--help"
+        sys.executable, "sprig.py", "fetch", "--help"
     ], capture_output=True, text=True)
 
     assert result.returncode == 0
-    assert "usage: sprig.py pull" in result.stdout
+    assert "usage: sprig.py fetch" in result.stdout
 
 
 def test_categorize_command_exists():
