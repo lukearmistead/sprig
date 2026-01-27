@@ -13,6 +13,11 @@ __pycache__/
 *.pyd
 .Python
 *.so
+*.egg-info/
+
+# PyInstaller
+build/
+dist/
 
 # Database
 *.db
