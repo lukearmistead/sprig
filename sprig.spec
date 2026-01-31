@@ -6,7 +6,7 @@ block_cipher = None
 from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 # Collect metadata for packages that use importlib.metadata
-datas = []
+datas = [('sprig/templates', 'templates'), ('config.yml', '.')]
 datas += copy_metadata('genai_prices')
 datas += copy_metadata('pydantic_ai')
 datas += copy_metadata('pydantic_ai_slim')
