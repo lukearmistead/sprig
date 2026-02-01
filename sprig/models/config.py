@@ -28,7 +28,7 @@ class Config(BaseModel):
     """Application configuration from config.yml."""
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
-    batch_size: int = 10
+    batch_size: int
     from_date: Optional[date] = None
 
     @classmethod

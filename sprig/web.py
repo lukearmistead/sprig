@@ -5,24 +5,17 @@ import threading
 import webbrowser
 from pathlib import Path
 
-from flask import Flask, request, render_template, jsonify, redirect
+from flask import Flask, request, render_template, jsonify
 from pydantic import ValidationError
 
-from sprig.categorize import categorize_uncategorized_transactions
-from sprig.database import SprigDatabase
-from sprig.export import export_transactions_to_csv
-from sprig.fetch import Fetcher
 from sprig.logger import get_logger
-from sprig.models.config import Config
 from sprig.models.teller import TellerAccessToken
-from sprig.teller_client import TellerClient
+from sprig.pipeline import run_sync, sync_state
 import sprig.credentials as credentials
 
 logger = get_logger("sprig.web")
 
 PORT = 8001
-
-sync_state = {"status": "idle", "message": ""}
 
 
 def get_template_folder() -> Path:
@@ -30,41 +23,6 @@ def get_template_folder() -> Path:
     if getattr(sys, 'frozen', False):
         return Path(sys._MEIPASS) / "templates"
     return Path(__file__).parent / "templates"
-
-
-def get_db_path() -> Path:
-    """Get resolved database path."""
-    db_path = credentials.get_database_path()
-    if db_path:
-        path = Path(db_path.value)
-        return path if path.is_absolute() else credentials.get_sprig_home() / db_path.value
-    return credentials.get_default_db_path()
-
-
-def run_sync():
-    """Run the full sync pipeline in a background thread."""
-    try:
-        sync_state["status"] = "running"
-        sync_state["message"] = "Fetching transactions..."
-
-        config = Config.load()
-        db = SprigDatabase(get_db_path())
-
-        fetcher = Fetcher(TellerClient(), db, from_date=config.from_date)
-        fetcher.fetch_all()
-
-        sync_state["message"] = "Categorizing transactions..."
-        categorize_uncategorized_transactions(db, config.batch_size)
-
-        sync_state["message"] = "Exporting..."
-        export_transactions_to_csv(get_db_path())
-
-        sync_state["status"] = "done"
-        sync_state["message"] = "Sync complete!"
-    except Exception as e:
-        logger.exception("Sync failed")
-        sync_state["status"] = "error"
-        sync_state["message"] = f"Sync failed: {e}"
 
 
 def create_app() -> Flask:

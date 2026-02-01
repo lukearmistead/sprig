@@ -5,7 +5,17 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
+import sprig.credentials as credentials
 from sprig.models import TellerAccount, TellerTransaction
+
+
+def get_db_path() -> Path:
+    """Get resolved database path."""
+    db_path = credentials.get_database_path()
+    if db_path:
+        path = Path(db_path.value)
+        return path if path.is_absolute() else credentials.get_sprig_home() / db_path.value
+    return credentials.get_default_db_path()
 
 
 class SprigDatabase:
