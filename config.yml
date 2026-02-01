@@ -35,6 +35,8 @@ categories:
   - name: undefined
     description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
 
+batch_size: 50
+
 # MANUAL CATEGORIES
 # You can override the AI-inferred category for specific transactions.
 # After exporting to CSV and finding miscategorized transactions, add them here:
