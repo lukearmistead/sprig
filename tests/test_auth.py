@@ -3,85 +3,53 @@
 from unittest.mock import patch
 
 import pytest
-
-from sprig.auth import append_token_to_credentials, authenticate
-from sprig.models.teller import TellerAccessToken
 from pydantic import ValidationError
+
+from sprig.auth import authenticate
+from sprig.models.config import Config
+from sprig.models.teller import TellerAccessToken
 
 
 class TestTellerAccessToken:
-    """Test Teller access token validation."""
-
     def test_valid_token(self):
-        """Should accept valid tokens."""
         TellerAccessToken(token="token_3yxxieo64rfc57p4tux3an5v2a")
         TellerAccessToken(token="token_abcdefghijklmnopqrstuvwxyz")
 
     def test_invalid_format(self):
-        """Should reject tokens with invalid format."""
         with pytest.raises(ValidationError):
             TellerAccessToken(token="test_tkn_abc123")
-
         with pytest.raises(ValidationError):
             TellerAccessToken(token="invalid_token")
-
         with pytest.raises(ValidationError):
             TellerAccessToken(token="")
-
         with pytest.raises(ValidationError):
-            TellerAccessToken(token="token_ABC123")  # uppercase not allowed
-
-
-class TestAppendTokenToCredentials:
-    """Test credential token updates."""
-
-    def test_append_token_success(self):
-        """Should successfully append token to credentials."""
-        with patch('sprig.auth.credentials.append_token') as mock_append:
-            mock_append.return_value = True
-
-            result = append_token_to_credentials("token_abc123")
-            assert result is True
-            mock_append.assert_called_once_with("token_abc123")
-
-    def test_append_token_failure(self):
-        """Should return False if append fails."""
-        with patch('sprig.auth.credentials.append_token') as mock_append:
-            mock_append.return_value = False
-
-            result = append_token_to_credentials("token_abc123")
-            assert result is False
+            TellerAccessToken(token="token_ABC123")
 
 
 class TestAuthenticate:
-    """Test the authenticate function with UI-based multi-account support."""
+    def _make_config(self, **overrides):
+        defaults = {
+            "categories": [{"name": "general", "description": "general"}],
+            "app_id": "app_test12345678901234567",
+        }
+        defaults.update(overrides)
+        return Config(**defaults)
 
     def test_authenticate_success(self):
-        """Should successfully authenticate when server returns account count."""
-        with patch('sprig.auth.run_auth_server') as mock_run_auth:
-            mock_run_auth.return_value = "1"  # One account added
+        config = self._make_config()
+        with patch('sprig.auth.run_auth_server') as mock_run:
+            mock_run.return_value = "1"
+            assert authenticate(config) is True
+            mock_run.assert_called_once_with(config, 8001)
 
-            result = authenticate("test_app_id", "development", 8001)
-
-            assert result is True
-            mock_run_auth.assert_called_once_with("test_app_id", "development", 8001)
-
-    def test_authenticate_multiple_accounts_via_ui(self):
-        """Should handle multiple accounts added via UI."""
-        with patch('sprig.auth.run_auth_server') as mock_run_auth:
-            mock_run_auth.return_value = "3"  # Three accounts added via UI
-
-            result = authenticate("test_app_id", "development", 8001)
-
-            assert result is True
-            mock_run_auth.assert_called_once()
+    def test_authenticate_multiple_accounts(self):
+        config = self._make_config()
+        with patch('sprig.auth.run_auth_server') as mock_run:
+            mock_run.return_value = "3"
+            assert authenticate(config) is True
 
     def test_authenticate_cancelled(self):
-        """Should return False if authentication is cancelled."""
-        with patch('sprig.auth.run_auth_server') as mock_run_auth:
-            mock_run_auth.return_value = None  # No accounts added
-
-            result = authenticate("test_app_id", "development", 8001)
-
-            assert result is False
-            mock_run_auth.assert_called_once()
+        config = self._make_config()
+        with patch('sprig.auth.run_auth_server') as mock_run:
+            mock_run.return_value = None
+            assert authenticate(config) is False

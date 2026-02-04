@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>🌿 Sprig - Connect Your Bank</title>
+    <title>Sprig - Connect Your Bank</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -246,15 +246,14 @@
             doneBtn.addEventListener("click", async function() {
                 doneBtn.disabled = true;
                 addAnotherBtn.disabled = true;
-                showStatus("🎉 All done! Returning to dashboard...", "success");
+                showStatus("🎉 All done! Shutting down...", "success");
                 try {
                     const data = await apiPost("/done", {});
                     if (data.success) {
-                        window.location.href = data.redirect || "/";
+                        showStatus("✅ " + data.message + " You can close this window.", "success");
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    window.location.href = "/";
                 }
             });
         });

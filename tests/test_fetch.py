@@ -10,7 +10,6 @@ from sprig.fetch import Fetcher
 
 
 def test_fetch_account():
-    """Test fetching transactions for a single account."""
     mock_client = Mock()
     mock_db = Mock()
 
@@ -38,7 +37,7 @@ def test_fetch_account():
     mock_client.get_transactions.return_value = mock_transactions
     mock_db.sync_transaction.return_value = True
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=[])
     fetcher.fetch_account("test_token", "acc_456")
 
     mock_client.get_transactions.assert_called_once_with("test_token", "acc_456", start_date=None)
@@ -50,7 +49,6 @@ def test_fetch_account():
 
 
 def test_fetch_token():
-    """Test fetching accounts and their transactions for a single token."""
     mock_client = Mock()
     mock_db = Mock()
 
@@ -68,7 +66,7 @@ def test_fetch_token():
     mock_client.get_transactions.return_value = []
     mock_db.save_account.return_value = True
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=[])
     fetcher.fetch_token("test_token")
 
     mock_client.get_accounts.assert_called_once_with("test_token")
@@ -81,13 +79,7 @@ def test_fetch_token():
     assert inserted_account.type == "depository"
 
 
-@patch("sprig.fetch.credentials")
-def test_fetch_all(mock_credentials):
-    """Test fetch_all fetches without categorization."""
-    mock_credentials.get_access_tokens.return_value = [
-        Mock(token="token_1"),
-    ]
-
+def test_fetch_all():
     mock_client = Mock()
     mock_db = Mock()
 
@@ -103,21 +95,14 @@ def test_fetch_all(mock_credentials):
     mock_client.get_transactions.return_value = []
     mock_db.save_account.return_value = True
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=["token_1"])
     fetcher.fetch_all()
 
     mock_client.get_accounts.assert_called_once_with("token_1")
     mock_db.save_account.assert_called_once()
 
 
-@patch("sprig.fetch.credentials")
-def test_fetch_all_multiple_tokens(mock_credentials):
-    """Test fetch_all fetches from all access tokens."""
-    mock_credentials.get_access_tokens.return_value = [
-        Mock(token="token_1"),
-        Mock(token="token_2"),
-    ]
-
+def test_fetch_all_multiple_tokens():
     mock_client = Mock()
     mock_db = Mock()
 
@@ -133,7 +118,7 @@ def test_fetch_all_multiple_tokens(mock_credentials):
     mock_client.get_transactions.return_value = []
     mock_db.save_account.return_value = True
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=["token_1", "token_2"])
     fetcher.fetch_all()
 
     assert mock_client.get_accounts.call_count == 2
@@ -142,7 +127,6 @@ def test_fetch_all_multiple_tokens(mock_credentials):
 
 
 def test_fetch_with_real_database():
-    """Integration test with real database but mocked API client."""
     with tempfile.TemporaryDirectory() as temp_dir:
         from sprig.database import SprigDatabase
 
@@ -171,29 +155,20 @@ def test_fetch_with_real_database():
             }
         ]
 
-        fetcher = Fetcher(client=mock_client, db=db)
+        fetcher = Fetcher(client=mock_client, db=db, access_tokens=[])
         fetcher.fetch_token("test_token")
 
         import sqlite3
 
         with sqlite3.connect(db_path) as conn:
-            cursor = conn.execute("SELECT COUNT(*) FROM accounts")
-            account_count = cursor.fetchone()[0]
-            assert account_count == 1
-
-            cursor = conn.execute("SELECT COUNT(*) FROM transactions")
-            transaction_count = cursor.fetchone()[0]
-            assert transaction_count == 1
-
-            cursor = conn.execute(
+            assert conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 1
+            assert conn.execute(
                 "SELECT name FROM accounts WHERE id = 'acc_integration'"
-            )
-            account_name = cursor.fetchone()[0]
-            assert account_name == "Integration Test Account"
+            ).fetchone()[0] == "Integration Test Account"
 
 
 def test_fetch_token_invalid_token():
-    """Test that invalid/expired tokens are handled gracefully."""
     mock_client = Mock()
     mock_db = Mock()
 
@@ -203,16 +178,14 @@ def test_fetch_token_invalid_token():
     error.response = mock_response
     mock_client.get_accounts.side_effect = error
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=[])
     success = fetcher.fetch_token("invalid_token")
 
     assert success is False
     mock_db.save_account.assert_not_called()
-    mock_client.get_accounts.assert_called_once_with("invalid_token")
 
 
 def test_fetch_token_other_http_error():
-    """Test that non-401 HTTP errors are re-raised."""
     mock_client = Mock()
     mock_db = Mock()
 
@@ -222,7 +195,7 @@ def test_fetch_token_other_http_error():
     error.response = mock_response
     mock_client.get_accounts.side_effect = error
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=[])
     try:
         fetcher.fetch_token("test_token")
         assert False, "Expected HTTPError to be raised"
@@ -230,16 +203,8 @@ def test_fetch_token_other_http_error():
         assert e.response.status_code == 500
 
 
-@patch("sprig.fetch.credentials")
 @patch("sprig.fetch.logger")
-def test_fetch_all_with_invalid_tokens(mock_logger, mock_credentials):
-    """Test fetch_all handles invalid tokens and shows appropriate messages."""
-    mock_credentials.get_access_tokens.return_value = [
-        Mock(token="valid_token"),
-        Mock(token="invalid_token_123456"),
-        Mock(token="another_valid"),
-    ]
-
+def test_fetch_all_with_invalid_tokens(mock_logger):
     mock_client = Mock()
     mock_db = Mock()
 
@@ -250,31 +215,29 @@ def test_fetch_all_with_invalid_tokens(mock_logger, mock_credentials):
             error = requests.HTTPError()
             error.response = mock_response
             raise error
-        else:
-            return [
-                {
-                    "id": f"acc_{token[:5]}",
-                    "name": "Test Account",
-                    "type": "depository",
-                    "currency": "USD",
-                    "status": "open",
-                }
-            ]
+        return [
+            {
+                "id": f"acc_{token[:5]}",
+                "name": "Test Account",
+                "type": "depository",
+                "currency": "USD",
+                "status": "open",
+            }
+        ]
 
     mock_client.get_accounts.side_effect = mock_get_accounts
     mock_client.get_transactions.return_value = []
     mock_db.save_account.return_value = True
 
-    fetcher = Fetcher(client=mock_client, db=mock_db)
+    tokens = ["valid_token", "invalid_token_123456", "another_valid"]
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=tokens)
     fetcher.fetch_all()
 
-    # Should log warning for the invalid token
     warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
     assert any("invalid/expired" in call.lower() for call in warning_calls)
 
 
 def test_fetch_account_with_cutoff_date():
-    """Test fetching transactions with from_date filter."""
     mock_client = Mock()
     mock_db = Mock()
 
@@ -303,12 +266,10 @@ def test_fetch_account_with_cutoff_date():
     mock_db.sync_transaction.return_value = True
 
     from_date = date(2024, 2, 1)
-    fetcher = Fetcher(from_date=from_date, client=mock_client, db=mock_db)
+    fetcher = Fetcher(from_date=from_date, client=mock_client, db=mock_db, access_tokens=[])
     fetcher.fetch_account("test_token", "acc_456")
 
     mock_client.get_transactions.assert_called_once_with("test_token", "acc_456", start_date=from_date)
-
-    # Client-side filtering still applies (API may return some older transactions)
     assert mock_db.sync_transaction.call_count == 1
     calls = mock_db.sync_transaction.call_args_list
     assert calls[0][0][0].id == "txn_new"

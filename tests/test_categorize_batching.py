@@ -1,9 +1,11 @@
-
 import unittest
 from unittest.mock import patch
 from datetime import date
 from sprig.categorize import categorize_in_batches
 from sprig.models.claude import TransactionView
+
+FAKE_CLAUDE_KEY = "sk-ant-api03-" + "a" * 95
+
 
 class TestCategorizeBatching(unittest.TestCase):
     def setUp(self):
@@ -27,13 +29,13 @@ class TestCategorizeBatching(unittest.TestCase):
     @patch('sprig.categorize.categorize_inferentially')
     def test_categorize_in_batches_splits_into_correct_batch_sizes(self, mock_categorize):
         mock_categorize.return_value = []
-        categorize_in_batches(self.transactions, self.config, batch_size=2)
+        categorize_in_batches(self.transactions, self.config, batch_size=2, claude_key=FAKE_CLAUDE_KEY)
 
         self.assertEqual(mock_categorize.call_count, 3)
         calls = mock_categorize.call_args_list
-        self.assertEqual(len(calls[0][0][0]), 2)  # First batch: 2 transactions
-        self.assertEqual(len(calls[1][0][0]), 2)  # Second batch: 2 transactions
-        self.assertEqual(len(calls[2][0][0]), 1)  # Third batch: 1 transaction
+        self.assertEqual(len(calls[0][0][0]), 2)
+        self.assertEqual(len(calls[1][0][0]), 2)
+        self.assertEqual(len(calls[2][0][0]), 1)
 
 if __name__ == '__main__':
     unittest.main()

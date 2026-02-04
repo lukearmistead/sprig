@@ -150,18 +150,15 @@ def test_manual_overrides_applied_before_ai_categorization():
 
         from sprig.models import TransactionCategory
 
-        with (
-            patch("sprig.categorize.Config") as mock_category_config_class,
-            patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches,
-        ):
-            mock_category_config_class.load.return_value = test_category_config
-
+        with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
             # Mock AI categorization - should only be called for txn_claude
             mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_claude", category="transport", confidence=0.9)
             ]
 
-            categorize_uncategorized_transactions(db, batch_size=25)
+            test_category_config.batch_size = 25
+            test_category_config.claude_key = "fake_key"
+            categorize_uncategorized_transactions(db, test_category_config)
 
             # Verify manual overrides were applied
             import sqlite3

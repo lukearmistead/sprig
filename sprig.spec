@@ -6,11 +6,15 @@ block_cipher = None
 from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 # Collect metadata for packages that use importlib.metadata
-datas = [('sprig/templates', 'templates'), ('config.yml', '.')]
+datas = []
 datas += copy_metadata('genai_prices')
 datas += copy_metadata('pydantic_ai')
 datas += copy_metadata('pydantic_ai_slim')
 datas += copy_metadata('anthropic')
+
+# Bundle config.yml and connect.html template
+datas += [('config.yml', '.')]
+datas += [('sprig/templates/connect.html', 'sprig/templates')]
 
 a = Analysis(
     ['sprig/cli.py'],
@@ -18,9 +22,6 @@ a = Analysis(
     binaries=[],
     datas=datas,
     hiddenimports=[
-        'keyring.backends.macOS',
-        'keyring.backends.Windows',
-        'keyring.backends.SecretService',
         'pydantic_ai',
         'anthropic',
     ],

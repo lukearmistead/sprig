@@ -70,25 +70,18 @@ def test_failed_categorization_counting():
             db.add_transaction(txn_data)
 
         # Mock categorizers
-        with (
-            patch("sprig.categorize.Config") as mock_config_class,
-            patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches,
-        ):
-            # Mock category config (no manual overrides)
-            mock_config = Mock()
-            mock_config.manual_categories = []
-            mock_config.categories = []
-            mock_config_class.load.return_value = mock_config
-
-            # Mock categorize_in_batches - only categorize one transaction, fail the others
+        with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
             from sprig.models import TransactionCategory
             mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_success_1", category="dining", confidence=0.95)
-                # txn_fail_1 and txn_fail_2 are NOT in the results = failed categorization
             ]
 
-            # Run categorization with small batch size to test counting
-            categorize_uncategorized_transactions(db, batch_size=25)
+            mock_config = Mock()
+            mock_config.manual_categories = []
+            mock_config.categories = []
+            mock_config.batch_size = 25
+            mock_config.claude_key = "fake_key"
+            categorize_uncategorized_transactions(db, mock_config)
 
             # Verify database updates
             import sqlite3
@@ -159,22 +152,15 @@ def test_all_transactions_fail_categorization():
         for txn_data in test_transactions:
             db.add_transaction(txn_data)
 
-        # Mock categorizers
-        with (
-            patch("sprig.categorize.Config") as mock_config_class,
-            patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches,
-        ):
-            # Mock category config (no manual overrides)
+        with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
+            mock_categorize_in_batches.return_value = []
+
             mock_config = Mock()
             mock_config.manual_categories = []
             mock_config.categories = []
-            mock_config_class.load.return_value = mock_config
-
-            # Mock categorize_in_batches - complete failure, empty results
-            mock_categorize_in_batches.return_value = []  # All transactions failed
-
-            # Run categorization
-            categorize_uncategorized_transactions(db, batch_size=25)
+            mock_config.batch_size = 25
+            mock_config.claude_key = "fake_key"
+            categorize_uncategorized_transactions(db, mock_config)
 
             # Verify no transactions were categorized
             import sqlite3

@@ -2,9 +2,9 @@
 
 import os
 import signal
-import webbrowser
 import threading
 import time
+import webbrowser
 from pathlib import Path
 from typing import Optional
 
@@ -12,18 +12,13 @@ from flask import Flask, request, render_template, jsonify
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
+from sprig.models.config import Config
 from sprig.models.teller import TellerAccessToken
-import sprig.credentials as credentials
 
 logger = get_logger("sprig.auth")
 
 
-def append_token_to_credentials(new_token: str) -> bool:
-    """Add new access token to keyring."""
-    return credentials.append_token(new_token)
-
-
-def run_auth_server(app_id: str, environment: str = "development", port: int = 8001) -> Optional[str]:
+def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
     """Run Flask server to handle Teller Connect authentication."""
 
     accounts_added = 0
@@ -32,14 +27,11 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
 
     @app.route("/")
     def index():
-        """Serve the Teller Connect page."""
-        return render_template("connect.html", app_id=app_id, environment=environment)
+        return render_template("connect.html", app_id=config.app_id, environment=config.environment)
 
     @app.route("/save-token", methods=["POST"])
     def save_token():
-        """Handle token from Teller Connect success callback."""
         nonlocal accounts_added
-
         data = request.get_json()
         token = data.get("accessToken")
 
@@ -48,28 +40,28 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
         except ValidationError:
             return jsonify({"success": False, "error": "Invalid token format"}), 400
 
-        if append_token_to_credentials(token):
-            accounts_added += 1
-            return jsonify({
-                "success": True,
-                "message": f"Account saved successfully! Total accounts: {accounts_added}",
-                "accounts_added": accounts_added
-            })
-        else:
-            return jsonify({"success": False, "error": "Failed to save token"}), 500
+        if token not in config.access_tokens:
+            config.access_tokens.append(token)
+        config.save()
+        accounts_added += 1
+        return jsonify({
+            "success": True,
+            "message": f"Account saved! Total: {accounts_added}",
+            "accounts_added": accounts_added,
+        })
 
     @app.route("/done", methods=["POST"])
     def done():
-        """Handle user indicating they're done adding accounts."""
         nonlocal shutdown_requested
         shutdown_requested = True
-        threading.Thread(target=lambda: (time.sleep(1), os.kill(os.getpid(), signal.SIGINT)), daemon=True).start()
+        threading.Thread(
+            target=lambda: (time.sleep(1), os.kill(os.getpid(), signal.SIGINT)), daemon=True
+        ).start()
         return jsonify({"success": True, "message": "Authentication complete!"})
 
     @app.route("/status")
     def status():
-        """Health check endpoint."""
-        return jsonify({"status": "running", "app_id": app_id, "environment": environment})
+        return jsonify({"status": "running", "app_id": config.app_id})
 
     url = f"http://localhost:{port}"
     logger.info(f"Opening browser to {url}")
@@ -88,15 +80,11 @@ def run_auth_server(app_id: str, environment: str = "development", port: int = 8
     return None
 
 
-def authenticate(app_id: str, environment: str = "development", port: int = 8001) -> bool:
+def authenticate(config: Config, port: int = 8001) -> bool:
     """Run Teller OAuth flow. Returns True if successful."""
-    logger.info(f"Starting Teller authentication (app: {app_id}, environment: {environment})")
-    logger.debug(f"Authentication server will run on port {port}")
-    result = run_auth_server(app_id, environment, port)
-
+    logger.info(f"Starting Teller authentication (app: {config.app_id})")
+    result = run_auth_server(config, port)
     if result:
-        logger.debug(f"Authentication completed successfully with {result} account(s)")
         return True
-    else:
-        logger.error("Authentication failed or cancelled.")
-        return False
+    logger.error("Authentication failed or cancelled.")
+    return False
