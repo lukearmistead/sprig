@@ -30,6 +30,7 @@ class TestAuthenticate:
     def _make_config(self, **overrides):
         defaults = {
             "categories": [{"name": "general", "description": "general"}],
+            "batch_size": 50,
             "app_id": "app_test12345678901234567",
         }
         defaults.update(overrides)

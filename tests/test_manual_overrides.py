@@ -24,6 +24,7 @@ def test_category_config_loads_manual_categories():
                 {"name": "dining", "description": "Restaurants and food"},
                 {"name": "groceries", "description": "Supermarkets"},
             ],
+            "batch_size": 50,
             "manual_categories": [
                 {"transaction_id": "txn_123", "category": "dining"},
                 {"transaction_id": "txn_456", "category": "groceries"},
@@ -55,7 +56,8 @@ def test_category_config_allows_empty_manual_categories():
             "categories": [
                 {"name": "dining", "description": "Restaurants and food"},
                 {"name": "groceries", "description": "Supermarkets"},
-            ]
+            ],
+            "batch_size": 50,
         }
 
         with open(config_path, "w") as f:
@@ -137,6 +139,7 @@ def test_manual_overrides_applied_before_ai_categorization():
                 {"name": "groceries", "description": "Supermarkets"},
                 {"name": "transport", "description": "Gas and fuel"},
             ],
+            "batch_size": 50,
             "manual_categories": [
                 {"transaction_id": "txn_override_1", "category": "dining"},
                 {"transaction_id": "txn_override_2", "category": "groceries"},
@@ -156,8 +159,6 @@ def test_manual_overrides_applied_before_ai_categorization():
                 TransactionCategory(transaction_id="txn_claude", category="transport", confidence=0.9)
             ]
 
-            test_category_config.batch_size = 25
-            test_category_config.claude_key = "fake_key"
             categorize_uncategorized_transactions(db, test_category_config)
 
             # Verify manual overrides were applied
@@ -242,6 +243,7 @@ def test_manual_override_replaces_existing_ai_category():
                 {"name": "dining", "description": "Restaurants"},
                 {"name": "shopping", "description": "Shopping"},
             ],
+            "batch_size": 50,
             "manual_categories": [
                 {"transaction_id": "txn_already_categorized", "category": "dining"},
             ],
@@ -300,6 +302,7 @@ def test_apply_manual_overrides_skips_invalid_categories():
             "categories": [
                 {"name": "dining", "description": "Restaurants"},
             ],
+            "batch_size": 50,
             "manual_categories": [
                 {"transaction_id": "txn_test", "category": "invalid_category"},
             ],

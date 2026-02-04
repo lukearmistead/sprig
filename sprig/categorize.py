@@ -101,14 +101,13 @@ def _validate_category_results(
 )
 def categorize_inferentially(
     transaction_views: List[TransactionView],
-    category_config: Config,
-    claude_key: str,
+    config: Config,
 ) -> List[TransactionCategory]:
     if not transaction_views:
         return []
 
     categories_with_descriptions = [
-        f"{cat.name}: {cat.description}" for cat in category_config.categories
+        f"{cat.name}: {cat.description}" for cat in config.categories
     ]
 
     batch = TransactionBatch(transactions=transaction_views)
@@ -119,7 +118,7 @@ def categorize_inferentially(
         transactions=transactions_json
     )
 
-    provider = AnthropicProvider(api_key=claude_key)
+    provider = AnthropicProvider(api_key=config.claude_key)
     model = AnthropicModel("claude-haiku-4-5-20251001", provider=provider)
 
     agent = Agent(
@@ -141,19 +140,18 @@ def categorize_inferentially(
 
         return []
 
-    valid_category_names = {cat.name for cat in category_config.categories}
+    valid_category_names = {cat.name for cat in config.categories}
     return _validate_category_results(categories, valid_category_names)
 
 
 def categorize_in_batches(
     transaction_views: List[TransactionView],
-    category_config: Config,
-    batch_size: int,
-    claude_key: str,
+    config: Config,
 ) -> List[TransactionCategory]:
     if not transaction_views:
         return []
 
+    batch_size = config.batch_size
     total_transactions = len(transaction_views)
     total_batches = (total_transactions + batch_size - 1) // batch_size
     all_results = []
@@ -168,7 +166,7 @@ def categorize_in_batches(
         batch = transaction_views[i : i + batch_size]
         batch_num = (i // batch_size) + 1
 
-        results = categorize_inferentially(batch, category_config, claude_key)
+        results = categorize_inferentially(batch, config)
         all_results.extend(results)
 
         success_count = len(results)
@@ -192,14 +190,14 @@ def categorize_in_batches(
     return all_results
 
 
-def apply_manual_overrides(db: SprigDatabase, category_config: Config):
+def apply_manual_overrides(db: SprigDatabase, config: Config):
     """Apply manual category overrides from config."""
-    if not category_config.manual_categories:
+    if not config.manual_categories:
         return
 
-    valid_category_names = {cat.name for cat in category_config.categories}
+    valid_category_names = {cat.name for cat in config.categories}
 
-    for manual_cat in category_config.manual_categories:
+    for manual_cat in config.manual_categories:
         if manual_cat.category not in valid_category_names:
             logger.warning(f"Invalid category '{manual_cat.category}' for {manual_cat.transaction_id}")
             continue
@@ -215,7 +213,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, config: Config):
     if not transaction_views:
         return
 
-    results = categorize_in_batches(transaction_views, config, config.batch_size, config.claude_key)
+    results = categorize_in_batches(transaction_views, config)
 
     for result in results:
         db.update_transaction_category(result.transaction_id, result.category, result.confidence)

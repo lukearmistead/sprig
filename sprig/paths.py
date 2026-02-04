@@ -40,3 +40,11 @@ def get_default_exports_dir() -> Path:
 
 def get_default_config_path() -> Path:
     return get_sprig_home() / "config.yml"
+
+
+def resolve_cert_path(path: str) -> str:
+    """Resolve a cert/key path relative to sprig home."""
+    p = Path(path)
+    if p.is_absolute():
+        return str(p)
+    return str(get_sprig_home() / p)

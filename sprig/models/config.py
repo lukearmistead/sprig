@@ -1,7 +1,6 @@
 """Configuration models for Sprig."""
 
 import shutil
-import sys
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
@@ -9,7 +8,7 @@ from typing import List, Optional
 import yaml
 from pydantic import BaseModel
 
-from sprig.paths import get_default_config_path
+from sprig.paths import _is_frozen, get_default_config_path
 
 
 class Category(BaseModel):
@@ -25,17 +24,17 @@ class ManualCategory(BaseModel):
 class Config(BaseModel):
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
-    batch_size: int = 50
+    batch_size: int
     from_date: Optional[date] = None
     app_id: str = ""
     claude_key: str = ""
     access_tokens: List[str] = []
-    environment: str = "development"
-    cert_path: str = "certs/certificate.pem"
-    key_path: str = "certs/private_key.pem"
+    environment: str = ""
+    cert_path: str = ""
+    key_path: str = ""
 
     @classmethod
-    def load(cls, config_path: Path = None):
+    def load(cls, config_path: Path = None) -> "Config":
         config_path = config_path or get_default_config_path()
 
         if not config_path.exists():
@@ -51,9 +50,10 @@ class Config(BaseModel):
 
     @staticmethod
     def _bundled_config_path() -> Optional[Path]:
-        if getattr(sys, "frozen", False):
+        import sys
+
+        if _is_frozen():
             return Path(sys._MEIPASS) / "config.yml"
-        # When running from source, use repo root config.yml
         return Path(__file__).parent.parent.parent / "config.yml"
 
     def save(self, config_path: Path = None):

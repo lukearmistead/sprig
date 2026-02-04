@@ -7,7 +7,6 @@ from sprig.models import TransactionCategory
 from sprig.models.config import Config
 from sprig.models.claude import TransactionView
 
-FAKE_CLAUDE_KEY = "sk-ant-api03-" + "a" * 95
 
 
 class TestBuildCategorizationPrompt:
@@ -35,13 +34,13 @@ class TestBuildCategorizationPrompt:
         category_config = Config.load()
 
         # Mock Agent to inspect the prompt
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent_instance = Mock()
             mock_agent_instance.run_sync.return_value = Mock(output=[])
             MockAgent.return_value = mock_agent_instance
 
             # Call categorize_inferentially which should build the prompt internally
-            categorize_inferentially(transaction_views, category_config, FAKE_CLAUDE_KEY)
+            categorize_inferentially(transaction_views, category_config)
 
             # Get the prompt from the call args
             call_args = mock_agent_instance.run_sync.call_args
@@ -91,7 +90,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return valid categories
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -101,7 +100,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert len(result) == 2
             assert result[0].transaction_id == "txn_123"
@@ -139,7 +138,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return mix of valid and invalid categories
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -149,7 +148,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             # Invalid category should be filtered out
             assert len(result) == 1
@@ -198,7 +197,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return mix of valid and invalid
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -209,7 +208,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             # Only valid categories should be returned
             assert len(result) == 2
@@ -224,14 +223,14 @@ class TestInferentialCategorizerParsing:
         transaction_views = []
 
         # Mock agent to return empty list
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
             mock_result.output = []
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert result == []
 
@@ -265,7 +264,7 @@ class TestInferentialCategorizerParsing:
         ]
 
         # Mock agent to return all invalid categories
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -275,7 +274,7 @@ class TestInferentialCategorizerParsing:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             # All invalid, so empty list
             assert result == []
@@ -332,7 +331,7 @@ class TestCategorizeBatchIntegration:
         category_config = Config.load()
 
         # Mock categorization_agent.run_sync
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -343,7 +342,7 @@ class TestCategorizeBatchIntegration:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Assert correct categories returned as list
             assert len(result) == 3
@@ -382,7 +381,7 @@ class TestCategorizeBatchIntegration:
         category_config = Config.load()
 
         # Mock agent to return mix of valid and invalid
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -393,7 +392,7 @@ class TestCategorizeBatchIntegration:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Assert invalid category is filtered out
             assert len(result) == 2
@@ -421,7 +420,7 @@ class TestCategorizeBatchIntegration:
 
         category_config = Config.load()
 
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -430,7 +429,7 @@ class TestCategorizeBatchIntegration:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Verify agent was called
             mock_agent.run_sync.assert_called_once()
@@ -480,7 +479,7 @@ class TestEdgeCases:
             )
         ]
 
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -490,7 +489,7 @@ class TestEdgeCases:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert len(result) == 2
             assert result[0].transaction_id == "12345"
@@ -527,7 +526,7 @@ class TestEdgeCases:
             )
         ]
 
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -537,7 +536,7 @@ class TestEdgeCases:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, self.category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, self.category_config)
 
             assert len(result) == 2
             assert result[0].transaction_id == "txn_abc-123"
@@ -577,13 +576,13 @@ class TestCategorizeBatchProcessing:
         ]
 
         category_config = Config.load()
-        batch_size = 10
+        category_config.batch_size = 10
 
         call_count = 0
         batch_sizes = []
 
         with patch('sprig.categorize.categorize_inferentially') as mock_categorize:
-            def track_calls(views, config, key):
+            def track_calls(views, config):
                 nonlocal call_count
                 call_count += 1
                 batch_sizes.append(len(views))
@@ -595,7 +594,7 @@ class TestCategorizeBatchProcessing:
 
             mock_categorize.side_effect = track_calls
 
-            results = categorize_in_batches(transaction_views, category_config, batch_size, FAKE_CLAUDE_KEY)
+            results = categorize_in_batches(transaction_views, category_config)
 
             # Should make 3 calls: 10, 10, 5
             assert call_count == 3
@@ -625,7 +624,7 @@ class TestCategorizeBatchProcessing:
         category_config = Config.load()
 
         with patch('sprig.categorize.categorize_inferentially') as mock_categorize:
-            def mock_categorize_func(views, config, key):
+            def mock_categorize_func(views, config):
                 # Return results for each transaction in the batch
                 return [
                     TransactionCategory(transaction_id=v.id, category="general", confidence=0.8)
@@ -634,7 +633,7 @@ class TestCategorizeBatchProcessing:
 
             mock_categorize.side_effect = mock_categorize_func
 
-            results = categorize_in_batches(transaction_views, category_config, batch_size=10, claude_key=FAKE_CLAUDE_KEY)
+            results = categorize_in_batches(transaction_views, category_config)
 
             # Should return all 20 results
             assert len(results) == 20
@@ -681,7 +680,7 @@ class TestCategorizationWithTransactionView:
         category_config = Config.load()
 
         # Mock agent response
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -692,7 +691,7 @@ class TestCategorizationWithTransactionView:
             mock_agent.run_sync.return_value = mock_result
 
             # Call with TransactionView list - NO account_info parameter
-            result = categorize_inferentially(transaction_views, category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Verify results
             assert len(result) == 2
@@ -722,7 +721,7 @@ class TestCategorizationWithTransactionView:
 
         category_config = Config.load()
 
-        with patch('sprig.categorize.Agent') as MockAgent:
+        with patch('sprig.categorize.AnthropicProvider'), patch('sprig.categorize.Agent') as MockAgent:
             mock_agent = Mock()
             MockAgent.return_value = mock_agent
             mock_result = Mock()
@@ -731,7 +730,7 @@ class TestCategorizationWithTransactionView:
             ]
             mock_agent.run_sync.return_value = mock_result
 
-            result = categorize_inferentially(transaction_views, category_config, FAKE_CLAUDE_KEY)
+            result = categorize_inferentially(transaction_views, category_config)
 
             # Verify agent was called with context
             mock_agent.run_sync.assert_called_once()
