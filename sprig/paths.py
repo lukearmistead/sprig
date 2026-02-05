@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-def _is_frozen() -> bool:
+def is_frozen() -> bool:
     return getattr(sys, "frozen", False)
 
 
@@ -14,7 +14,7 @@ def get_sprig_home() -> Path:
     PyInstaller binary: ~/Documents/Sprig/
     Running from source: ~/.sprig/
     """
-    if _is_frozen():
+    if is_frozen():
         home = Path.home() / "Documents" / "Sprig"
     else:
         home = Path.home() / ".sprig"

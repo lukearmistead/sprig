@@ -135,7 +135,7 @@ def categorize_inferentially(
         logger.error(f"Failed to categorize {len(transaction_views)} transactions: {error_msg}")
 
         # Re-raise rate limit errors so sync can handle them specially
-        if "rate_limit" in error_msg.lower() or "rate limit" in error_msg.lower():
+        if "rate" in error_msg.lower() and "limit" in error_msg.lower():
             raise
 
         return []

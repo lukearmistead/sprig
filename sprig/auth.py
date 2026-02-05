@@ -40,9 +40,10 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
         except ValidationError:
             return jsonify({"success": False, "error": "Invalid token format"}), 400
 
-        if token not in config.access_tokens:
-            config.access_tokens.append(token)
-        config.save()
+        if token in config.access_tokens:
+            return jsonify({"success": True, "message": "Account already connected", "accounts_added": accounts_added})
+        config.access_tokens.append(token)
+        config.save_credentials()
         accounts_added += 1
         return jsonify({
             "success": True,
@@ -69,7 +70,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
 
     threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
-        app.run(host="0.0.0.0", port=port, debug=False)
+        app.run(host="127.0.0.1", port=port, debug=False)
     except KeyboardInterrupt:
         if not shutdown_requested:
             logger.warning("\nAuthentication cancelled.")

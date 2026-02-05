@@ -8,7 +8,7 @@ from typing import List, Optional
 import yaml
 from pydantic import BaseModel
 
-from sprig.paths import _is_frozen, get_default_config_path
+from sprig.paths import is_frozen, get_default_config_path
 
 
 class Category(BaseModel):
@@ -52,11 +52,11 @@ class Config(BaseModel):
     def _bundled_config_path() -> Optional[Path]:
         import sys
 
-        if _is_frozen():
+        if is_frozen():
             return Path(sys._MEIPASS) / "config.yml"
         return Path(__file__).parent.parent.parent / "config.yml"
 
-    def save(self, config_path: Path = None):
+    def save_credentials(self, config_path: Path = None):
         config_path = config_path or get_default_config_path()
         with open(config_path, "r") as f:
             raw = yaml.safe_load(f)
