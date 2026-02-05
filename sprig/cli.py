@@ -10,13 +10,14 @@ from sprig.export import export_transactions_to_csv
 from sprig.fetch import Fetcher
 from sprig.logger import get_logger
 from sprig.models.config import Config
-from sprig.paths import get_default_db_path, resolve_cert_path
+from sprig.paths import get_default_certs_dir, get_default_db_path, resolve_cert_path
 from sprig.teller_client import TellerClient
 
 logger = get_logger()
 
 
 def cmd_connect(config: Config):
+    get_default_certs_dir()  # Ensure certs folder exists for user
     if not config.app_id:
         logger.error("Set app_id in config.yml before connecting.")
         sys.exit(1)
