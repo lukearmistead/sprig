@@ -12,9 +12,6 @@
 #   3. Copy your Application ID
 app_id: ""
 
-# Teller environment: "sandbox" for testing, "development" or "production" for real banks
-environment: development
-
 # Path to your Teller certificate (downloaded from Teller dashboard)
 cert_path: certs/certificate.pem
 key_path: certs/private_key.pem
@@ -32,10 +29,14 @@ claude_key: ""
 # SYNC SETTINGS (Optional)
 # -----------------------------------------------------------------------------
 # How far back to fetch transactions (YYYY-MM-DD)
-from_date: "2024-01-01"
+from_date: ""
 
 # How many transactions to categorize per batch
 batch_size: 50
+
+# Teller environment: "development" is free and connects to real banks.
+# Use "sandbox" for testing with fake data, "production" for paid usage.
+environment: development
 
 # -----------------------------------------------------------------------------
 # DO NOT EDIT BELOW - Managed by Sprig
