@@ -1,24 +1,50 @@
-# Sprig Configuration
-# Credentials and settings for transaction sync.
+# =============================================================================
+# SPRIG CONFIGURATION
+# =============================================================================
+# Fill in the values below to get started.
 
-# Teller API credentials (run `sprig connect` after setting these)
+# -----------------------------------------------------------------------------
+# TELLER (Bank Connection)
+# -----------------------------------------------------------------------------
+# Get your app_id from https://teller.io:
+#   1. Sign up for a Teller account
+#   2. Create an application
+#   3. Copy your Application ID
 app_id: ""
+
+# Teller environment: "sandbox" for testing, "development" or "production" for real banks
 environment: development
+
+# Path to your Teller certificate (downloaded from Teller dashboard)
 cert_path: certs/certificate.pem
 key_path: certs/private_key.pem
 
-# Claude API key for transaction categorization
+# -----------------------------------------------------------------------------
+# CLAUDE (AI Categorization)
+# -----------------------------------------------------------------------------
+# Get your API key from https://console.anthropic.com:
+#   1. Sign up for an Anthropic account
+#   2. Go to API Keys
+#   3. Create a new key
 claude_key: ""
 
-# Access tokens (populated automatically by `sprig connect`)
-access_tokens: []
-
-# Only fetch transactions after this date (YYYY-MM-DD format)
+# -----------------------------------------------------------------------------
+# SYNC SETTINGS (Optional)
+# -----------------------------------------------------------------------------
+# How far back to fetch transactions (YYYY-MM-DD)
 from_date: "2024-01-01"
 
-# Number of transactions per Claude API call
+# How many transactions to categorize per batch
 batch_size: 50
 
+# -----------------------------------------------------------------------------
+# DO NOT EDIT BELOW - Managed by Sprig
+# -----------------------------------------------------------------------------
+access_tokens: []
+
+# -----------------------------------------------------------------------------
+# CATEGORIES
+# -----------------------------------------------------------------------------
 # Transaction categories for AI classification
 categories:
   - name: dining

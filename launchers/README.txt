@@ -1,10 +1,11 @@
 SPRIG SETUP
 ===========
 
-1. Get your Teller credentials at https://teller.io
-2. Edit ~/.sprig/config.yml and add your app_id and claude_key
-3. Place your certificate.pem and private_key.pem in ~/.sprig/certs/
-4. Double-click "Sprig Connect.command" to link your bank
-5. Double-click "Sprig Sync.command" to fetch and categorize transactions
+1. Double-click "Sprig.command" to start
+2. Sprig will open your config file - add your API keys:
+   - app_id: Get from https://teller.io
+   - claude_key: Get from https://console.anthropic.com
+3. Place your Teller certificates in ~/.sprig/certs/
+4. Run Sprig.command again to connect your bank and sync
 
 Your transactions export to: ~/.sprig/data/transactions.csv

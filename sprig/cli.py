@@ -1,6 +1,7 @@
-"""Sprig CLI — two commands, one config file."""
+"""Sprig CLI — single command that guides users through setup."""
 
-import argparse
+import os
+import subprocess
 import sys
 
 from sprig.auth import authenticate
@@ -10,24 +11,24 @@ from sprig.export import export_transactions_to_csv
 from sprig.fetch import Fetcher
 from sprig.logger import get_logger
 from sprig.models.config import Config
-from sprig.paths import get_default_db_path, resolve_cert_path
+from sprig.paths import get_default_config_path, get_default_db_path, resolve_cert_path
 from sprig.teller_client import TellerClient
 
 logger = get_logger()
 
 
-def cmd_connect(config: Config):
-    if not config.app_id:
-        logger.error("Set app_id in config.yml before connecting.")
-        sys.exit(1)
-    authenticate(config)
+def open_config(config_path: str):
+    """Open config file in default editor."""
+    if sys.platform == "darwin":
+        subprocess.run(["open", config_path])
+    elif sys.platform == "win32":
+        os.startfile(config_path)
+    else:
+        subprocess.run(["xdg-open", config_path])
 
 
-def cmd_sync(config: Config):
-    if not config.app_id or not config.claude_key or not config.access_tokens:
-        logger.error("Missing required config. Set app_id, claude_key, and run `sprig connect`.")
-        sys.exit(1)
-
+def run_sync(config: Config):
+    """Fetch, categorize, and export transactions."""
     db_path = get_default_db_path()
     db = SprigDatabase(db_path)
 
@@ -45,24 +46,42 @@ def cmd_sync(config: Config):
     export_transactions_to_csv(db_path)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Sprig — local transaction sync")
-    sub = parser.add_subparsers(dest="command", help="Available commands")
-    sub.add_parser("connect", help="Connect a bank account via Teller")
-    sub.add_parser("sync", help="Fetch, categorize, and export transactions")
-    return parser
-
-
 def main():
-    parser = build_parser()
-    args = parser.parse_args()
+    config = Config.load()
 
-    if not args.command:
-        parser.print_help()
+    # Check credentials - open config if missing
+    missing = []
+    if not config.app_id:
+        missing.append("app_id")
+    if not config.claude_key:
+        missing.append("claude_key")
+
+    if missing:
+        print("Config needs your API keys. Opening config.yml...\n")
+        print(f"Missing: {', '.join(missing)}")
+        print("\nFill in the values, save, then run Sprig again.")
+        open_config(str(get_default_config_path()))
         return
 
-    config = Config.load()
-    {"connect": cmd_connect, "sync": cmd_sync}[args.command](config)
+    # Check accounts - run connect flow if none
+    if not config.access_tokens:
+        print("No accounts connected. Opening browser to connect...\n")
+        authenticate(config)
+        config = Config.load()  # Reload after connect
+        if not config.access_tokens:
+            print("No accounts were connected. Run Sprig again when ready.")
+            return
+
+    # Run sync
+    run_sync(config)
+
+    # Offer to add more accounts
+    try:
+        response = input("\nAdd another bank account? [y/N] ").strip().lower()
+        if response == "y":
+            authenticate(config)
+    except EOFError:
+        pass  # Non-interactive mode
 
 
 if __name__ == "__main__":
