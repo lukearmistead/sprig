@@ -1,35 +1,50 @@
-"""Path utilities for Sprig home directory (~/.sprig/)."""
+"""Path utilities for Sprig home directory."""
 
+import sys
 from pathlib import Path
 
-SPRIG_HOME = Path.home() / ".sprig"
+
+def is_frozen() -> bool:
+    return getattr(sys, "frozen", False)
 
 
 def get_sprig_home() -> Path:
-    """Get the Sprig home directory (~/.sprig/), creating it if needed."""
-    SPRIG_HOME.mkdir(parents=True, exist_ok=True)
-    return SPRIG_HOME
+    """Get Sprig home directory, creating it if needed.
+
+    PyInstaller binary: ~/Documents/Sprig/
+    Running from source: ~/.sprig/
+    """
+    if is_frozen():
+        home = Path.home() / "Documents" / "Sprig"
+    else:
+        home = Path.home() / ".sprig"
+    home.mkdir(parents=True, exist_ok=True)
+    return home
 
 
 def get_default_db_path() -> Path:
-    """Get the default database path (~/.sprig/sprig.db)."""
     return get_sprig_home() / "sprig.db"
 
 
 def get_default_certs_dir() -> Path:
-    """Get the default certificates directory (~/.sprig/certs/)."""
     certs_dir = get_sprig_home() / "certs"
     certs_dir.mkdir(parents=True, exist_ok=True)
     return certs_dir
 
 
 def get_default_exports_dir() -> Path:
-    """Get the default exports directory (~/.sprig/exports/)."""
     exports_dir = get_sprig_home() / "exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
     return exports_dir
 
 
 def get_default_config_path() -> Path:
-    """Get the default config file path (~/.sprig/config.yml)."""
     return get_sprig_home() / "config.yml"
+
+
+def resolve_cert_path(path: str) -> str:
+    """Resolve a cert/key path relative to sprig home."""
+    p = Path(path)
+    if p.is_absolute():
+        return str(p)
+    return str(get_sprig_home() / p)

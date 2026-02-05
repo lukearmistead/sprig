@@ -1,10 +1,25 @@
-# Sprig Transaction Categories Configuration
-# This file defines the categories used for transaction classification.
-# Categories are based on Teller's official category list with enhanced descriptions.
+# Sprig Configuration
+# Credentials and settings for transaction sync.
+
+# Teller API credentials (run `sprig connect` after setting these)
+app_id: ""
+environment: development
+cert_path: certs/certificate.pem
+key_path: certs/private_key.pem
+
+# Claude API key for transaction categorization
+claude_key: ""
+
+# Access tokens (populated automatically by `sprig connect`)
+access_tokens: []
 
 # Only fetch transactions after this date (YYYY-MM-DD format)
 from_date: "2024-01-01"
 
+# Number of transactions per Claude API call
+batch_size: 50
+
+# Transaction categories for AI classification
 categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
@@ -35,13 +50,8 @@ categories:
   - name: undefined
     description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
 
-# MANUAL CATEGORIES
-# You can override the AI-inferred category for specific transactions.
-# After exporting to CSV and finding miscategorized transactions, add them here:
-#
-#
-# On next sync, these manual categories will be applied instead of calling Claude AI.
-# The manual_categories section is optional - leave empty if not needed.
+# Manual category overrides (optional)
+# Override AI-inferred categories for specific transactions:
 # manual_categories:
 #   - transaction_id: txn_abc123
 #     category: dining

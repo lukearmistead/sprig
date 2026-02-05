@@ -7,7 +7,6 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from sprig import credentials
 from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 from sprig.models import TransactionCategory, TransactionView, TransactionBatch
@@ -102,32 +101,13 @@ def _validate_category_results(
 )
 def categorize_inferentially(
     transaction_views: List[TransactionView],
-    category_config: Config,
+    config: Config,
 ) -> List[TransactionCategory]:
-    """Categorize transactions using AI agent with exponential backoff retry.
-
-    Args:
-        transaction_views: List of TransactionView objects to categorize
-        category_config: Config containing valid categories
-
-    Returns:
-        List of TransactionCategory for categorized transactions
-
-    Raises:
-        ValueError: If Claude API key is not configured in keyring
-    """
     if not transaction_views:
         return []
 
-    api_key = credentials.get_claude_api_key()
-    if not api_key:
-        raise ValueError(
-            "Claude API key not found in keyring. "
-            "Run 'python sprig.py auth' to configure it."
-        )
-
     categories_with_descriptions = [
-        f"{cat.name}: {cat.description}" for cat in category_config.categories
+        f"{cat.name}: {cat.description}" for cat in config.categories
     ]
 
     batch = TransactionBatch(transactions=transaction_views)
@@ -138,7 +118,7 @@ def categorize_inferentially(
         transactions=transactions_json
     )
 
-    provider = AnthropicProvider(api_key=api_key.value)
+    provider = AnthropicProvider(api_key=config.claude_key)
     model = AnthropicModel("claude-haiku-4-5-20251001", provider=provider)
 
     agent = Agent(
@@ -155,33 +135,23 @@ def categorize_inferentially(
         logger.error(f"Failed to categorize {len(transaction_views)} transactions: {error_msg}")
 
         # Re-raise rate limit errors so sync can handle them specially
-        if "rate_limit" in error_msg.lower() or "rate limit" in error_msg.lower():
+        if "rate" in error_msg.lower() and "limit" in error_msg.lower():
             raise
 
         return []
 
-    valid_category_names = {cat.name for cat in category_config.categories}
+    valid_category_names = {cat.name for cat in config.categories}
     return _validate_category_results(categories, valid_category_names)
 
 
 def categorize_in_batches(
     transaction_views: List[TransactionView],
-    category_config: Config,
-    batch_size: int,
+    config: Config,
 ) -> List[TransactionCategory]:
-    """Categorize transactions in batches with retry logic.
-
-    Args:
-        transaction_views: List of TransactionView objects to categorize
-        category_config: Config containing valid categories
-        batch_size: Number of transactions to categorize per API call
-
-    Returns:
-        List of TransactionCategory for all categorized transactions
-    """
     if not transaction_views:
         return []
 
+    batch_size = config.batch_size
     total_transactions = len(transaction_views)
     total_batches = (total_transactions + batch_size - 1) // batch_size
     all_results = []
@@ -196,7 +166,7 @@ def categorize_in_batches(
         batch = transaction_views[i : i + batch_size]
         batch_num = (i // batch_size) + 1
 
-        results = categorize_inferentially(batch, category_config)
+        results = categorize_inferentially(batch, config)
         all_results.extend(results)
 
         success_count = len(results)
@@ -220,24 +190,22 @@ def categorize_in_batches(
     return all_results
 
 
-def apply_manual_overrides(db: SprigDatabase, category_config: Config):
+def apply_manual_overrides(db: SprigDatabase, config: Config):
     """Apply manual category overrides from config."""
-    if not category_config.manual_categories:
+    if not config.manual_categories:
         return
 
-    valid_category_names = {cat.name for cat in category_config.categories}
+    valid_category_names = {cat.name for cat in config.categories}
 
-    for manual_cat in category_config.manual_categories:
+    for manual_cat in config.manual_categories:
         if manual_cat.category not in valid_category_names:
             logger.warning(f"Invalid category '{manual_cat.category}' for {manual_cat.transaction_id}")
             continue
         db.update_transaction_category(manual_cat.transaction_id, manual_cat.category, 1.0)
 
 
-def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
-    """Categorize transactions that don't have a category assigned."""
-    category_config = Config.load()
-    apply_manual_overrides(db, category_config)
+def categorize_uncategorized_transactions(db: SprigDatabase, config: Config):
+    apply_manual_overrides(db, config)
 
     uncategorized = db.get_uncategorized_transactions()
     transaction_views = [TransactionView.from_db_row(row) for row in uncategorized]
@@ -245,7 +213,7 @@ def categorize_uncategorized_transactions(db: SprigDatabase, batch_size: int):
     if not transaction_views:
         return
 
-    results = categorize_in_batches(transaction_views, category_config, batch_size)
+    results = categorize_in_batches(transaction_views, config)
 
     for result in results:
         db.update_transaction_category(result.transaction_id, result.category, result.confidence)

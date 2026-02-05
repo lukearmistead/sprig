@@ -15,7 +15,6 @@ dependencies = [
     "anthropic>=0.34.0",
     "PyYAML>=6.0.0",
     "flask>=2.3.0",
-    "keyring>=24.0.0",
     "tenacity>=8.2.3",
 ]
 
