@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
-import yaml
+from ruamel.yaml import YAML
 from pydantic import BaseModel
 
 from sprig.paths import is_frozen, get_default_config_path
@@ -32,6 +32,7 @@ class Config(BaseModel):
     environment: str = ""
     cert_path: str = ""
     key_path: str = ""
+    categorization_prompt: str = ""
 
     @classmethod
     def load(cls, config_path: Path = None) -> "Config":
@@ -43,8 +44,9 @@ class Config(BaseModel):
                 config_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(bundled, config_path)
 
+        yml = YAML()
         with open(config_path, "r") as f:
-            config_data = yaml.safe_load(f)
+            config_data = yml.load(f)
 
         return cls(**config_data)
 
@@ -58,8 +60,9 @@ class Config(BaseModel):
 
     def save_credentials(self, config_path: Path = None):
         config_path = config_path or get_default_config_path()
+        yml = YAML()
         with open(config_path, "r") as f:
-            raw = yaml.safe_load(f)
+            raw = yml.load(f)
         raw["access_tokens"] = self.access_tokens
         raw["app_id"] = self.app_id
         raw["claude_key"] = self.claude_key
@@ -67,4 +70,4 @@ class Config(BaseModel):
         raw["cert_path"] = self.cert_path
         raw["key_path"] = self.key_path
         with open(config_path, "w") as f:
-            yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
+            yml.dump(raw, f)
