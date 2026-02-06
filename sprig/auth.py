@@ -1,7 +1,5 @@
 """Authentication server for Teller Connect integration."""
 
-import os
-import signal
 import threading
 import time
 import webbrowser
@@ -9,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from flask import Flask, request, render_template, jsonify
+from werkzeug.serving import make_server
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
@@ -55,9 +54,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
     def done():
         nonlocal shutdown_requested
         shutdown_requested = True
-        threading.Thread(
-            target=lambda: (time.sleep(1), os.kill(os.getpid(), signal.SIGINT)), daemon=True
-        ).start()
+        threading.Thread(target=lambda: (time.sleep(1), server.shutdown()), daemon=True).start()
         return jsonify({"success": True, "message": "Authentication complete!"})
 
     @app.route("/status")
@@ -68,9 +65,10 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
     logger.info(f"Opening browser to {url}")
     logger.info("Please complete the bank authentication in your browser...")
 
+    server = make_server("127.0.0.1", port, app)
     threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
-        app.run(host="127.0.0.1", port=port, debug=False)
+        server.serve_forever()
     except KeyboardInterrupt:
         if not shutdown_requested:
             logger.warning("\nAuthentication cancelled.")
