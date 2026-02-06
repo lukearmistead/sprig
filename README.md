@@ -69,131 +69,57 @@ You'll need accounts with two services (both free to start):
    - Create an API key (starts with `sk-ant-api03-`)
    - **Cost:** ~$0.10-0.50 per 1000 transactions ([see pricing](https://platform.claude.com/docs/en/build-with-claude/batch-processing#pricing))
 
-### Step 3: Set Up and Connect Your Banks
+### Step 3: Run Sprig
 
 ```bash
-sprig auth
-```
-
-You'll be prompted to enter your Teller APP_ID and Claude API key, then a browser opens for secure bank login.
-
-**To update credentials:** Just run `sprig auth` again - it shows your current values.
-
-### Step 4: Get Your Data
-
-```bash
-# Download, categorize, and export transactions
 sprig sync
 ```
 
+Sprig guides you through setup automatically:
+1. **First run:** Opens `~/.sprig/config.yml` — add your `app_id` and `claude_key`
+2. **Second run:** Opens browser to connect your bank accounts
+3. **After that:** Fetches, categorizes, and exports your transactions
+
 **Done!** Your transactions are in `~/.sprig/exports/transactions-YYYY-MM-DD.csv`.
 
-**Want to customize categories?** You can edit `~/.sprig/config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
-
-**Note:** Set `from_date` in `~/.sprig/config.yml` to control how far back transactions are fetched (default: 2024-01-01).
+**Want to customize categories?** Edit `~/.sprig/config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
 
 ---
 
 ## How to Use Sprig
 
-### Commands
+### The `sprig sync` Command
 
-#### 1. `sprig auth` - Connect Your Banks
+One command does everything:
 
-**When to use:** First time setup, or when adding new bank accounts
+```bash
+sprig sync
+```
 
 **What it does:**
-- Opens your browser to Teller's secure login page
-- You select your bank and log in (Sprig never sees your password)
-- Saves the connection so you can download transactions
+1. Checks for API credentials — opens config file if missing
+2. Checks for connected accounts — opens browser to connect if none
+3. Downloads transactions from your banks
+4. Categorizes them with Claude AI
+5. Exports to CSV
+6. Offers to add another bank account
 
 **What you'll see:**
 ```
-Starting Teller authentication (app: app_abc123, environment: development)
-Opening browser to http://localhost:8001
-Please complete the bank authentication in your browser...
-Successfully added 2 account(s)!
-```
-
----
-
-#### 2. `sprig sync` - Download Transactions
-
-**When to use:** Daily, weekly, or whenever you want fresh transaction data
-
-**What it does:**
-- Connects to your banks and downloads recent transactions
-- Stores them in a local database (`~/.sprig/sprig.db`)
-- If you have Claude API configured, automatically categorizes transactions
-
-**What you'll see:**
-```
-Starting sync for 2 access token(s)
-Categorizing 47 uncategorized transaction(s) using Claude AI
-   Processing in 5 batch(es) of up to 10 transactions each
-   Processing batch 1/5 (10 transactions)...
-      Batch 1 complete: 10 categorized
-   Processing batch 2/5 (10 transactions)...
-      Batch 2 complete: 10 categorized
-   [... continues for remaining batches ...]
-Successfully synced 2 valid token(s)
+Fetching transactions from Teller
+Filtering transactions from 2024-01-01
+Categorizing transactions
+Categorizing 47 transaction(s) using Claude AI
+   Processing in 1 batch(es) of up to 50 each
+   Batch 1/1 (47 transactions)...
+      Batch 1 complete: 47 categorized
 Categorization complete
    Successfully categorized: 47 transactions
    Success rate: 100.0%
-```
+Exporting to CSV
+Exported 47 transaction(s) to ~/.sprig/exports/transactions-2025-11-17.csv
 
-**Tip:** Set `from_date` in `~/.sprig/config.yml` to control how far back to fetch transactions.
-
----
-
-#### 3. `sprig fetch` - Fetch Transactions Only
-
-**When to use:** When you want to download transactions without categorizing or exporting
-
-**What it does:**
-- Connects to your banks and downloads transactions
-- Stores them in the local database (`~/.sprig/sprig.db`)
-- Does NOT categorize or export
-
-```bash
-sprig fetch
-```
-
----
-
-#### 4. `sprig categorize` - Categorize Only
-
-**When to use:** When you have uncategorized transactions and want to run categorization separately
-
-**What it does:**
-- Finds uncategorized transactions in the database
-- Sends them to Claude AI for categorization
-- Updates the database with categories
-
-```bash
-sprig categorize
-```
-
----
-
-#### 5. `sprig export` - Create Your Spreadsheet
-
-**When to use:** After syncing, whenever you want to analyze your data
-
-**What it does:**
-- Reads all transactions from the database
-- Creates a CSV file with all your transaction data
-- Saves it to `~/.sprig/exports/transactions-YYYY-MM-DD.csv`
-
-**What you'll see:**
-```
-Starting export to ~/.sprig/exports/transactions-2025-11-17.csv
-Exported 347 transaction(s) to ~/.sprig/exports/transactions-2025-11-17.csv
-```
-
-**Optional:** Export to a custom location:
-```bash
-sprig export -o ~/Documents/my-finances.csv
+Add another bank account? [y/N]
 ```
 
 ---
@@ -340,9 +266,9 @@ ruff check .  # Linting
 ```
 
 ### Project Structure
+- **`sprig/cli.py`** - Single-command CLI entry point
 - **`sprig/auth.py`** - Teller Connect authentication server
 - **`sprig/categorize.py`** - Claude AI categorization
-- **`sprig/credentials.py`** - Credential management (keyring)
 - **`sprig/database.py`** - SQLite operations
 - **`sprig/export.py`** - CSV export
 - **`sprig/fetch.py`** - Transaction fetching from Teller
@@ -377,7 +303,7 @@ ruff check .  # Linting
 **Problem:** Your bank connection expired or was revoked
 
 **Solution:**
-1. Run `sprig auth` again to reconnect your banks
+1. Run `sprig sync` — it will detect the missing connection and prompt you to reconnect
 
 **Why this happens:** Bank connections can expire for security, or if you changed your bank password
 
@@ -408,9 +334,9 @@ pip install -e .
 **Problem:** Credentials not set up
 
 **Solution:**
-1. Run `sprig auth` - it will prompt you to enter credentials
-2. Make sure you enter your Teller APP_ID and Claude API key correctly
-3. Your credentials are stored securely in your system keyring
+1. Run `sprig sync` — it will open `~/.sprig/config.yml` for you to add credentials
+2. Add your Teller `app_id` and `claude_key`
+3. Save the file and run `sprig sync` again
 
 ---
 
@@ -524,9 +450,8 @@ All Sprig data is stored in `~/.sprig/`:
 
 - **Transactions:** `~/.sprig/sprig.db` (SQLite database)
 - **Exports:** `~/.sprig/exports/` (CSV files)
-- **Credentials:** Secure system keyring (macOS Keychain, Windows Credential Locker, Linux Secret Service)
+- **Config & credentials:** `~/.sprig/config.yml`
 - **Certificates:** `~/.sprig/certs/`
-- **Category config:** `~/.sprig/config.yml`
 
 To backup your data, copy the `~/.sprig/` folder.
 
