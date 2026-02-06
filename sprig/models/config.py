@@ -53,8 +53,8 @@ class Config(BaseModel):
         import sys
 
         if is_frozen():
-            return Path(sys._MEIPASS) / "config.yml"
-        return Path(__file__).parent.parent.parent / "config.yml"
+            return Path(sys._MEIPASS) / "config-template.yml"
+        return Path(__file__).parent.parent.parent / "config-template.yml"
 
     def save_credentials(self, config_path: Path = None):
         config_path = config_path or get_default_config_path()

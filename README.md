@@ -275,7 +275,7 @@ ruff check .  # Linting
 - **`sprig/logger.py`** - Logging configuration
 - **`sprig/teller_client.py`** - Teller API client with mTLS
 - **`sprig/models/`** - Pydantic data models
-- **`config.yml`** - Category definitions and settings
+- **`config-template.yml`** - Default config template (copied to ~/.sprig/config.yml on first run)
 
 ### Contributing
 1. Clone repo → create feature branch → add tests → submit PR
