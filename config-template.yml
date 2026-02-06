@@ -33,7 +33,7 @@ claude_key: ""
 # -----------------------------------------------------------------------------
 # How far back to fetch transactions (YYYY-MM-DD format)
 # Leave blank to fetch all available history
-from_date: ""
+from_date:
 
 # How many transactions to categorize per batch
 batch_size: 50

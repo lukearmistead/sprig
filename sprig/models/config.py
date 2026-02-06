@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from ruamel.yaml import YAML
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from sprig.paths import is_frozen, get_default_config_path
+from sprig.paths import is_frozen, get_default_config_path, get_default_certs_dir
 
 
 class Category(BaseModel):
@@ -34,6 +34,13 @@ class Config(BaseModel):
     key_path: str = ""
     categorization_prompt: str = ""
 
+    @field_validator("from_date", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
     @classmethod
     def load(cls, config_path: Path = None) -> "Config":
         config_path = config_path or get_default_config_path()
@@ -43,6 +50,7 @@ class Config(BaseModel):
             if bundled and bundled.exists():
                 config_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(bundled, config_path)
+                get_default_certs_dir()
 
         yml = YAML()
         with open(config_path, "r") as f:

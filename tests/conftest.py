@@ -1,11 +1,11 @@
-"""Test configuration — use repo root config.yml for all tests."""
+"""Test configuration — use repo root config-template.yml for all tests."""
 
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-REPO_CONFIG = Path(__file__).parent.parent / "config.yml"
+REPO_CONFIG = Path(__file__).parent.parent / "config-template.yml"
 
 
 @pytest.fixture(autouse=True)
