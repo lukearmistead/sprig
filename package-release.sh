@@ -18,7 +18,6 @@ echo "Creating release folder..."
 mkdir -p dist/Sprig-Release
 cp dist/sprig dist/Sprig-Release/
 cp launchers/*.command dist/Sprig-Release/
-cp launchers/README.txt dist/Sprig-Release/
 chmod +x dist/Sprig-Release/*.command
 
 echo "Creating zip archive..."

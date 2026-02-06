@@ -57,10 +57,11 @@ def main():
         missing.append("claude_key")
 
     if missing:
-        print("Config needs your API keys. Opening config.yml...\n")
+        config_path = get_default_config_path()
+        print(f"Config needs your API keys. Opening {config_path}...\n")
         print(f"Missing: {', '.join(missing)}")
         print("\nFill in the values, save, then run Sprig again.")
-        open_config(str(get_default_config_path()))
+        open_config(str(config_path))
         return
 
     # Check accounts - run connect flow if none
