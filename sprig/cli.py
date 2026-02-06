@@ -11,7 +11,7 @@ from sprig.export import export_transactions_to_csv
 from sprig.fetch import Fetcher
 from sprig.logger import get_logger
 from sprig.models.config import Config
-from sprig.paths import get_default_config_path, get_default_db_path, resolve_cert_path
+from sprig.paths import get_default_certs_dir, get_default_config_path, get_default_db_path, resolve_cert_path
 from sprig.teller_client import TellerClient
 
 logger = get_logger()
@@ -58,20 +58,30 @@ def main():
 
     if missing:
         config_path = get_default_config_path()
-        print(f"Config needs your API keys. Opening {config_path}...\n")
+        certs_dir = get_default_certs_dir()
         print(f"Missing: {', '.join(missing)}")
-        print("\nFill in the values, save, then run Sprig again.")
+        print(f"\n1. Add your API keys to {config_path}")
+        print(f"2. Download your Teller certificate and key into {certs_dir}")
         open_config(str(config_path))
-        return
+        open_config(str(certs_dir))
+        while missing:
+            input("\nPress Enter when ready...")
+            config = Config.load()
+            missing = []
+            if not config.app_id:
+                missing.append("app_id")
+            if not config.claude_key:
+                missing.append("claude_key")
+            if missing:
+                print(f"Still missing: {', '.join(missing)}")
 
     # Check accounts - run connect flow if none
-    if not config.access_tokens:
+    while not config.access_tokens:
         print("No accounts connected. Opening browser to connect...\n")
         authenticate(config)
-        config = Config.load()  # Reload after connect
+        config = Config.load()
         if not config.access_tokens:
-            print("No accounts were connected. Run Sprig again when ready.")
-            return
+            input("No accounts were connected. Press Enter to try again...")
 
     # Run sync
     run_sync(config)
