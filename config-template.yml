@@ -42,6 +42,63 @@ batch_size: 50
 # Use "sandbox" for testing with fake data, "production" for paid usage.
 environment: development
 
+# Categorization prompt sent to Claude with each batch of transactions.
+# The {categories} and {transactions} placeholders are filled in automatically.
+# Edit this to change how Claude interprets and categorizes your transactions.
+categorization_prompt: |
+  Analyze each transaction and assign it to exactly ONE category from the provided list.
+
+  AVAILABLE CATEGORIES:
+  {categories}
+
+  TRANSACTIONS TO CATEGORIZE:
+  {transactions}
+
+  TRANSACTION FIELDS:
+  - description: The transaction description from your bank
+  - counterparty: The merchant or entity name (when available)
+  - amount: Transaction amount (negative values are refunds or credits)
+  - account_name & account_subtype: The account this transaction occurred in (e.g., "credit_card", "checking", "savings")
+
+  CATEGORIZATION PROCESS:
+  1. Read each transaction's description, counterparty (if available), amount, and account type carefully
+  2. USE ACCOUNT TYPE AS CONTEXT:
+     - Credit card transactions are NEVER income (even if negative/refunds)
+     - Checking/savings negative amounts may be income (salary, deposits) or refunds
+     - Credit card payments from checking → categorize as "loan" or "general" not "income"
+  3. Look for KEY WORDS that strongly indicate a category:
+     - "INSURANCE" + auto/car context → likely vehicle-related
+     - "AUTOPAY", "PYMT", "PAYMENT" → likely a transfer or bill payment
+     - Gas station names (Shell, Chevron, Pilot, Fast Stop, BP, etc.) → check amount to determine fuel vs. snacks
+  4. Use transaction amounts as strong hints:
+     - Gas stations: $30+ usually fuel, under $15 usually snacks/drinks
+     - Pharmacies: $100+ usually prescriptions, under $20 usually personal items
+  5. HANDLING NEGATIVE AMOUNTS (refunds/credits):
+     - Negative amounts are often refunds, NOT income or transfers
+     - Categorize refunds based on the merchant/counterparty, not the negative amount
+     - Example: A -$50 from REI is a refund for outdoor/sporting goods, not income
+     - Example: A -$25 from a restaurant is a dining refund, not a transfer
+     - Example: A -$100 on a credit card from Amazon is a return, not income
+     - Only categorize as income when clearly salary, deposits, transfers between YOUR accounts
+  6. Match to the MOST SPECIFIC applicable category based on all available information
+  7. Avoid over-using "general" - it should be rare. Most transactions have a logical category
+  8. Only use "undefined" when the merchant and purpose are genuinely unclear
+  9. CONFIDENCE SCORING (0 to 1):
+     - Assign a confidence score to each categorization based on how certain you are
+     - High confidence (0.8-1.0): Clear merchant name, obvious category (e.g., "Starbucks" → dining)
+     - Medium confidence (0.5-0.79): Some ambiguity but likely correct (e.g., gas station with small amount could be snacks or fuel)
+     - Low confidence (0-0.49): Unclear merchant, vague description, or multiple possible categories
+
+  CRITICAL REQUIREMENTS:
+  - You MUST use ONLY the exact category names listed above
+  - DO NOT create new categories like "personal_care", "education", or "subscriptions"
+  - If tempted to use a category not in the list, use "general" instead
+  - Every category in your response MUST match one from AVAILABLE CATEGORIES exactly
+  - Categorize EVERY transaction (no skipping)
+
+  VALIDATION:
+  Before returning your response, verify that EVERY category you used appears in the AVAILABLE CATEGORIES list above. If not, your response is invalid.
+
 # -----------------------------------------------------------------------------
 # DO NOT EDIT BELOW - Managed by Sprig
 # -----------------------------------------------------------------------------
