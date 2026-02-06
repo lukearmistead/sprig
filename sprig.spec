@@ -12,8 +12,8 @@ datas += copy_metadata('pydantic_ai')
 datas += copy_metadata('pydantic_ai_slim')
 datas += copy_metadata('anthropic')
 
-# Bundle config.yml and connect.html template
-datas += [('config.yml', '.')]
+# Bundle config-template.yml and connect.html template
+datas += [('config-template.yml', '.')]
 datas += [('sprig/templates/connect.html', 'sprig/templates')]
 
 a = Analysis(

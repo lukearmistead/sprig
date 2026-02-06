@@ -1,23 +1,46 @@
-# Sprig Configuration
-# Credentials and settings for transaction sync.
+# =============================================================================
+# SPRIG CONFIGURATION
+# =============================================================================
+# Fill in the values below to get started.
 
-# Teller API credentials (run `sprig connect` after setting these)
+# -----------------------------------------------------------------------------
+# TELLER (Bank Connection)
+# -----------------------------------------------------------------------------
+# Get your app_id from https://teller.io:
+#   1. Sign up for a Teller account
+#   2. Create an application
+#   3. Copy your Application ID and paste between the empty quotes below
 app_id: ""
-environment: development
+
+# Get your Teller certificate and private key
+# 1. Download files from https://teller.io/settings/certificates
+# 2. Save to ~/.sprig/certs/ or to ~/Documents/Sprig/certs/
 cert_path: certs/certificate.pem
 key_path: certs/private_key.pem
 
-# Claude API key for transaction categorization
+# -----------------------------------------------------------------------------
+# CLAUDE (AI Categorization)
+# -----------------------------------------------------------------------------
+# Get your API key from https://console.anthropic.com:
+#   1. Sign up for an Anthropic account
+#   2. Go to API Keys
+#   3. Create a new key and paste between the empty quotes below
+# Cost: ~$0.10-0.50 per 1000 transactions (https://anthropic.com/pricing)
 claude_key: ""
 
-# Access tokens (populated automatically by `sprig connect`)
-access_tokens: []
+# -----------------------------------------------------------------------------
+# SYNC SETTINGS (Optional)
+# -----------------------------------------------------------------------------
+# How far back to fetch transactions (YYYY-MM-DD format)
+# Leave blank to fetch all available history
+from_date: ""
 
-# Only fetch transactions after this date (YYYY-MM-DD format)
-from_date: "2024-01-01"
-
-# Number of transactions per Claude API call
+# How many transactions to categorize per batch
 batch_size: 50
+
+# Teller environment: "development" is free and connects to real banks.
+# Use "sandbox" for testing with fake data, "production" for paid usage.
+environment: development
 
 # Categorization prompt sent to Claude with each batch of transactions.
 # The {categories} and {transactions} placeholders are filled in automatically.
@@ -76,7 +99,17 @@ categorization_prompt: |
   VALIDATION:
   Before returning your response, verify that EVERY category you used appears in the AVAILABLE CATEGORIES list above. If not, your response is invalid.
 
+# -----------------------------------------------------------------------------
+# DO NOT EDIT BELOW - Managed by Sprig
+# -----------------------------------------------------------------------------
+access_tokens: []
+
+# -----------------------------------------------------------------------------
+# CATEGORIES
+# -----------------------------------------------------------------------------
 # Transaction categories for AI classification
+# You can customize these to match your budget!
+# See examples: https://github.com/lukearmistead/sprig#customizing-your-categories
 categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
