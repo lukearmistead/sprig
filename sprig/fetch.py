@@ -34,15 +34,24 @@ class Fetcher:
         try:
             accounts = self.client.get_accounts(token)
         except requests.HTTPError as e:
-            if e.response and e.response.status_code == 401:
-                logger.warning(f"Skipping invalid/expired token {token[:12]}...")
+            if e.response is not None and e.response.status_code == 401:
+                logger.warning(f"Token {token[:12]}... is expired — reconnect with `sprig connect`")
+                return False
+            if e.response is not None and e.response.status_code == 404:
+                logger.warning(f"Token {token[:12]}... enrollment no longer exists — remove from config")
                 return False
             raise
 
         for account_data in accounts:
             account = TellerAccount(**account_data)
             self.db.save_account(account)
-            self.fetch_account(token, account.id)
+            try:
+                self.fetch_account(token, account.id)
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code == 410:
+                    logger.warning(f"Account {account.id} is no longer available, skipping")
+                    continue
+                raise
 
         return True
 

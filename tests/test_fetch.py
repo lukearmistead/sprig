@@ -185,6 +185,23 @@ def test_fetch_token_invalid_token():
     mock_db.save_account.assert_not_called()
 
 
+def test_fetch_token_skips_deleted_enrollment():
+    mock_client = Mock()
+    mock_db = Mock()
+
+    mock_response = Mock()
+    mock_response.status_code = 404
+    error = requests.HTTPError()
+    error.response = mock_response
+    mock_client.get_accounts.side_effect = error
+
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=[])
+    success = fetcher.fetch_token("deleted_token_123456")
+
+    assert success is False
+    mock_db.save_account.assert_not_called()
+
+
 def test_fetch_token_other_http_error():
     mock_client = Mock()
     mock_db = Mock()
@@ -234,7 +251,41 @@ def test_fetch_all_with_invalid_tokens(mock_logger):
     fetcher.fetch_all()
 
     warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-    assert any("invalid/expired" in call.lower() for call in warning_calls)
+    assert any("expired" in call.lower() for call in warning_calls)
+
+
+@patch("sprig.fetch.logger")
+def test_fetch_token_skips_gone_account(mock_logger):
+    mock_client = Mock()
+    mock_db = Mock()
+
+    mock_client.get_accounts.return_value = [
+        {"id": "acc_gone", "name": "Gone Account", "type": "depository", "currency": "USD", "status": "open"},
+        {"id": "acc_ok", "name": "OK Account", "type": "depository", "currency": "USD", "status": "open"},
+    ]
+
+    def mock_get_transactions(token, account_id, start_date=None):
+        if account_id == "acc_gone":
+            resp = Mock()
+            resp.status_code = 410
+            error = requests.HTTPError()
+            error.response = resp
+            raise error
+        return [
+            {"id": "txn_1", "account_id": account_id, "amount": 10.0, "description": "Test", "date": "2024-01-15", "type": "ach", "status": "posted"},
+        ]
+
+    mock_client.get_transactions.side_effect = mock_get_transactions
+
+    fetcher = Fetcher(client=mock_client, db=mock_db, access_tokens=[])
+    result = fetcher.fetch_token("test_token")
+
+    assert result is True
+    assert mock_db.save_account.call_count == 2
+    assert mock_db.sync_transaction.call_count == 1
+    assert mock_db.sync_transaction.call_args[0][0].id == "txn_1"
+    warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
+    assert any("acc_gone" in call and "no longer available" in call for call in warning_calls)
 
 
 def test_fetch_account_with_cutoff_date():
