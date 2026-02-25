@@ -19,54 +19,53 @@ class SprigDatabase:
         """Create database tables if they don't exist."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS accounts (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    subtype TEXT,
-                    institution TEXT,
-                    enrollment_id TEXT,
-                    currency TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    last_four TEXT,
-                    links TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS transactions (
-                    id TEXT PRIMARY KEY,
-                    account_id TEXT NOT NULL,
-                    amount REAL NOT NULL,
-                    description TEXT NOT NULL,
-                    date TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    details TEXT,
-                    running_balance REAL,
-                    links TEXT,
-                    inferred_category TEXT,
-                    confidence REAL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            conn.commit()
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                subtype TEXT,
+                institution TEXT,
+                enrollment_id TEXT,
+                currency TEXT NOT NULL,
+                status TEXT NOT NULL,
+                last_four TEXT,
+                links TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                amount REAL NOT NULL,
+                description TEXT NOT NULL,
+                date TEXT NOT NULL,
+                type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                details TEXT,
+                running_balance REAL,
+                links TEXT,
+                inferred_category TEXT,
+                confidence REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self.conn.commit()
 
     def _query(self, sql: str, params=None, as_row=False):
         """Execute a SELECT query and return all results."""
-        with sqlite3.connect(self.db_path) as conn:
-            if as_row:
-                conn.row_factory = sqlite3.Row
-            return conn.execute(sql, params or ()).fetchall()
+        if as_row:
+            self.conn.row_factory = sqlite3.Row
+        result = self.conn.execute(sql, params or ()).fetchall()
+        self.conn.row_factory = None
+        return result
 
     def _execute(self, sql: str, params=None):
         """Execute an INSERT/UPDATE/DELETE and commit."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(sql, params or ())
-            conn.commit()
+        self.conn.execute(sql, params or ())
+        self.conn.commit()
 
     def save_account(self, account: TellerAccount):
         """Insert or replace an account."""
