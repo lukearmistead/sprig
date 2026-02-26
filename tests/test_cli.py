@@ -19,7 +19,7 @@ def test_main_opens_config_when_missing_app_id():
     missing = _make_config(app_id="")
     valid = _make_config(access_tokens=["tok"])
 
-    with patch("sprig.cli.Config.load", side_effect=[missing, valid, valid]), \
+    with patch("sprig.cli.load_config", side_effect=[missing, valid, valid]), \
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
          patch("sprig.cli.open_config") as mock_open, \
@@ -37,7 +37,7 @@ def test_main_opens_config_when_missing_claude_key():
     missing = _make_config(claude_key="")
     valid = _make_config(access_tokens=["tok"])
 
-    with patch("sprig.cli.Config.load", side_effect=[missing, valid, valid]), \
+    with patch("sprig.cli.load_config", side_effect=[missing, valid, valid]), \
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
          patch("sprig.cli.open_config") as mock_open, \
@@ -55,7 +55,7 @@ def test_main_runs_connect_when_no_accounts():
     no_tokens = _make_config()
     with_tokens = _make_config(access_tokens=["tok"])
 
-    with patch("sprig.cli.Config.load", side_effect=[no_tokens, with_tokens, with_tokens]), \
+    with patch("sprig.cli.load_config", side_effect=[no_tokens, with_tokens, with_tokens]), \
          patch("sprig.cli.authenticate") as mock_auth, \
          patch("sprig.cli.run_sync") as mock_sync, \
          patch("builtins.input", return_value="n"), \
@@ -69,7 +69,7 @@ def test_main_runs_sync_when_configured():
     """Fully configured: skips both loops, runs sync."""
     cfg = _make_config(access_tokens=["token1"])
 
-    with patch("sprig.cli.Config.load", return_value=cfg), \
+    with patch("sprig.cli.load_config", return_value=cfg), \
          patch("sprig.cli.run_sync") as mock_sync, \
          patch("builtins.input", return_value="n"):
         main()
@@ -80,7 +80,7 @@ def test_main_adds_account_when_user_says_yes():
     """After sync, user can add another account."""
     cfg = _make_config(access_tokens=["token1"])
 
-    with patch("sprig.cli.Config.load", return_value=cfg), \
+    with patch("sprig.cli.load_config", return_value=cfg), \
          patch("sprig.cli.run_sync"), \
          patch("sprig.cli.authenticate") as mock_auth, \
          patch("builtins.input", return_value="y"):
@@ -94,7 +94,7 @@ def test_main_full_first_run():
     valid_no_tokens = _make_config()
     valid_with_tokens = _make_config(access_tokens=["tok"])
 
-    with patch("sprig.cli.Config.load", side_effect=[
+    with patch("sprig.cli.load_config", side_effect=[
             missing_creds, valid_no_tokens, valid_with_tokens, valid_with_tokens,
          ]), \
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \

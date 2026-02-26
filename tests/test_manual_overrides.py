@@ -9,7 +9,7 @@ import yaml
 
 from sprig.database import SprigDatabase
 from sprig.models import TellerAccount
-from sprig.models.config import Config
+from sprig.models.config import load_config
 from sprig.categorize import categorize_uncategorized_transactions
 
 
@@ -35,7 +35,7 @@ def test_category_config_loads_manual_categories():
             yaml.dump(config_data, f)
 
         # Load config
-        category_config = Config.load(config_path)
+        category_config = load_config(config_path)
 
         # Verify manual categories were loaded
         assert category_config.manual_categories is not None
@@ -64,7 +64,7 @@ def test_category_config_allows_empty_manual_categories():
             yaml.dump(config_data, f)
 
         # Load config
-        category_config = Config.load(config_path)
+        category_config = load_config(config_path)
 
         # Verify manual_categories is empty list
         assert category_config.manual_categories == []
@@ -149,9 +149,12 @@ def test_manual_overrides_applied_before_ai_categorization():
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        test_category_config = Config.load(config_path)
+        test_category_config = load_config(config_path)
 
+        from sprig.categorize import apply_manual_overrides
         from sprig.models import TransactionCategory
+
+        apply_manual_overrides(db, test_category_config)
 
         with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
             # Mock AI categorization - should only be called for txn_claude
@@ -253,7 +256,7 @@ def test_manual_override_replaces_existing_ai_category():
             yaml.dump(config_data, f)
 
         # Load the config and apply manual overrides
-        category_config = Config.load(config_path)
+        category_config = load_config(config_path)
 
         from sprig.categorize import apply_manual_overrides
         apply_manual_overrides(db, category_config)
@@ -311,7 +314,7 @@ def test_apply_manual_overrides_skips_invalid_categories():
         with open(config_path, "w") as f:
             yaml.dump(config_data, f)
 
-        category_config = Config.load(config_path)
+        category_config = load_config(config_path)
 
         from sprig.categorize import apply_manual_overrides
         apply_manual_overrides(db, category_config)

@@ -11,7 +11,7 @@ from werkzeug.serving import make_server
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
-from sprig.models.config import Config
+from sprig.models.config import Config, save_credentials
 from sprig.models.teller import TellerAccessToken
 
 logger = get_logger("sprig.auth")
@@ -42,7 +42,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
         if token in config.access_tokens:
             return jsonify({"success": True, "message": "Account already connected", "accounts_added": accounts_added})
         config.access_tokens.append(token)
-        config.save_credentials()
+        save_credentials(config)
         accounts_added += 1
         return jsonify({
             "success": True,

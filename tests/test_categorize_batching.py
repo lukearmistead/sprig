@@ -21,8 +21,8 @@ class TestCategorizeBatching(unittest.TestCase):
                 account_last_four=None
             ) for i in range(5)
         ]
-        from sprig.models.config import Config
-        self.config = Config.load()
+        from sprig.models.config import load_config
+        self.config = load_config()
 
     @patch('sprig.categorize.categorize_inferentially')
     def test_categorize_in_batches_splits_into_correct_batch_sizes(self, mock_categorize):
