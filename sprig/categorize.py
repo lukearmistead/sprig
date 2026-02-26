@@ -152,8 +152,6 @@ def apply_manual_overrides(db: SprigDatabase, config: Config):
 
 
 def categorize_uncategorized_transactions(db: SprigDatabase, config: Config):
-    apply_manual_overrides(db, config)
-
     uncategorized = db.get_uncategorized_transactions()
     transaction_views = [TransactionView.from_db_row(row) for row in uncategorized]
 
