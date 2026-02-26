@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 from sprig.auth import authenticate
-from sprig.categorize import apply_manual_overrides, categorize_uncategorized_transactions
+from sprig.categorize import apply_manual_categories, apply_inferred_categories
 from sprig.database import SprigDatabase
 from sprig.export import export_transactions_to_csv
 from sprig.fetch import Fetcher
@@ -40,10 +40,10 @@ def run_sync(config: Config):
     fetcher.fetch_all()
 
     logger.info("Applying manual overrides")
-    apply_manual_overrides(db, config)
+    apply_manual_categories(db, config)
 
     logger.info("Categorizing transactions")
-    categorize_uncategorized_transactions(db, config)
+    apply_inferred_categories(db, config)
 
     logger.info("Exporting to CSV")
     export_transactions_to_csv(db_path)

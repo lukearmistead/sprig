@@ -2,7 +2,7 @@
 
 from .teller import TellerAccount, TellerTransaction
 from .claude import TransactionCategory, TransactionView, TransactionBatch
-from .config import Config, Category, load_config, save_credentials
+from .config import Config, Category, load_config
 
 __all__ = [
     "TellerAccount",
@@ -13,5 +13,4 @@ __all__ = [
     "Config",
     "Category",
     "load_config",
-    "save_credentials",
 ]

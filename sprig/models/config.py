@@ -65,18 +65,3 @@ def load_config(config_path: Path = None) -> Config:
     yml = YAML()
     with open(config_path, "r") as f:
         return Config(**yml.load(f))
-
-
-def save_credentials(config: Config, config_path: Path = None):
-    config_path = config_path or get_default_config_path()
-    yml = YAML()
-    with open(config_path, "r") as f:
-        raw = yml.load(f)
-    raw["access_tokens"] = config.access_tokens
-    raw["app_id"] = config.app_id
-    raw["claude_key"] = config.claude_key
-    raw["environment"] = config.environment
-    raw["cert_path"] = config.cert_path
-    raw["key_path"] = config.key_path
-    with open(config_path, "w") as f:
-        yml.dump(raw, f)

@@ -7,14 +7,26 @@ from pathlib import Path
 from typing import Optional
 
 from flask import Flask, request, render_template, jsonify
+from ruamel.yaml import YAML
 from werkzeug.serving import make_server
 from pydantic import ValidationError
 
 from sprig.logger import get_logger
-from sprig.models.config import Config, save_credentials
+from sprig.models.config import Config
 from sprig.models.teller import TellerAccessToken
+from sprig.paths import get_default_config_path
 
 logger = get_logger("sprig.auth")
+
+
+def _save_access_tokens(access_tokens: list[str], config_path: Path = None):
+    config_path = config_path or get_default_config_path()
+    yml = YAML()
+    with open(config_path, "r") as f:
+        raw = yml.load(f)
+    raw["access_tokens"] = access_tokens
+    with open(config_path, "w") as f:
+        yml.dump(raw, f)
 
 
 def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
@@ -42,7 +54,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
         if token in config.access_tokens:
             return jsonify({"success": True, "message": "Account already connected", "accounts_added": accounts_added})
         config.access_tokens.append(token)
-        save_credentials(config)
+        _save_access_tokens(config.access_tokens)
         accounts_added += 1
         return jsonify({
             "success": True,

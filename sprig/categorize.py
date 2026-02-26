@@ -137,7 +137,7 @@ def categorize_in_batches(
     return all_results
 
 
-def apply_manual_overrides(db: SprigDatabase, config: Config):
+def apply_manual_categories(db: SprigDatabase, config: Config):
     """Apply manual category overrides from config."""
     if not config.manual_categories:
         return
@@ -151,7 +151,7 @@ def apply_manual_overrides(db: SprigDatabase, config: Config):
         db.update_transaction_category(manual_cat.transaction_id, manual_cat.category, 1.0)
 
 
-def categorize_uncategorized_transactions(db: SprigDatabase, config: Config):
+def apply_inferred_categories(db: SprigDatabase, config: Config):
     uncategorized = db.get_uncategorized_transactions()
     transaction_views = [TransactionView.from_db_row(row) for row in uncategorized]
 
