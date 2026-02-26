@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 from sprig.database import SprigDatabase
 from sprig.models import TellerAccount
-from sprig.categorize import categorize_uncategorized_transactions
+from sprig.categorize import apply_inferred_categories
 
 
 def test_failed_categorization_counting():
@@ -81,7 +81,7 @@ def test_failed_categorization_counting():
             mock_config.categories = []
             mock_config.batch_size = 25
             mock_config.claude_key = "fake_key"
-            categorize_uncategorized_transactions(db, mock_config)
+            apply_inferred_categories(db, mock_config)
 
             # Verify database updates
             import sqlite3
@@ -160,7 +160,7 @@ def test_all_transactions_fail_categorization():
             mock_config.categories = []
             mock_config.batch_size = 25
             mock_config.claude_key = "fake_key"
-            categorize_uncategorized_transactions(db, mock_config)
+            apply_inferred_categories(db, mock_config)
 
             # Verify no transactions were categorized
             import sqlite3

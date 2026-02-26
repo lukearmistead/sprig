@@ -5,12 +5,12 @@ import subprocess
 import sys
 
 from sprig.auth import authenticate
-from sprig.categorize import categorize_uncategorized_transactions
+from sprig.categorize import apply_manual_categories, apply_inferred_categories
 from sprig.database import SprigDatabase
 from sprig.export import export_transactions_to_csv
 from sprig.fetch import Fetcher
 from sprig.logger import get_logger
-from sprig.models.config import Config
+from sprig.models.config import Config, load_config
 from sprig.paths import get_default_certs_dir, get_default_config_path, get_default_db_path, resolve_cert_path
 from sprig.teller_client import TellerClient
 
@@ -39,15 +39,18 @@ def run_sync(config: Config):
     fetcher = Fetcher(client, db, config.access_tokens, from_date=config.from_date)
     fetcher.fetch_all()
 
+    logger.info("Applying manual overrides")
+    apply_manual_categories(db, config)
+
     logger.info("Categorizing transactions")
-    categorize_uncategorized_transactions(db, config)
+    apply_inferred_categories(db, config)
 
     logger.info("Exporting to CSV")
     export_transactions_to_csv(db_path)
 
 
 def main():
-    config = Config.load()
+    config = load_config()
 
     # Check credentials - open config if missing
     missing = []
@@ -66,7 +69,7 @@ def main():
         open_config(str(certs_dir))
         while missing:
             input("\nPress Enter when ready...")
-            config = Config.load()
+            config = load_config()
             missing = []
             if not config.app_id:
                 missing.append("app_id")
@@ -79,7 +82,7 @@ def main():
     while not config.access_tokens:
         print("No accounts connected. Opening browser to connect...\n")
         authenticate(config)
-        config = Config.load()
+        config = load_config()
         if not config.access_tokens:
             input("No accounts were connected. Press Enter to try again...")
 

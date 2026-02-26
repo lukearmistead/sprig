@@ -1,12 +1,15 @@
 """Tests for authentication module."""
 
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from sprig.auth import authenticate
-from sprig.models.config import Config
+from sprig.auth import authenticate, _save_access_tokens
+from sprig.models.config import Config, load_config
 from sprig.models.teller import TellerAccessToken
 
 
@@ -24,6 +27,45 @@ class TestTellerAccessToken:
             TellerAccessToken(token="")
         with pytest.raises(ValidationError):
             TellerAccessToken(token="token_ABC123")
+
+
+class TestSaveAccessTokens:
+    def test_round_trip(self):
+        """Tokens written by _save_access_tokens survive a config reload."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.yml"
+            config_data = {
+                "categories": [{"name": "general", "description": "general"}],
+                "batch_size": 50,
+                "access_tokens": [],
+            }
+            with open(config_path, "w") as f:
+                yaml.dump(config_data, f)
+
+            _save_access_tokens(["token_aaaaaaaaaaaaaaaaaaaaaaaa"], config_path)
+
+            reloaded = load_config(config_path)
+            assert reloaded.access_tokens == ["token_aaaaaaaaaaaaaaaaaaaaaaaa"]
+
+    def test_preserves_other_fields(self):
+        """Writing tokens does not clobber unrelated config fields."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.yml"
+            config_data = {
+                "categories": [{"name": "dining", "description": "Restaurants"}],
+                "batch_size": 25,
+                "app_id": "app_test12345678901234567",
+                "access_tokens": [],
+            }
+            with open(config_path, "w") as f:
+                yaml.dump(config_data, f)
+
+            _save_access_tokens(["token_bbbbbbbbbbbbbbbbbbbbbbbb"], config_path)
+
+            reloaded = load_config(config_path)
+            assert reloaded.app_id == "app_test12345678901234567"
+            assert reloaded.batch_size == 25
+            assert reloaded.categories[0].name == "dining"
 
 
 class TestAuthenticate:
