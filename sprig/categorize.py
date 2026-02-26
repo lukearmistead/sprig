@@ -138,7 +138,7 @@ def categorize_in_batches(
 
 
 def apply_manual_categories(db: SprigDatabase, config: Config):
-    """Apply manual category overrides from config."""
+    """Apply manual categories from config."""
     if not config.manual_categories:
         return
 

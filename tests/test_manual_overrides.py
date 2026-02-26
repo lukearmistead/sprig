@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 import yaml
 
+from sprig.categorize import apply_inferred_categories, apply_manual_categories
 from sprig.database import SprigDatabase
-from sprig.models import TellerAccount
+from sprig.models import TellerAccount, TransactionCategory
 from sprig.models.config import load_config
-from sprig.categorize import apply_inferred_categories
 
 
 def test_category_config_loads_manual_categories():
@@ -151,9 +151,6 @@ def test_manual_overrides_applied_before_ai_categorization():
 
         test_category_config = load_config(config_path)
 
-        from sprig.categorize import apply_manual_categories
-        from sprig.models import TransactionCategory
-
         apply_manual_categories(db, test_category_config)
 
         with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
@@ -258,7 +255,6 @@ def test_manual_override_replaces_existing_ai_category():
         # Load the config and apply manual overrides
         category_config = load_config(config_path)
 
-        from sprig.categorize import apply_manual_categories
         apply_manual_categories(db, category_config)
 
         # Verify the manual override replaced the AI category
@@ -316,7 +312,6 @@ def test_apply_manual_categories_skips_invalid_categories():
 
         category_config = load_config(config_path)
 
-        from sprig.categorize import apply_manual_categories
         apply_manual_categories(db, category_config)
 
         # Verify the transaction was NOT updated (invalid category skipped)

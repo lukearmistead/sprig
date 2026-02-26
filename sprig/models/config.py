@@ -56,7 +56,7 @@ def _ensure_config_exists(config_path: Path):
     if bundled and bundled.exists():
         config_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(bundled, config_path)
-        get_default_certs_dir()
+        get_default_certs_dir()  # First run: create certs dir alongside config
 
 
 def load_config(config_path: Path = None) -> Config:
