@@ -11,6 +11,8 @@ datas += copy_metadata('genai_prices')
 datas += copy_metadata('pydantic_ai')
 datas += copy_metadata('pydantic_ai_slim')
 datas += copy_metadata('anthropic')
+datas += copy_metadata('pydantic')
+datas += copy_metadata('ruamel.yaml')
 
 # Bundle config-template.yml and connect.html template
 datas += [('config-template.yml', '.')]
