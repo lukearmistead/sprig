@@ -3,7 +3,7 @@
 
 block_cipher = None
 
-from PyInstaller.utils.hooks import collect_data_files, copy_metadata
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 # Collect metadata for packages that use importlib.metadata
 datas = []
@@ -24,8 +24,7 @@ a = Analysis(
     hiddenimports=[
         'pydantic_ai',
         'anthropic',
-        'ruamel.yaml',
-    ],
+    ] + collect_submodules('ruamel.yaml'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
