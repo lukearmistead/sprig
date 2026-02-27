@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from sprig.database import SprigDatabase
-from sprig.models import TellerAccount, TransactionView
+from sprig.models import TellerAccount, TransactionCategory, TransactionView
 from sprig.pipeline import save_categories
 
 
@@ -71,7 +71,6 @@ def test_failed_categorization_counting():
 
         # Mock categorizers
         with patch("sprig.pipeline.categorize_in_batches") as mock_categorize_in_batches:
-            from sprig.models import TransactionCategory
             mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_success_1", category="dining", confidence=0.95)
             ]

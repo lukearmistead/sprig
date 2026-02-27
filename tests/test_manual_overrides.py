@@ -9,7 +9,7 @@ import yaml
 
 from sprig.categorize import categorize_manually
 from sprig.database import SprigDatabase
-from sprig.models import TellerAccount, TransactionCategory
+from sprig.models import TellerAccount, TransactionCategory, TransactionView
 from sprig.models.config import load_config
 from sprig.pipeline import save_categories
 
@@ -162,7 +162,6 @@ def test_manual_overrides_applied_before_ai_categorization():
             ]
 
             # Simulate what pipeline does: get uncategorized, call AI, save
-            from sprig.models import TransactionView
             uncategorized = db.get_uncategorized_transactions()
             views = [TransactionView.from_db_row(row) for row in uncategorized]
             save_categories(db, mock_categorize_in_batches(views, test_category_config))

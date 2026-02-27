@@ -1,7 +1,9 @@
 """Transaction fetching logic for Sprig."""
 
+from __future__ import annotations
+
+from collections.abc import Generator
 from datetime import date
-from typing import Generator, List, Optional, Tuple
 
 import requests
 
@@ -18,9 +20,9 @@ def _http_status(e: requests.HTTPError) -> int | None:
 
 def fetch_all(
     client: TellerClient,
-    tokens: List[str],
-    from_date: Optional[date] = None,
-) -> Generator[Tuple[TellerAccount, List[TellerTransaction]], None, None]:
+    tokens: list[str],
+    from_date: date | None = None,
+) -> Generator[tuple[TellerAccount, list[TellerTransaction]], None, None]:
     """Yield (account, transactions) for every account across all tokens."""
     for token in tokens:
         yield from fetch_token(client, token, from_date)
@@ -29,8 +31,8 @@ def fetch_all(
 def fetch_token(
     client: TellerClient,
     token: str,
-    from_date: Optional[date] = None,
-) -> Generator[Tuple[TellerAccount, List[TellerTransaction]], None, None]:
+    from_date: date | None = None,
+) -> Generator[tuple[TellerAccount, list[TellerTransaction]], None, None]:
     """Yield (account, transactions) for each account under a token."""
     try:
         accounts = client.get_accounts(token)
@@ -61,8 +63,8 @@ def fetch_account(
     client: TellerClient,
     token: str,
     account_id: str,
-    from_date: Optional[date] = None,
-) -> List[TellerTransaction]:
+    from_date: date | None = None,
+) -> list[TellerTransaction]:
     """Return transaction list for one account."""
     raw = client.get_transactions(token, account_id, start_date=from_date)
     return [TellerTransaction(**t) for t in raw]

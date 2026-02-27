@@ -1,11 +1,16 @@
 """Transaction export functionality for Sprig."""
 
+from __future__ import annotations
+
 import csv
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sprig.database import SprigDatabase
 from sprig.paths import get_default_exports_dir
 from sprig.logger import get_logger
+
+if TYPE_CHECKING:
+    from sprig.database import SprigDatabase
 
 logger = get_logger("sprig.export")
 
