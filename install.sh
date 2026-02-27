@@ -18,9 +18,23 @@ chmod +x "$INSTALL_DIR/sprig"
 
 echo "Installed to $INSTALL_DIR/sprig"
 
-case ":$PATH:" in
-  *":$INSTALL_DIR:"*) ;;
-  *) echo "Add $INSTALL_DIR to your PATH: export PATH=\"$INSTALL_DIR:\$PATH\"" ;;
-esac
+# Add to PATH if not already present
+if ! echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
+  case "$SHELL" in
+    */zsh)  RC_FILE="$HOME/.zshrc" ;;
+    */bash) RC_FILE="$HOME/.bashrc" ;;
+    *)      RC_FILE="$HOME/.profile" ;;
+  esac
+
+  EXPORT_LINE="export PATH=\"$INSTALL_DIR:\$PATH\""
+
+  if ! grep -qF "$INSTALL_DIR" "$RC_FILE" 2>/dev/null; then
+    echo "" >> "$RC_FILE"
+    echo "$EXPORT_LINE" >> "$RC_FILE"
+    echo "Added $INSTALL_DIR to PATH in $RC_FILE"
+  fi
+
+  echo "Restart your terminal or run: source $RC_FILE"
+fi
 
 echo "Run 'sprig sync' to get started."
