@@ -19,21 +19,19 @@ You can use Sprig to download a CSV like this:
 
 ### Step 1: Install Sprig
 
-**Option A: Download Standalone Executable (Easiest)**
+**Option A: Install via command line (Easiest)**
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/lukearmistead/sprig/releases):
-- **macOS**: `sprig`
-- **Windows**: `sprig.exe`
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/install.sh | bash
+```
 
-Move the executable somewhere in your PATH (e.g., `/usr/local/bin` on macOS) or run it directly from the download location.
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/lukearmistead/sprig/main/install.ps1 | iex
+```
 
-**macOS users:** The first time you run Sprig, macOS may block it because it's not from the App Store. To allow it:
-1. Try to run `./sprig` — you'll see a security warning
-2. Open **System Settings** → **Privacy & Security**
-3. Scroll down to see "sprig was blocked from use"
-4. Click **Open Anyway** and confirm
-
-This only needs to be done once.
+This downloads the latest binary to `~/.local/bin` and adds it to your PATH.
 
 **Option B: Install with Python (For Developers)**
 
