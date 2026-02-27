@@ -63,9 +63,6 @@ def fetch_account(
     account_id: str,
     from_date: Optional[date] = None,
 ) -> List[TellerTransaction]:
-    """Return filtered transaction list for one account."""
+    """Return transaction list for one account."""
     raw = client.get_transactions(token, account_id, start_date=from_date)
-    transactions = [TellerTransaction(**t) for t in raw]
-    if from_date:
-        transactions = [t for t in transactions if t.date >= from_date]
-    return transactions
+    return [TellerTransaction(**t) for t in raw]

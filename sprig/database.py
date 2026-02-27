@@ -98,6 +98,11 @@ class SprigDatabase:
         """
         self._execute(sql, [data[k] for k in teller_fields])
 
+    def sync_transactions(self, transactions: list[TellerTransaction]):
+        """Upsert a batch of transactions, preserving any existing categories."""
+        for txn in transactions:
+            self.sync_transaction(txn)
+
     def update_transaction_category(self, transaction_id: str, category: str, confidence: float = None):
         """Set category and confidence for a transaction."""
         self._execute(

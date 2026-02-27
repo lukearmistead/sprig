@@ -217,18 +217,9 @@ def test_fetch_token_skips_gone_account(mock_logger):
     assert any("acc_gone" in call and "no longer available" in call for call in warning_calls)
 
 
-def test_fetch_account_with_cutoff_date():
+def test_fetch_account_passes_from_date_to_api():
     mock_client = Mock()
     mock_client.get_transactions.return_value = [
-        {
-            "id": "txn_old",
-            "account_id": "acc_456",
-            "amount": 25.50,
-            "description": "Old Transaction",
-            "date": "2024-01-01",
-            "type": "card_payment",
-            "status": "posted",
-        },
         {
             "id": "txn_new",
             "account_id": "acc_456",

@@ -40,8 +40,7 @@ def test_fetch_and_persist():
         # Pipeline-style: consume generator, persist to DB
         for account, transactions in fetch_token(mock_client, "test_token"):
             db.save_account(account)
-            for txn in transactions:
-                db.sync_transaction(txn)
+            db.sync_transactions(transactions)
 
         with sqlite3.connect(db_path) as conn:
             assert conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 1

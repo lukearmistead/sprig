@@ -32,8 +32,7 @@ def run_pipeline(config: Config):
     client = TellerClient(resolve_cert_path(config.cert_path), resolve_cert_path(config.key_path))
     for account, transactions in fetch_all(client, config.access_tokens, config.from_date):
         db.save_account(account)
-        for txn in transactions:
-            db.sync_transaction(txn)
+        db.sync_transactions(transactions)
 
     logger.info("Applying manual overrides")
     save_categories(db, categorize_manually(config))

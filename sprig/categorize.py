@@ -138,9 +138,6 @@ def categorize_in_batches(
 
 def categorize_manually(config: Config) -> List[TransactionCategory]:
     """Return TransactionCategory list from manual overrides in config."""
-    if not config.manual_categories:
-        return []
-
     valid_category_names = {cat.name for cat in config.categories}
     results = []
 
