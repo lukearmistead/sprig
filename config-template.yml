@@ -14,7 +14,7 @@ app_id: ""
 
 # Get your Teller certificate and private key
 # 1. Download files from https://teller.io/settings/certificates
-# 2. Save to ~/.sprig/certs/ or to ~/Documents/Sprig/certs/
+# 2. Save to ~/Documents/Sprig/certs/
 cert_path: certs/certificate.pem
 key_path: certs/private_key.pem
 

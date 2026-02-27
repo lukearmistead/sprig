@@ -59,7 +59,7 @@ You'll need accounts with two services (both free to start):
    - Go to [teller.io](https://teller.io) and create a free developer account
    - Create a new application (use "Personal Project" for company name)
    - Go to [Certificate Settings](https://teller.io/settings/certificates), click "Create Certificate" and download the zip
-   - Extract and save `certificate.pem` and `private_key.pem` to `~/.sprig/certs/`
+   - Extract and save `certificate.pem` and `private_key.pem` to `~/Documents/Sprig/certs/`
    - Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
 
 2. **Anthropic** - Powers AI transaction categorization (required)
@@ -74,13 +74,13 @@ sprig sync
 ```
 
 Sprig guides you through setup automatically:
-1. **First run:** Opens `~/.sprig/config.yml` — add your `app_id` and `claude_key`
+1. **First run:** Opens `~/Documents/Sprig/config.yml` — add your `app_id` and `claude_key`
 2. **Second run:** Opens browser to connect your bank accounts
 3. **After that:** Fetches, categorizes, and exports your transactions
 
-**Done!** Your transactions are in `~/.sprig/exports/transactions-YYYY-MM-DD.csv`.
+**Done!** Your transactions are in `~/Documents/Sprig/exports/transactions-YYYY-MM-DD.csv`.
 
-**Want to customize categories?** Edit `~/.sprig/config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
+**Want to customize categories?** Edit `~/Documents/Sprig/config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
 
 ---
 
@@ -115,7 +115,7 @@ Categorization complete
    Successfully categorized: 47 transactions
    Success rate: 100.0%
 Exporting to CSV
-Exported 47 transaction(s) to ~/.sprig/exports/transactions-2025-11-17.csv
+Exported 47 transaction(s) to ~/Documents/Sprig/exports/transactions-2025-11-17.csv
 
 Add another bank account? [y/N]
 ```
@@ -124,11 +124,11 @@ Add another bank account? [y/N]
 
 ### Recategorization
 
-After improving your categories in `~/.sprig/config.yml`, you can re-categorize transactions by:
+After improving your categories in `~/Documents/Sprig/config.yml`, you can re-categorize transactions by:
 
 1. **Delete the database and re-sync:**
    ```bash
-   rm ~/.sprig/sprig.db
+   rm ~/Documents/Sprig/sprig.db
    sprig sync
    ```
 
@@ -157,7 +157,7 @@ When Claude categorizes your transactions, it uses these 14 categories:
 | **transfers** | Credit card payments, loan payments |
 | **undefined** | Unclear or unclassifiable transactions |
 
-You can customize these by editing `~/.sprig/config.yml`.
+You can customize these by editing `~/Documents/Sprig/config.yml`.
 
 ---
 
@@ -167,8 +167,8 @@ Sprig uses 14 default categories, but you can completely customize them to match
 
 #### How to Change Categories
 
-1. **Edit the config file** at `~/.sprig/config.yml`:
-   - Open `~/.sprig/config.yml` with any text editor
+1. **Edit the config file** at `~/Documents/Sprig/config.yml`:
+   - Open `~/Documents/Sprig/config.yml` with any text editor
 
 2. **Modify categories** using this format:
 ```yaml
@@ -179,7 +179,7 @@ categories:
     description: "Another description explaining what belongs here"
 ```
 
-3. **Apply your changes** by re-syncing (delete `~/.sprig/sprig.db` first to recategorize all transactions)
+3. **Apply your changes** by re-syncing (delete `~/Documents/Sprig/sprig.db` first to recategorize all transactions)
 
 #### Example Customizations
 
@@ -220,8 +220,8 @@ categories:
 
 - **Category names** should be simple, lowercase, with underscores (no spaces)
 - **Descriptions** should be detailed - Claude uses them to make categorization decisions
-- **After changes**, delete `~/.sprig/sprig.db` and re-sync to apply new categories to existing transactions
-- **Keep backups** - copy your `~/.sprig/config.yml` before making major changes
+- **After changes**, delete `~/Documents/Sprig/sprig.db` and re-sync to apply new categories to existing transactions
+- **Keep backups** - copy your `~/Documents/Sprig/config.yml` before making major changes
 
 #### Why Customize?
 
@@ -274,7 +274,7 @@ ruff check .  # Linting
 - **`sprig/logger.py`** - Logging configuration
 - **`sprig/teller_client.py`** - Teller API client with mTLS
 - **`sprig/models/`** - Pydantic data models
-- **`config-template.yml`** - Default config template (copied to ~/.sprig/config.yml on first run)
+- **`config-template.yml`** - Default config template (copied to ~/Documents/Sprig/config.yml on first run)
 
 ### Contributing
 1. Clone repo → create feature branch → add tests → submit PR
@@ -293,7 +293,7 @@ ruff check .  # Linting
 
 **Solution:**
 1. Download `certificate.pem` and `private_key.pem` from [Certificate Settings](https://teller.io/settings/certificates)
-2. Move both files into `~/.sprig/certs/`
+2. Move both files into `~/Documents/Sprig/certs/`
 
 ---
 
@@ -333,7 +333,7 @@ pip install -e .
 **Problem:** Credentials not set up
 
 **Solution:**
-1. Run `sprig sync` — it will open `~/.sprig/config.yml` for you to add credentials
+1. Run `sprig sync` — it will open `~/Documents/Sprig/config.yml` for you to add credentials
 2. Add your Teller `app_id` and `claude_key`
 3. Save the file and run `sprig sync` again
 
@@ -353,7 +353,7 @@ pip install -e .
 **Problem:** Large transaction volumes may hit Claude API rate limits
 
 **Solutions:**
-- Set `from_date` in `~/.sprig/config.yml` to a more recent date to process fewer transactions
+- Set `from_date` in `~/Documents/Sprig/config.yml` to a more recent date to process fewer transactions
 - Run `sprig sync` multiple times - it only processes uncategorized transactions
 - Wait a few minutes between runs if you hit limits
 
@@ -394,7 +394,7 @@ Your bank login credentials are only entered on your bank's official website, ne
 **For non-technical users:** Use the standalone executable - just download and run. You'll need:
 - Basic comfort with terminal/command line
 - Creating accounts on Teller.io and Anthropic
-- Downloading certificate files to `~/.sprig/certs/`
+- Downloading certificate files to `~/Documents/Sprig/certs/`
 
 **For technical users:** Use the Python install if you want to contribute or customize.
 
@@ -425,7 +425,7 @@ Teller.io's free tier includes 100 bank connections (individual accounts you can
 ### What if I don't want AI categorization?
 
 Sprig requires a Claude API key for transaction categorization. You can minimize AI usage by:
-- Adding manual category overrides in `~/.sprig/config.yml` for specific transactions
+- Adding manual category overrides in `~/Documents/Sprig/config.yml` for specific transactions
 - Manual overrides take precedence over AI categorization
 - Only transactions without manual overrides will be categorized by Claude AI
 
@@ -435,24 +435,24 @@ Yes. Run `sprig sync` and Claude will automatically categorize any uncategorized
 
 ### Can I change the categories Sprig uses?
 
-Absolutely! Edit `~/.sprig/config.yml` to customize categories for your needs. You can:
+Absolutely! Edit `~/Documents/Sprig/config.yml` to customize categories for your needs. You can:
 - Rename existing categories (e.g., "transport" → "car_expenses")
 - Add new categories (e.g., "coffee", "pet_care", "business_meals")
 - Remove categories you don't need
 - Update descriptions to improve categorization accuracy
 
-After making changes, delete `~/.sprig/sprig.db` and run `sprig sync` to apply your new categories to all transactions.
+After making changes, delete `~/Documents/Sprig/sprig.db` and run `sprig sync` to apply your new categories to all transactions.
 
 ### Where is my data stored?
 
-All Sprig data is stored in `~/.sprig/`:
+All Sprig data is stored in `~/Documents/Sprig/`:
 
-- **Transactions:** `~/.sprig/sprig.db` (SQLite database)
-- **Exports:** `~/.sprig/exports/` (CSV files)
-- **Config & credentials:** `~/.sprig/config.yml`
-- **Certificates:** `~/.sprig/certs/`
+- **Transactions:** `~/Documents/Sprig/sprig.db` (SQLite database)
+- **Exports:** `~/Documents/Sprig/exports/` (CSV files)
+- **Config & credentials:** `~/Documents/Sprig/config.yml`
+- **Certificates:** `~/Documents/Sprig/certs/`
 
-To backup your data, copy the `~/.sprig/` folder.
+To backup your data, copy the `~/Documents/Sprig/` folder.
 
 ### Can I run this on a schedule?
 

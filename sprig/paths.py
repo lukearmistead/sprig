@@ -1,23 +1,11 @@
 """Path utilities for Sprig home directory."""
 
-import sys
 from pathlib import Path
 
 
-def is_frozen() -> bool:
-    return getattr(sys, "frozen", False)
-
-
 def get_sprig_home() -> Path:
-    """Get Sprig home directory, creating it if needed.
-
-    PyInstaller binary: ~/Documents/Sprig/
-    Running from source: ~/.sprig/
-    """
-    if is_frozen():
-        home = Path.home() / "Documents" / "Sprig"
-    else:
-        home = Path.home() / ".sprig"
+    """Get Sprig home directory (~/Documents/Sprig/), creating it if needed."""
+    home = Path.home() / "Documents" / "Sprig"
     home.mkdir(parents=True, exist_ok=True)
     return home
 

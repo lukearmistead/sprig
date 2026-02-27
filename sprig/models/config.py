@@ -9,7 +9,7 @@ from typing import List, Optional
 from ruamel.yaml import YAML
 from pydantic import BaseModel, field_validator
 
-from sprig.paths import is_frozen, get_default_config_path, get_default_certs_dir
+from sprig.paths import get_default_config_path, get_default_certs_dir
 
 
 class Category(BaseModel):
@@ -44,7 +44,7 @@ class Config(BaseModel):
 
 
 def _bundled_config_path() -> Optional[Path]:
-    if is_frozen():
+    if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "config-template.yml"
     return Path(__file__).parent.parent.parent / "config-template.yml"
 
