@@ -25,6 +25,7 @@ jobs:
         run: pyinstaller sprig.spec
 
       - name: Smoke test
+        timeout-minutes: 1
         run: dist/sprig --version
 
       - name: Upload artifact
@@ -52,6 +53,7 @@ jobs:
         run: pyinstaller sprig.spec
 
       - name: Smoke test
+        timeout-minutes: 1
         run: dist/sprig.exe --version
 
       - name: Upload artifact

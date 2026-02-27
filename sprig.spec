@@ -13,6 +13,7 @@ datas += copy_metadata('pydantic_ai_slim')
 datas += copy_metadata('anthropic')
 datas += copy_metadata('pydantic')
 datas += copy_metadata('ruamel.yaml')
+datas += copy_metadata('sprig')
 
 # Bundle config-template.yml and connect.html template
 datas += [('config-template.yml', '.')]

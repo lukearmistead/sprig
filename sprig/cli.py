@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+from importlib.metadata import PackageNotFoundError, version
 
 from sprig.auth import authenticate
 from sprig.logger import get_logger
@@ -24,6 +25,14 @@ def open_config(config_path: str):
 
 
 def main():
+    if "--version" in sys.argv:
+        try:
+            current_version = version("sprig")
+        except PackageNotFoundError:
+            current_version = "0.0.0-unknown"
+        print(f"sprig {current_version}")
+        return
+
     config = load_config()
 
     # Check credentials - open config if missing
