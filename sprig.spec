@@ -24,6 +24,7 @@ a = Analysis(
     hiddenimports=[
         'pydantic_ai',
         'anthropic',
+        'ruamel.yaml',
     ],
     hookspath=[],
     hooksconfig={},
