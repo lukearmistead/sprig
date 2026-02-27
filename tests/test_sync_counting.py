@@ -6,8 +6,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from sprig.database import SprigDatabase
-from sprig.models import TellerAccount
-from sprig.categorize import apply_inferred_categories
+from sprig.models import TellerAccount, TransactionCategory, TransactionView
+from sprig.pipeline import save_categories
 
 
 def test_failed_categorization_counting():
@@ -70,8 +70,7 @@ def test_failed_categorization_counting():
             db.add_transaction(txn_data)
 
         # Mock categorizers
-        with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
-            from sprig.models import TransactionCategory
+        with patch("sprig.pipeline.categorize_in_batches") as mock_categorize_in_batches:
             mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_success_1", category="dining", confidence=0.95)
             ]
@@ -81,7 +80,10 @@ def test_failed_categorization_counting():
             mock_config.categories = []
             mock_config.batch_size = 25
             mock_config.claude_key = "fake_key"
-            apply_inferred_categories(db, mock_config)
+
+            uncategorized = db.get_uncategorized_transactions()
+            views = [TransactionView.from_db_row(row) for row in uncategorized]
+            save_categories(db, mock_categorize_in_batches(views, mock_config))
 
             # Verify database updates
             import sqlite3
@@ -152,7 +154,7 @@ def test_all_transactions_fail_categorization():
         for txn_data in test_transactions:
             db.add_transaction(txn_data)
 
-        with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
+        with patch("sprig.pipeline.categorize_in_batches") as mock_categorize_in_batches:
             mock_categorize_in_batches.return_value = []
 
             mock_config = Mock()
@@ -160,7 +162,10 @@ def test_all_transactions_fail_categorization():
             mock_config.categories = []
             mock_config.batch_size = 25
             mock_config.claude_key = "fake_key"
-            apply_inferred_categories(db, mock_config)
+
+            uncategorized = db.get_uncategorized_transactions()
+            views = [TransactionView.from_db_row(row) for row in uncategorized]
+            save_categories(db, mock_categorize_in_batches(views, mock_config))
 
             # Verify no transactions were categorized
             import sqlite3

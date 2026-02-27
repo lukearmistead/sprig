@@ -266,12 +266,13 @@ ruff check .  # Linting
 ```
 
 ### Project Structure
-- **`sprig/cli.py`** - Single-command CLI entry point
+- **`sprig/cli.py`** - Entry point and setup wizard
+- **`sprig/pipeline.py`** - Orchestrates fetch → categorize → export pipeline
 - **`sprig/auth.py`** - Teller Connect authentication server
-- **`sprig/categorize.py`** - Claude AI categorization
+- **`sprig/categorize.py`** - Pure categorization functions (no DB coupling)
 - **`sprig/database.py`** - SQLite operations
 - **`sprig/export.py`** - CSV export
-- **`sprig/fetch.py`** - Transaction fetching from Teller
+- **`sprig/fetch.py`** - Yields transaction data from Teller (no persistence)
 - **`sprig/logger.py`** - Logging configuration
 - **`sprig/teller_client.py`** - Teller API client with mTLS
 - **`sprig/models/`** - Pydantic data models

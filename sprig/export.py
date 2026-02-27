@@ -1,16 +1,21 @@
 """Transaction export functionality for Sprig."""
 
+from __future__ import annotations
+
 import csv
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sprig.paths import get_default_exports_dir
-from sprig.database import SprigDatabase
 from sprig.logger import get_logger
+
+if TYPE_CHECKING:
+    from sprig.database import SprigDatabase
 
 logger = get_logger("sprig.export")
 
 
-def export_transactions_to_csv(database_path, output_path=None):
+def export_transactions_to_csv(db: SprigDatabase, output_path=None):
     """Export all transactions to CSV file."""
     if output_path is None:
         exports_dir = get_default_exports_dir()
@@ -18,7 +23,6 @@ def export_transactions_to_csv(database_path, output_path=None):
 
     logger.info(f"Starting export to {output_path}")
 
-    db = SprigDatabase(database_path)
     transactions = db.get_transactions_for_export()
 
     if not transactions:

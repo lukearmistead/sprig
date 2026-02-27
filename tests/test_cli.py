@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from sprig.cli import main, open_config, run_sync
+from sprig.cli import main, open_config
 
 
 def _make_config(app_id="test-app", claude_key="sk-test", access_tokens=None):
@@ -23,7 +23,7 @@ def test_main_opens_config_when_missing_app_id():
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
          patch("sprig.cli.open_config") as mock_open, \
-         patch("sprig.cli.run_sync"), \
+         patch("sprig.cli.run_pipeline"), \
          patch("builtins.input", return_value="n"), \
          patch("builtins.print"):
         main()
@@ -41,7 +41,7 @@ def test_main_opens_config_when_missing_claude_key():
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
          patch("sprig.cli.open_config") as mock_open, \
-         patch("sprig.cli.run_sync"), \
+         patch("sprig.cli.run_pipeline"), \
          patch("builtins.input", return_value="n"), \
          patch("builtins.print"):
         main()
@@ -57,7 +57,7 @@ def test_main_runs_connect_when_no_accounts():
 
     with patch("sprig.cli.load_config", side_effect=[no_tokens, with_tokens, with_tokens]), \
          patch("sprig.cli.authenticate") as mock_auth, \
-         patch("sprig.cli.run_sync") as mock_sync, \
+         patch("sprig.cli.run_pipeline") as mock_sync, \
          patch("builtins.input", return_value="n"), \
          patch("builtins.print"):
         main()
@@ -70,7 +70,7 @@ def test_main_runs_sync_when_configured():
     cfg = _make_config(access_tokens=["token1"])
 
     with patch("sprig.cli.load_config", return_value=cfg), \
-         patch("sprig.cli.run_sync") as mock_sync, \
+         patch("sprig.cli.run_pipeline") as mock_sync, \
          patch("builtins.input", return_value="n"):
         main()
         mock_sync.assert_called_once_with(cfg)
@@ -81,7 +81,7 @@ def test_main_adds_account_when_user_says_yes():
     cfg = _make_config(access_tokens=["token1"])
 
     with patch("sprig.cli.load_config", return_value=cfg), \
-         patch("sprig.cli.run_sync"), \
+         patch("sprig.cli.run_pipeline"), \
          patch("sprig.cli.authenticate") as mock_auth, \
          patch("builtins.input", return_value="y"):
         main()
@@ -101,7 +101,7 @@ def test_main_full_first_run():
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
          patch("sprig.cli.open_config") as mock_open, \
          patch("sprig.cli.authenticate") as mock_auth, \
-         patch("sprig.cli.run_sync") as mock_sync, \
+         patch("sprig.cli.run_pipeline") as mock_sync, \
          patch("builtins.input", return_value="n"), \
          patch("builtins.print"):
         main()

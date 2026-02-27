@@ -78,8 +78,8 @@ class SprigDatabase:
         sql = f"INSERT OR REPLACE INTO accounts ({', '.join(columns)}) VALUES ({placeholders})"
         self._execute(sql, list(data.values()))
 
-    def sync_transaction(self, transaction: TellerTransaction):
-        """Upsert transaction, preserving any existing category."""
+    def _sync_transaction_sql(self, transaction: TellerTransaction):
+        """Execute the upsert SQL for a transaction without committing."""
         data = transaction.model_dump(mode='json')
         for key in ('links', 'details'):
             if data.get(key) is not None:
@@ -96,7 +96,18 @@ class SprigDatabase:
             INSERT INTO transactions ({columns}) VALUES ({placeholders})
             ON CONFLICT(id) DO UPDATE SET {updates}
         """
-        self._execute(sql, [data[k] for k in teller_fields])
+        self.conn.execute(sql, [data[k] for k in teller_fields])
+
+    def sync_transaction(self, transaction: TellerTransaction):
+        """Upsert transaction, preserving any existing category."""
+        self._sync_transaction_sql(transaction)
+        self.conn.commit()
+
+    def sync_transactions(self, transactions: list[TellerTransaction]):
+        """Upsert a batch of transactions in a single commit."""
+        for txn in transactions:
+            self._sync_transaction_sql(txn)
+        self.conn.commit()
 
     def update_transaction_category(self, transaction_id: str, category: str, confidence: float = None):
         """Set category and confidence for a transaction."""

@@ -14,15 +14,15 @@ User-controlled finance tool. Local-first, no cloud. CLI only, no UI. Flexibilit
 | Bank OAuth | `auth.py` | `test_auth.py` |
 | API calls | `teller_client.py` | `test_teller_client.py` |
 | Data storage | `database.py` | `test_database.py` |
+| Pipeline | `pipeline.py` | `test_pipeline.py`, `test_sync_counting.py` |
 | Fetching | `fetch.py` | `test_fetch.py` |
-| Sync logic | `sync.py` | `test_sync.py`, `test_sync_counting.py` |
-| Categorization | `categorizer.py` | `test_categorizer.py`, `test_categorizer_error_handling.py` |
+| Categorization | `categorize.py` | `test_categorizer.py`, `test_categorizer_error_handling.py` |
 | CSV export | `export.py` | `test_export.py` |
 | Data models | `models/*.py` | `test_models.py`, `test_claude_models.py` |
 | CLI models | `models/cli.py` | `test_cli_models.py` |
 | Logging | `logger.py` | `test_logger.py` |
 | Manual overrides | `models/category_config.py` | `test_manual_overrides.py` |
-| CLI | `sprig.py` | `test_cli.py` |
+| CLI | `cli.py` | `test_cli.py` |
 
 ## Naming Conventions
 ```

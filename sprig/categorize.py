@@ -7,7 +7,6 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 from sprig.models import TransactionCategory, TransactionView, TransactionBatch
 from sprig.models.config import Config
@@ -137,28 +136,19 @@ def categorize_in_batches(
     return all_results
 
 
-def apply_manual_categories(db: SprigDatabase, config: Config):
-    """Apply manual categories from config."""
-    if not config.manual_categories:
-        return
-
+def categorize_manually(config: Config) -> List[TransactionCategory]:
+    """Return TransactionCategory list from manual overrides in config."""
     valid_category_names = {cat.name for cat in config.categories}
+    results = []
 
     for manual_cat in config.manual_categories:
         if manual_cat.category not in valid_category_names:
             logger.warning(f"Invalid category '{manual_cat.category}' for {manual_cat.transaction_id}")
             continue
-        db.update_transaction_category(manual_cat.transaction_id, manual_cat.category, 1.0)
+        results.append(TransactionCategory(
+            transaction_id=manual_cat.transaction_id,
+            category=manual_cat.category,
+            confidence=1.0,
+        ))
 
-
-def apply_inferred_categories(db: SprigDatabase, config: Config):
-    uncategorized = db.get_uncategorized_transactions()
-    transaction_views = [TransactionView.from_db_row(row) for row in uncategorized]
-
-    if not transaction_views:
-        return
-
-    results = categorize_in_batches(transaction_views, config)
-
-    for result in results:
-        db.update_transaction_category(result.transaction_id, result.category, result.confidence)
+    return results
