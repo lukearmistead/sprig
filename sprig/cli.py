@@ -5,14 +5,10 @@ import subprocess
 import sys
 
 from sprig.auth import authenticate
-from sprig.categorize import apply_manual_categories, apply_inferred_categories
-from sprig.database import SprigDatabase
-from sprig.export import export_transactions_to_csv
-from sprig.fetch import Fetcher
 from sprig.logger import get_logger
-from sprig.models.config import Config, load_config
-from sprig.paths import get_default_certs_dir, get_default_config_path, get_default_db_path, resolve_cert_path
-from sprig.teller_client import TellerClient
+from sprig.models.config import load_config
+from sprig.paths import get_default_certs_dir, get_default_config_path
+from sprig.pipeline import run_pipeline
 
 logger = get_logger()
 
@@ -25,28 +21,6 @@ def open_config(config_path: str):
         os.startfile(config_path)
     else:
         subprocess.run(["xdg-open", config_path])
-
-
-def run_sync(config: Config):
-    """Fetch, categorize, and export transactions."""
-    db_path = get_default_db_path()
-    db = SprigDatabase(db_path)
-
-    logger.info("Fetching transactions from Teller")
-    if config.from_date:
-        logger.info(f"Filtering transactions from {config.from_date}")
-    client = TellerClient(resolve_cert_path(config.cert_path), resolve_cert_path(config.key_path))
-    fetcher = Fetcher(client, db, config.access_tokens, from_date=config.from_date)
-    fetcher.fetch_all()
-
-    logger.info("Applying manual overrides")
-    apply_manual_categories(db, config)
-
-    logger.info("Categorizing transactions")
-    apply_inferred_categories(db, config)
-
-    logger.info("Exporting to CSV")
-    export_transactions_to_csv(db_path)
 
 
 def main():
@@ -87,7 +61,7 @@ def main():
             input("No accounts were connected. Press Enter to try again...")
 
     # Run sync
-    run_sync(config)
+    run_pipeline(config)
 
     # Offer to add more accounts
     try:

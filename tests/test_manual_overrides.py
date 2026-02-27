@@ -7,10 +7,11 @@ from unittest.mock import patch
 
 import yaml
 
-from sprig.categorize import apply_inferred_categories, apply_manual_categories
+from sprig.categorize import categorize_manually
 from sprig.database import SprigDatabase
 from sprig.models import TellerAccount, TransactionCategory
 from sprig.models.config import load_config
+from sprig.pipeline import save_categories
 
 
 def test_category_config_loads_manual_categories():
@@ -151,15 +152,20 @@ def test_manual_overrides_applied_before_ai_categorization():
 
         test_category_config = load_config(config_path)
 
-        apply_manual_categories(db, test_category_config)
+        # Apply manual overrides via pipeline
+        save_categories(db, categorize_manually(test_category_config))
 
-        with patch("sprig.categorize.categorize_in_batches") as mock_categorize_in_batches:
+        with patch("sprig.pipeline.categorize_in_batches") as mock_categorize_in_batches:
             # Mock AI categorization - should only be called for txn_claude
             mock_categorize_in_batches.return_value = [
                 TransactionCategory(transaction_id="txn_claude", category="transport", confidence=0.9)
             ]
 
-            apply_inferred_categories(db, test_category_config)
+            # Simulate what pipeline does: get uncategorized, call AI, save
+            from sprig.models import TransactionView
+            uncategorized = db.get_uncategorized_transactions()
+            views = [TransactionView.from_db_row(row) for row in uncategorized]
+            save_categories(db, mock_categorize_in_batches(views, test_category_config))
 
             # Verify manual overrides were applied
             import sqlite3
@@ -255,7 +261,7 @@ def test_manual_override_replaces_existing_ai_category():
         # Load the config and apply manual overrides
         category_config = load_config(config_path)
 
-        apply_manual_categories(db, category_config)
+        save_categories(db, categorize_manually(category_config))
 
         # Verify the manual override replaced the AI category
         with sqlite3.connect(db_path) as conn:
@@ -312,7 +318,7 @@ def test_apply_manual_categories_skips_invalid_categories():
 
         category_config = load_config(config_path)
 
-        apply_manual_categories(db, category_config)
+        save_categories(db, categorize_manually(category_config))
 
         # Verify the transaction was NOT updated (invalid category skipped)
         import sqlite3

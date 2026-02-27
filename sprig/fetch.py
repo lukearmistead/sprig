@@ -1,11 +1,10 @@
 """Transaction fetching logic for Sprig."""
 
 from datetime import date
-from typing import List, Optional
+from typing import Generator, List, Optional, Tuple
 
 import requests
 
-from sprig.database import SprigDatabase
 from sprig.logger import get_logger
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.teller_client import TellerClient
@@ -13,53 +12,60 @@ from sprig.teller_client import TellerClient
 logger = get_logger("sprig.fetch")
 
 
-class Fetcher:
-    def __init__(
-        self,
-        client: TellerClient,
-        db: SprigDatabase,
-        access_tokens: List[str],
-        from_date: Optional[date] = None,
-    ):
-        self.client = client
-        self.db = db
-        self.access_tokens = access_tokens
-        self.from_date = from_date
+def _http_status(e: requests.HTTPError) -> int | None:
+    return e.response.status_code if e.response is not None else None
 
-    def fetch_all(self):
-        for token in self.access_tokens:
-            self.fetch_token(token)
 
-    def fetch_token(self, token: str) -> bool:
-        try:
-            accounts = self.client.get_accounts(token)
-        except requests.HTTPError as e:
-            if e.response is not None and e.response.status_code == 401:
+def fetch_all(
+    client: TellerClient,
+    tokens: List[str],
+    from_date: Optional[date] = None,
+) -> Generator[Tuple[TellerAccount, List[TellerTransaction]], None, None]:
+    """Yield (account, transactions) for every account across all tokens."""
+    for token in tokens:
+        yield from fetch_token(client, token, from_date)
+
+
+def fetch_token(
+    client: TellerClient,
+    token: str,
+    from_date: Optional[date] = None,
+) -> Generator[Tuple[TellerAccount, List[TellerTransaction]], None, None]:
+    """Yield (account, transactions) for each account under a token."""
+    try:
+        accounts = client.get_accounts(token)
+    except requests.HTTPError as e:
+        match _http_status(e):
+            case 401:
                 logger.warning(f"Token {token[:12]}... is expired — reconnect with `sprig connect`")
-                return False
-            if e.response is not None and e.response.status_code == 404:
+                return
+            case 404:
                 logger.warning(f"Token {token[:12]}... enrollment no longer exists — remove from config")
-                return False
-            raise
-
-        for account_data in accounts:
-            account = TellerAccount(**account_data)
-            self.db.save_account(account)
-            try:
-                self.fetch_account(token, account.id)
-            except requests.HTTPError as e:
-                if e.response is not None and e.response.status_code == 410:
-                    logger.warning(f"Account {account.id} is no longer available, skipping")
-                    continue
+                return
+            case _:
                 raise
 
-        return True
-
-    def fetch_account(self, token: str, account_id: str):
-        transactions = self.client.get_transactions(token, account_id, start_date=self.from_date)
-
-        for transaction_data in transactions:
-            transaction = TellerTransaction(**transaction_data)
-            if self.from_date and transaction.date < self.from_date:
+    for account_data in accounts:
+        account = TellerAccount(**account_data)
+        try:
+            transactions = fetch_account(client, token, account.id, from_date)
+        except requests.HTTPError as e:
+            if _http_status(e) == 410:
+                logger.warning(f"Account {account.id} is no longer available, skipping")
                 continue
-            self.db.sync_transaction(transaction)
+            raise
+        yield account, transactions
+
+
+def fetch_account(
+    client: TellerClient,
+    token: str,
+    account_id: str,
+    from_date: Optional[date] = None,
+) -> List[TellerTransaction]:
+    """Return filtered transaction list for one account."""
+    raw = client.get_transactions(token, account_id, start_date=from_date)
+    transactions = [TellerTransaction(**t) for t in raw]
+    if from_date:
+        transactions = [t for t in transactions if t.date >= from_date]
+    return transactions
