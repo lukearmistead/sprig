@@ -22,7 +22,7 @@ jobs:
           pip install pyinstaller==6.18.0
 
       - name: Build binary
-        run: pyinstaller sprig.spec
+        run: pyinstaller scripts/sprig.spec
 
       - name: Smoke test
         timeout-minutes: 1
@@ -50,7 +50,7 @@ jobs:
           pip install pyinstaller==6.18.0
 
       - name: Build binary
-        run: pyinstaller sprig.spec
+        run: pyinstaller scripts/sprig.spec
 
       - name: Smoke test
         timeout-minutes: 1

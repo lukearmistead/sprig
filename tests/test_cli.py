@@ -1,9 +1,9 @@
 """Tests for sprig CLI functionality."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-from sprig.cli import main, open_config
+from sprig.cli import main
 
 
 def _make_config(app_id="test-app", claude_key="sk-test", access_tokens=None):
