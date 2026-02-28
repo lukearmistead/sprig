@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
     "ruff>=0.14.0",
     "pyinstaller>=6.0.0",
 ]
@@ -32,6 +33,16 @@ sprig = "sprig.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sprig*"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=sprig --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["sprig"]
+omit = ["sprig/templates/*"]
+
+[tool.coverage.report]
+exclude_lines = ["if __name__", "pragma: no cover"]
 
 [tool.ruff]
 line-length = 100

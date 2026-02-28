@@ -32,6 +32,14 @@ exports/
 *.swp
 *.swo
 
+# Build artifacts
+.agents/
+Sprig-Release/
+/head
+
+# Local config
+config.yml
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,9 +1,6 @@
-# 🌱 Sprig
+# 🌱 Sprig: Actually-personal personal finance
 
-**Actually-personal personal finance**: Sprig connects to your bank accounts, downloads your transactions locally, buckets them into customizable AI-powered categories, and exports it all into a spreadsheet so you can budget your way.
-
-
-You can use Sprig to download a CSV like this:
+Sprig connects to your bank accounts, downloads your transactions locally, buckets them into customizable AI-powered categories, and exports it all into a CSV like this:
 
 | id | date | description | amount | inferred_category | confidence | counterparty | account_name | account_subtype | account_last_four |
 |----|------|-------------|--------|-------------------|------------|--------------|--------------|-----------------|-------------------|
@@ -21,12 +18,12 @@ You can use Sprig to download a CSV like this:
 
 **macOS / Linux:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/lukearmistead/sprig/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.ps1 | iex
 ```
 
 This downloads the latest binary to `~/.local/bin` and adds it to your PATH.
@@ -34,18 +31,10 @@ This downloads the latest binary to `~/.local/bin` and adds it to your PATH.
 **Option B: Install with Python (For Developers)**
 
 ```bash
-# Download Sprig
 git clone https://github.com/lukearmistead/sprig.git
 cd sprig
-
-# Create isolated environment (recommended)
 python -m venv venv
-
-# Activate the environment
-source venv/bin/activate
-# On Windows, use: venv\Scripts\activate
-
-# Install the package
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -e .
 ```
 
@@ -65,7 +54,11 @@ You'll need accounts with two services (both free to start):
    - Create an API key (starts with `sk-ant-api03-`)
    - **Cost:** ~$0.10-0.50 per 1000 transactions ([see pricing](https://platform.claude.com/docs/en/build-with-claude/batch-processing#pricing))
 
-### Step 3: Run Sprig
+---
+
+## Usage
+
+### Running Sprig
 
 ```bash
 sprig sync
@@ -76,13 +69,7 @@ Sprig guides you through setup automatically:
 2. **Second run:** Opens browser to connect your bank accounts
 3. **After that:** Fetches, categorizes, and exports your transactions
 
-**Done!** Your transactions are in `~/Documents/Sprig/exports/transactions-YYYY-MM-DD.csv`.
-
-**Want to customize categories?** Edit `~/Documents/Sprig/config.yml` to create your own categories (business expenses, coffee, etc.). [See customization guide below](#customizing-your-categories).
-
----
-
-## Sample Output
+Your transactions are exported to `~/Documents/Sprig/exports/transactions-YYYY-MM-DD.csv`.
 
 ```
 Fetching transactions from Teller
@@ -91,11 +78,23 @@ Exported 47 transaction(s) to ~/Documents/Sprig/exports/transactions-2025-11-17.
 Add another bank account? [y/N]
 ```
 
----
+### Categorization
+
+Sprig uses Claude AI to categorize each transaction into one of your configured categories. Each transaction gets a category, a confidence score, and a counterparty name.
+
+To manually override a specific transaction, add it to `manual_categories` in your config:
+
+```yaml
+manual_categories:
+  - transaction_id: txn_abc123
+    category: dining
+```
+
+Manual overrides are applied before AI categorization and always take precedence.
 
 ### Recategorization
 
-After improving your categories in `~/Documents/Sprig/config.yml`, you can re-categorize transactions by:
+After improving your categories in `~/Documents/Sprig/config.yml`, re-categorize transactions by:
 
 1. **Delete the database and re-sync:**
    ```bash
@@ -118,15 +117,5 @@ categories:
   - name: another_category
     description: "Another description explaining what belongs here"
 ```
-
-To manually override a specific transaction, add it to `manual_categories`:
-
-```yaml
-manual_categories:
-  - transaction_id: txn_abc123
-    category: dining
-```
-
-Manual overrides are applied before AI categorization and always take precedence.
 
 After changing categories, delete `~/Documents/Sprig/sprig.db` and re-sync to apply them.

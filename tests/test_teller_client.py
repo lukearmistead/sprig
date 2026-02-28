@@ -8,7 +8,7 @@ import pytest
 
 import requests
 
-from sprig.teller_client import TellerClient, _is_rate_limit_error
+from sprig.teller_client import TellerClient, _is_retryable_error
 
 
 @pytest.fixture
@@ -46,6 +46,7 @@ def test_make_request(mock_get, cert_files):
         auth=("test_token", ""),
         headers={"Content-Type": "application/json"},
         params=None,
+        timeout=30,
     )
     assert result == {"test": "data"}
 
@@ -88,25 +89,38 @@ def test_get_transactions(mock_make_request, cert_files):
     assert result == mock_transactions
 
 
-def test_is_rate_limit_error_with_429():
+def test_is_retryable_error_with_429():
     mock_response = Mock()
     mock_response.status_code = 429
     error = requests.HTTPError()
     error.response = mock_response
-    assert _is_rate_limit_error(error) is True
+    assert _is_retryable_error(error) is True
 
 
-def test_is_rate_limit_error_with_other_status():
+def test_is_retryable_error_with_504():
+    mock_response = Mock()
+    mock_response.status_code = 504
+    error = requests.HTTPError()
+    error.response = mock_response
+    assert _is_retryable_error(error) is True
+
+
+def test_is_retryable_error_with_other_status():
     mock_response = Mock()
     mock_response.status_code = 500
     error = requests.HTTPError()
     error.response = mock_response
-    assert _is_rate_limit_error(error) is False
+    assert _is_retryable_error(error) is False
 
 
-def test_is_rate_limit_error_with_non_http_error():
+def test_is_retryable_error_with_read_timeout():
+    error = requests.ReadTimeout("read timed out")
+    assert _is_retryable_error(error) is True
+
+
+def test_is_retryable_error_with_non_http_error():
     error = ValueError("not an HTTP error")
-    assert _is_rate_limit_error(error) is False
+    assert _is_retryable_error(error) is False
 
 
 @patch('requests.Session.get')
@@ -118,7 +132,7 @@ def test_make_request_with_params(mock_get, cert_files):
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    params = {"from_date": "2024-01-01"}
+    params = {"start_date": "2024-01-01"}
     client._make_request("test_token", "/test/endpoint", params=params)
 
     mock_get.assert_called_once_with(
@@ -126,6 +140,7 @@ def test_make_request_with_params(mock_get, cert_files):
         auth=("test_token", ""),
         headers={"Content-Type": "application/json"},
         params=params,
+        timeout=30,
     )
 
 
@@ -151,6 +166,28 @@ def test_make_request_retries_on_429(mock_get, cert_files):
     assert mock_get.call_count == 3
 
 
+@patch('requests.Session.get')
+def test_make_request_retries_on_504(mock_get, cert_files):
+    client = TellerClient(*cert_files)
+
+    mock_response_504 = Mock()
+    mock_response_504.status_code = 504
+    error_504 = requests.HTTPError()
+    error_504.response = mock_response_504
+    mock_response_504.raise_for_status.side_effect = error_504
+
+    mock_response_ok = Mock()
+    mock_response_ok.json.return_value = {"success": True}
+    mock_response_ok.raise_for_status.return_value = None
+
+    mock_get.side_effect = [mock_response_504, mock_response_ok]
+
+    result = client._make_request("test_token", "/test/endpoint")
+
+    assert result == {"success": True}
+    assert mock_get.call_count == 2
+
+
 @patch('sprig.teller_client.TellerClient._make_request')
 def test_get_transactions_with_start_date(mock_make_request, cert_files):
     client = TellerClient(*cert_files)
@@ -162,7 +199,7 @@ def test_get_transactions_with_start_date(mock_make_request, cert_files):
     mock_make_request.assert_called_once_with(
         "test_token",
         "/accounts/acc_123/transactions",
-        params={"from_date": "2024-04-01"},
+        params={"start_date": "2024-04-01"},
     )
 
 
