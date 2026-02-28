@@ -35,7 +35,7 @@ exports/
 # Build artifacts
 .agents/
 Sprig-Release/
-head
+/head
 
 # Local config
 config.yml
