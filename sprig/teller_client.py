@@ -4,12 +4,10 @@ from datetime import date
 from typing import Optional
 
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from tenacity import retry, retry_if_exception, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
-def _is_retryable_error(exception):
-    if isinstance(exception, requests.ReadTimeout):
-        return True
+def _is_retryable_status(exception):
     if isinstance(exception, requests.HTTPError):
         return exception.response is not None and exception.response.status_code in (429, 504)
     return False
@@ -24,7 +22,7 @@ class TellerClient:
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=60),
-        retry=retry_if_exception(_is_retryable_error),
+        retry=retry_if_exception_type(requests.ReadTimeout) | retry_if_exception(_is_retryable_status),
         reraise=True,
     )
     def _make_request(self, access_token: str, endpoint: str, params: Optional[dict] = None):
