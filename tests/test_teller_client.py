@@ -8,7 +8,7 @@ import pytest
 
 import requests
 
-from sprig.teller_client import TellerClient, _is_retryable_error
+from sprig.teller_client import TellerClient, _is_retryable_status
 
 
 @pytest.fixture
@@ -89,38 +89,33 @@ def test_get_transactions(mock_make_request, cert_files):
     assert result == mock_transactions
 
 
-def test_is_retryable_error_with_429():
+def test_is_retryable_status_with_429():
     mock_response = Mock()
     mock_response.status_code = 429
     error = requests.HTTPError()
     error.response = mock_response
-    assert _is_retryable_error(error) is True
+    assert _is_retryable_status(error) is True
 
 
-def test_is_retryable_error_with_504():
+def test_is_retryable_status_with_504():
     mock_response = Mock()
     mock_response.status_code = 504
     error = requests.HTTPError()
     error.response = mock_response
-    assert _is_retryable_error(error) is True
+    assert _is_retryable_status(error) is True
 
 
-def test_is_retryable_error_with_other_status():
+def test_is_retryable_status_with_other_status():
     mock_response = Mock()
     mock_response.status_code = 500
     error = requests.HTTPError()
     error.response = mock_response
-    assert _is_retryable_error(error) is False
+    assert _is_retryable_status(error) is False
 
 
-def test_is_retryable_error_with_read_timeout():
-    error = requests.ReadTimeout("read timed out")
-    assert _is_retryable_error(error) is True
-
-
-def test_is_retryable_error_with_non_http_error():
+def test_is_retryable_status_with_non_http_error():
     error = ValueError("not an HTTP error")
-    assert _is_retryable_error(error) is False
+    assert _is_retryable_status(error) is False
 
 
 @patch('requests.Session.get')
@@ -181,6 +176,22 @@ def test_make_request_retries_on_504(mock_get, cert_files):
     mock_response_ok.raise_for_status.return_value = None
 
     mock_get.side_effect = [mock_response_504, mock_response_ok]
+
+    result = client._make_request("test_token", "/test/endpoint")
+
+    assert result == {"success": True}
+    assert mock_get.call_count == 2
+
+
+@patch('requests.Session.get')
+def test_make_request_retries_on_read_timeout(mock_get, cert_files):
+    client = TellerClient(*cert_files)
+
+    mock_response_ok = Mock()
+    mock_response_ok.json.return_value = {"success": True}
+    mock_response_ok.raise_for_status.return_value = None
+
+    mock_get.side_effect = [requests.ReadTimeout("read timed out"), mock_response_ok]
 
     result = client._make_request("test_token", "/test/endpoint")
 
