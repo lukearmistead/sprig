@@ -113,6 +113,11 @@ def test_is_retryable_error_with_other_status():
     assert _is_retryable_error(error) is False
 
 
+def test_is_retryable_error_with_read_timeout():
+    error = requests.ReadTimeout("read timed out")
+    assert _is_retryable_error(error) is True
+
+
 def test_is_retryable_error_with_non_http_error():
     error = ValueError("not an HTTP error")
     assert _is_retryable_error(error) is False

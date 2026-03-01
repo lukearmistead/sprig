@@ -8,6 +8,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 
 def _is_retryable_error(exception):
+    if isinstance(exception, requests.ReadTimeout):
+        return True
     if isinstance(exception, requests.HTTPError):
         return exception.response is not None and exception.response.status_code in (429, 504)
     return False
