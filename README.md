@@ -34,6 +34,8 @@ curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/in
 irm https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.ps1 | iex
 ```
 
+Then restart your terminal (the installer adds Sprig to your PATH automatically).
+
 **Or install from source:** `git clone https://github.com/lukearmistead/sprig.git && cd sprig && pip install -e .`
 
 ### Step 2: Set up your accounts
