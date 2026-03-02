@@ -1,7 +1,5 @@
 """Transaction categorization using Claude and manual overrides."""
 
-import sys
-from pathlib import Path
 from typing import List
 
 from pydantic_ai import Agent
@@ -12,11 +10,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from sprig.logger import get_logger
 from sprig.models import TransactionCategory, TransactionView, TransactionBatch
 from sprig.models.config import Config
+from sprig.paths import get_package_dir
 
 logger = get_logger("sprig.categorize")
 
-_BASE = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
-DEFAULT_CATEGORIZATION_PROMPT = (_BASE / "prompts" / "categorize.txt").read_text()
+DEFAULT_CATEGORIZATION_PROMPT = (get_package_dir() / "prompts" / "categorize.txt").read_text()
 
 
 def _validate_category_results(

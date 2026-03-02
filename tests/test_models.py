@@ -72,13 +72,6 @@ class TestConfigDefaults:
         assert config.batch_size == 25
         assert config.environment == "sandbox"
 
-    def test_empty_environment_defaults_to_development(self):
-        config = Config(**self.MINIMAL_KWARGS, environment="")
-        assert config.environment == "development"
-
-    def test_none_environment_defaults_to_development(self):
-        config = Config(**self.MINIMAL_KWARGS, environment=None)
-        assert config.environment == "development"
 
 
 class TestCategorizationPromptFallback:

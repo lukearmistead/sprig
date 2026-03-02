@@ -26,7 +26,8 @@ claude_key: ""
 # -----------------------------------------------------------------------------
 # CATEGORIES
 # -----------------------------------------------------------------------------
-# These are what the AI uses to classify your transactions.
+# The AI reads these descriptions to decide how to categorize each transaction.
+# Be specific — the more detail you put in a description, the better it classifies.
 # Customize names and descriptions to match your budget!
 categories:
   - name: dining
@@ -77,10 +78,10 @@ access_tokens: []
 # batch_size: 50
 
 # Teller environment:
-#   development — free, connects to real banks (default)
+#   development — free, connects to real banks
 #   sandbox     — fake data for testing
 #   production  — paid usage
-# environment: development
+environment: development
 
 # Manual category overrides — pin specific transactions to a category:
 # manual_categories:

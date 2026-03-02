@@ -42,12 +42,6 @@ class Config(BaseModel):
             return None
         return v
 
-    @field_validator("environment", mode="before")
-    @classmethod
-    def empty_environment_to_default(cls, v):
-        if not v:
-            return "development"
-        return v
 
 
 def _bundled_config_path() -> Optional[Path]:
