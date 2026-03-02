@@ -26,7 +26,7 @@ categories:
 
 **macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell):**

@@ -18,12 +18,12 @@ case "$ARCH" in
 esac
 
 echo "Downloading Sprig for macOS ($ARCH)..."
-curl -fsSL "https://github.com/$REPO/releases/latest/download/$ASSET" -o "$INSTALL_DIR/sprig"
-chmod +x "$INSTALL_DIR/sprig"
+sudo curl -fsSL "https://github.com/$REPO/releases/latest/download/$ASSET" -o "$INSTALL_DIR/sprig"
+sudo chmod +x "$INSTALL_DIR/sprig"
 
 echo "Installed to $INSTALL_DIR/sprig"
 
 echo ""
 echo "Setup will walk you through connecting your accounts."
-read -r -p "Press Enter to start setup..."
+read -r -p "Press Enter to start setup..." < /dev/tty
 exec "$INSTALL_DIR/sprig" sync
