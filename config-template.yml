@@ -27,6 +27,9 @@ key_path: certs/private_key.pem
 # Cost: ~$0.10-0.50 per 1000 transactions (https://anthropic.com/pricing)
 claude_key: ""
 
+# How far back to fetch transactions (YYYY-MM-DD format)
+from_date: 2026-01-01
+
 # -----------------------------------------------------------------------------
 # CATEGORIES
 # -----------------------------------------------------------------------------
