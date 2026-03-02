@@ -69,7 +69,7 @@ access_tokens: []
 
 # How far back to fetch transactions (YYYY-MM-DD format)
 # Leave blank to fetch all available history
-from_date:
+# from_date: 2025-01-01
 
 # How many transactions to categorize per AI batch (default: 50)
 # Larger batches give the AI more context for ambiguous transactions
@@ -88,6 +88,7 @@ from_date:
 #     category: dining
 
 # Uncomment to customize how the AI categorizes your transactions.
+# This is a simplified starting point — the full default prompt is in sprig/prompts/categorize.txt
 # The {categories} and {transactions} placeholders are filled in automatically.
 # categorization_prompt: |
 #   Analyze each transaction and assign it to exactly ONE category from the provided list.

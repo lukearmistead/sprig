@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.models.config import Config
 from sprig.models.claude import TransactionView
-from sprig.categorize import categorize_inferentially, DEFAULT_CATEGORIZATION_PROMPT
+from sprig.categorize import categorize_inferentially
 
 
 def test_teller_account():
@@ -59,7 +59,6 @@ def test_teller_transaction():
 class TestConfigDefaults:
     MINIMAL_KWARGS = {
         "categories": [{"name": "general", "description": "general"}],
-        "access_tokens": [],
     }
 
     def test_minimal_config_gets_defaults(self):
