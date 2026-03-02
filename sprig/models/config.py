@@ -25,12 +25,12 @@ class ManualCategory(BaseModel):
 class Config(BaseModel):
     categories: List[Category]
     manual_categories: List[ManualCategory] = []
-    batch_size: int
+    batch_size: int = 50
     from_date: Optional[date] = None
     app_id: str = ""
     claude_key: str = ""
     access_tokens: List[str] = []
-    environment: str = ""
+    environment: str = "development"
     cert_path: str = ""
     key_path: str = ""
     categorization_prompt: str = ""
@@ -40,6 +40,13 @@ class Config(BaseModel):
     def empty_string_to_none(cls, v):
         if v == "":
             return None
+        return v
+
+    @field_validator("environment", mode="before")
+    @classmethod
+    def empty_environment_to_default(cls, v):
+        if not v:
+            return "development"
         return v
 
 
