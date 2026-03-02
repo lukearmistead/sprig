@@ -3,6 +3,10 @@
 # =============================================================================
 # To get started: fill in app_id and claude_key below, then run `sprig sync`
 
+# How far back to fetch transactions (YYYY-MM-DD format)
+# More transactions = more Claude API cost, so pick a recent date to start
+from_date: 2026-01-01
+
 # -----------------------------------------------------------------------------
 # TELLER (Bank Connection)
 # -----------------------------------------------------------------------------
@@ -67,10 +71,6 @@ access_tokens: []
 # -----------------------------------------------------------------------------
 # OPTIONAL SETTINGS
 # -----------------------------------------------------------------------------
-
-# How far back to fetch transactions (YYYY-MM-DD format)
-# Leave blank to fetch all available history
-# from_date: 2025-01-01
 
 # How many transactions to categorize per AI batch (default: 50)
 # Larger batches give the AI more context for ambiguous transactions
