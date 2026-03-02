@@ -3,6 +3,10 @@
 # =============================================================================
 # To get started: fill in app_id and claude_key below, then run `sprig sync`
 
+# How far back to fetch transactions (YYYY-MM-DD format)
+# More transactions = more Claude API cost, so pick a recent date to start
+from_date: 2026-01-01
+
 # -----------------------------------------------------------------------------
 # TELLER (Bank Connection)
 # -----------------------------------------------------------------------------
@@ -22,9 +26,6 @@ key_path: certs/private_key.pem
 # 2. Go to API Keys → Create a new key (looks like: sk-ant-api03-...)
 # Cost: ~$0.10-0.50 per 1000 transactions (https://anthropic.com/pricing)
 claude_key: ""
-
-# How far back to fetch transactions (YYYY-MM-DD format)
-from_date: 2026-01-01
 
 # -----------------------------------------------------------------------------
 # CATEGORIES
