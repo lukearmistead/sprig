@@ -37,4 +37,7 @@ if ! echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
   echo "Restart your terminal or run: source $RC_FILE"
 fi
 
-echo "Run 'sprig sync' to get started."
+echo ""
+echo "Setup will walk you through connecting your accounts."
+read -r -p "Press Enter to start setup..."
+exec "$INSTALL_DIR/sprig" sync
