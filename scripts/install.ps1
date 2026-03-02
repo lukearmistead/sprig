@@ -19,4 +19,7 @@ if ($userPath -notlike "*$installDir*") {
     Write-Host "Added $installDir to your PATH (restart your terminal to use 'sprig' directly)."
 }
 
-Write-Host "Run 'sprig sync' to get started."
+Write-Host ""
+Write-Host "Setup will walk you through connecting your accounts."
+Read-Host "Press Enter to start setup..."
+& "$installDir\sprig.exe" sync
