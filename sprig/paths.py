@@ -1,6 +1,14 @@
 """Path utilities for Sprig home directory."""
 
+import sys
 from pathlib import Path
+
+
+def get_package_dir() -> Path:
+    """Get the sprig package directory, handling PyInstaller bundles."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "sprig"
+    return Path(__file__).parent
 
 
 def get_sprig_home() -> Path:

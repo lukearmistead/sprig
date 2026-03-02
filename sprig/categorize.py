@@ -10,9 +10,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from sprig.logger import get_logger
 from sprig.models import TransactionCategory, TransactionView, TransactionBatch
 from sprig.models.config import Config
+from sprig.paths import get_package_dir
 
 logger = get_logger("sprig.categorize")
 
+DEFAULT_CATEGORIZATION_PROMPT = (get_package_dir() / "prompts" / "categorize.txt").read_text()
 
 
 def _validate_category_results(
@@ -59,7 +61,8 @@ def categorize_inferentially(
     batch = TransactionBatch(transactions=transaction_views)
     transactions_json = batch.model_dump_json(indent=2)
 
-    prompt = config.categorization_prompt.format(
+    prompt_template = config.categorization_prompt or DEFAULT_CATEGORIZATION_PROMPT
+    prompt = prompt_template.format(
         categories=", ".join(categories_with_descriptions),
         transactions=transactions_json
     )

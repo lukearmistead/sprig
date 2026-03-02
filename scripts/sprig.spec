@@ -18,6 +18,7 @@ datas += copy_metadata('sprig')
 # Bundle config-template.yml and connect.html template
 datas += [('config-template.yml', '.')]
 datas += [('sprig/templates/connect.html', 'sprig/templates')]
+datas += [('sprig/prompts/categorize.txt', 'sprig/prompts')]
 
 a = Analysis(
     ['sprig/cli.py'],

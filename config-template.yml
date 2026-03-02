@@ -1,115 +1,34 @@
 # =============================================================================
 # SPRIG CONFIGURATION
 # =============================================================================
-# Fill in the values below to get started.
+# To get started: fill in app_id and claude_key below, then run `sprig sync`
 
 # -----------------------------------------------------------------------------
 # TELLER (Bank Connection)
 # -----------------------------------------------------------------------------
-# Get your app_id from https://teller.io:
-#   1. Sign up for a Teller account
-#   2. Create an application
-#   3. Copy your Application ID and paste between the empty quotes below
+# 1. Sign up at https://teller.io and create an application
+# 2. In your application settings, copy your Application ID (looks like: app_xxxxxxxxxx)
+# 3. Download your certificate from Settings → Certificates
+#    Sprig opens the certs folder for you on first run — just drag and drop the files in
 app_id: ""
 
-# Get your Teller certificate and private key
-# 1. Download files from https://teller.io/settings/certificates
-# 2. Save to ~/Documents/Sprig/certs/
 cert_path: certs/certificate.pem
 key_path: certs/private_key.pem
 
 # -----------------------------------------------------------------------------
 # CLAUDE (AI Categorization)
 # -----------------------------------------------------------------------------
-# Get your API key from https://console.anthropic.com:
-#   1. Sign up for an Anthropic account
-#   2. Go to API Keys
-#   3. Create a new key and paste between the empty quotes below
+# 1. Sign up at https://console.anthropic.com
+# 2. Go to API Keys → Create a new key (looks like: sk-ant-api03-...)
 # Cost: ~$0.10-0.50 per 1000 transactions (https://anthropic.com/pricing)
 claude_key: ""
 
 # -----------------------------------------------------------------------------
-# SYNC SETTINGS (Optional)
-# -----------------------------------------------------------------------------
-# How far back to fetch transactions (YYYY-MM-DD format)
-# Leave blank to fetch all available history
-from_date:
-
-# How many transactions to categorize per batch
-batch_size: 50
-
-# Teller environment: "development" is free and connects to real banks.
-# Use "sandbox" for testing with fake data, "production" for paid usage.
-environment: development
-
-# Categorization prompt sent to Claude with each batch of transactions.
-# The {categories} and {transactions} placeholders are filled in automatically.
-# Edit this to change how Claude interprets and categorizes your transactions.
-categorization_prompt: |
-  Analyze each transaction and assign it to exactly ONE category from the provided list.
-
-  AVAILABLE CATEGORIES:
-  {categories}
-
-  TRANSACTIONS TO CATEGORIZE:
-  {transactions}
-
-  TRANSACTION FIELDS:
-  - description: The transaction description from your bank
-  - counterparty: The merchant or entity name (when available)
-  - amount: Transaction amount (negative values are refunds or credits)
-  - account_name & account_subtype: The account this transaction occurred in (e.g., "credit_card", "checking", "savings")
-
-  CATEGORIZATION PROCESS:
-  1. Read each transaction's description, counterparty (if available), amount, and account type carefully
-  2. USE ACCOUNT TYPE AS CONTEXT:
-     - Credit card transactions are NEVER income (even if negative/refunds)
-     - Checking/savings negative amounts may be income (salary, deposits) or refunds
-     - Credit card payments from checking → categorize as "loan" or "general" not "income"
-  3. Look for KEY WORDS that strongly indicate a category:
-     - "INSURANCE" + auto/car context → likely vehicle-related
-     - "AUTOPAY", "PYMT", "PAYMENT" → likely a transfer or bill payment
-     - Gas station names (Shell, Chevron, Pilot, Fast Stop, BP, etc.) → check amount to determine fuel vs. snacks
-  4. Use transaction amounts as strong hints:
-     - Gas stations: $30+ usually fuel, under $15 usually snacks/drinks
-     - Pharmacies: $100+ usually prescriptions, under $20 usually personal items
-  5. HANDLING NEGATIVE AMOUNTS (refunds/credits):
-     - Negative amounts are often refunds, NOT income or transfers
-     - Categorize refunds based on the merchant/counterparty, not the negative amount
-     - Example: A -$50 from REI is a refund for outdoor/sporting goods, not income
-     - Example: A -$25 from a restaurant is a dining refund, not a transfer
-     - Example: A -$100 on a credit card from Amazon is a return, not income
-     - Only categorize as income when clearly salary, deposits, transfers between YOUR accounts
-  6. Match to the MOST SPECIFIC applicable category based on all available information
-  7. Avoid over-using "general" - it should be rare. Most transactions have a logical category
-  8. Only use "undefined" when the merchant and purpose are genuinely unclear
-  9. CONFIDENCE SCORING (0 to 1):
-     - Assign a confidence score to each categorization based on how certain you are
-     - High confidence (0.8-1.0): Clear merchant name, obvious category (e.g., "Starbucks" → dining)
-     - Medium confidence (0.5-0.79): Some ambiguity but likely correct (e.g., gas station with small amount could be snacks or fuel)
-     - Low confidence (0-0.49): Unclear merchant, vague description, or multiple possible categories
-
-  CRITICAL REQUIREMENTS:
-  - You MUST use ONLY the exact category names listed above
-  - DO NOT create new categories like "personal_care", "education", or "subscriptions"
-  - If tempted to use a category not in the list, use "general" instead
-  - Every category in your response MUST match one from AVAILABLE CATEGORIES exactly
-  - Categorize EVERY transaction (no skipping)
-
-  VALIDATION:
-  Before returning your response, verify that EVERY category you used appears in the AVAILABLE CATEGORIES list above. If not, your response is invalid.
-
-# -----------------------------------------------------------------------------
-# DO NOT EDIT BELOW - Managed by Sprig
-# -----------------------------------------------------------------------------
-access_tokens: []
-
-# -----------------------------------------------------------------------------
 # CATEGORIES
 # -----------------------------------------------------------------------------
-# Transaction categories for AI classification
-# You can customize these to match your budget!
-# See examples: https://github.com/lukearmistead/sprig#customizing-your-categories
+# The AI reads these descriptions to decide how to categorize each transaction.
+# Be specific — the more detail you put in a description, the better it classifies.
+# Customize names and descriptions to match your budget!
 categories:
   - name: dining
     description: "Restaurants, bars, cafes, food delivery, and any prepared food or drinks consumed outside the home"
@@ -140,8 +59,60 @@ categories:
   - name: undefined
     description: "Truly unclassifiable transactions with unclear merchants or purposes that cannot be determined from available information"
 
-# Manual category overrides (optional)
-# Override AI-inferred categories for specific transactions:
+# -----------------------------------------------------------------------------
+# DO NOT EDIT — Managed by Sprig
+# -----------------------------------------------------------------------------
+access_tokens: []
+
+# -----------------------------------------------------------------------------
+# OPTIONAL SETTINGS
+# -----------------------------------------------------------------------------
+
+# How far back to fetch transactions (YYYY-MM-DD format)
+# Leave blank to fetch all available history
+# from_date: 2025-01-01
+
+# How many transactions to categorize per AI batch (default: 50)
+# Larger batches give the AI more context for ambiguous transactions
+# but can make responses less reliable
+# batch_size: 50
+
+# Teller environment (default: development):
+#   development — free, connects to real banks
+#   sandbox     — fake data for testing
+#   production  — paid usage
+# environment: development
+
+# Manual category overrides — pin specific transactions to a category:
 # manual_categories:
 #   - transaction_id: txn_abc123
 #     category: dining
+
+# Uncomment to customize how the AI categorizes your transactions.
+# This is a simplified starting point — the full default prompt is in sprig/prompts/categorize.txt
+# The {categories} and {transactions} placeholders are filled in automatically.
+# categorization_prompt: |
+#   Analyze each transaction and assign it to exactly ONE category from the provided list.
+#
+#   AVAILABLE CATEGORIES:
+#   {categories}
+#
+#   TRANSACTIONS TO CATEGORIZE:
+#   {transactions}
+#
+#   TRANSACTION FIELDS:
+#   - description: The transaction description from your bank
+#   - counterparty: The merchant or entity name (when available)
+#   - amount: Transaction amount (negative values are refunds or credits)
+#   - account_name & account_subtype: The account this transaction occurred in
+#
+#   CATEGORIZATION PROCESS:
+#   1. Read each transaction's description, counterparty, amount, and account type
+#   2. Credit card transactions are NEVER income (even negative/refunds)
+#   3. Match to the MOST SPECIFIC applicable category
+#   4. Avoid over-using "general" — most transactions have a logical category
+#   5. Assign a confidence score (0-1) based on how certain you are
+#
+#   CRITICAL REQUIREMENTS:
+#   - Use ONLY the exact category names listed above
+#   - Categorize EVERY transaction (no skipping)

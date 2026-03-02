@@ -82,6 +82,10 @@ manual_categories:
 
 Manual overrides always take precedence over AI categorization.
 
+### Customizing the AI prompt
+
+The default prompt that tells the AI how to categorize transactions lives in [`sprig/prompts/categorize.txt`](sprig/prompts/categorize.txt). To customize it, uncomment the `categorization_prompt` section in your config file. The `{categories}` and `{transactions}` placeholders are filled in automatically.
+
 ### Recategorization
 
 After changing your categories, delete `~/Documents/Sprig/sprig.db` and run `sprig sync` to recategorize all transactions.
