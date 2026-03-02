@@ -3,7 +3,10 @@
 
 block_cipher = None
 
+import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
+
+ROOT = os.path.join(SPECPATH, '..')
 
 # Collect metadata for packages that use importlib.metadata
 datas = []
@@ -16,12 +19,12 @@ datas += copy_metadata('ruamel.yaml')
 datas += copy_metadata('sprig')
 
 # Bundle config-template.yml and connect.html template
-datas += [('config-template.yml', '.')]
-datas += [('sprig/templates/connect.html', 'sprig/templates')]
-datas += [('sprig/prompts/categorize.txt', 'sprig/prompts')]
+datas += [(os.path.join(ROOT, 'config-template.yml'), '.')]
+datas += [(os.path.join(ROOT, 'sprig/templates/connect.html'), 'sprig/templates')]
+datas += [(os.path.join(ROOT, 'sprig/prompts/categorize.txt'), 'sprig/prompts')]
 
 a = Analysis(
-    ['sprig/cli.py'],
+    [os.path.join(ROOT, 'sprig/cli.py')],
     pathex=[],
     binaries=[],
     datas=datas,
