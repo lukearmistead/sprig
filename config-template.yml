@@ -23,6 +23,9 @@ key_path: certs/private_key.pem
 # Cost: ~$0.10-0.50 per 1000 transactions (https://anthropic.com/pricing)
 claude_key: ""
 
+# How far back to fetch transactions (YYYY-MM-DD format)
+from_date: 2026-01-01
+
 # -----------------------------------------------------------------------------
 # CATEGORIES
 # -----------------------------------------------------------------------------
@@ -67,10 +70,6 @@ access_tokens: []
 # -----------------------------------------------------------------------------
 # OPTIONAL SETTINGS
 # -----------------------------------------------------------------------------
-
-# How far back to fetch transactions (YYYY-MM-DD format)
-# Leave blank to fetch all available history
-# from_date: 2025-01-01
 
 # How many transactions to categorize per AI batch (default: 50)
 # Larger batches give the AI more context for ambiguous transactions
