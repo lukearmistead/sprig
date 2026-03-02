@@ -41,6 +41,14 @@ def fetch_token(
             case 401:
                 logger.warning(f"Token {token[:12]}... is expired — reconnect with `sprig connect`")
                 return
+            case 403:
+                logger.warning(
+                    f"Token {token[:12]}... returned 403 Forbidden. This usually means a certificate/app mismatch.\n"
+                    f"  - Verify teller_app_id in config matches your Teller dashboard\n"
+                    f"  - Check that your certificate was downloaded from the same Teller application\n"
+                    f"  - Ensure certificate files exist and aren't corrupted"
+                )
+                return
             case 404:
                 logger.warning(f"Token {token[:12]}... enrollment no longer exists — remove from config")
                 return

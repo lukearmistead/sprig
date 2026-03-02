@@ -6,17 +6,17 @@ from unittest.mock import MagicMock, patch
 from sprig.cli import main
 
 
-def _make_config(app_id="test-app", claude_key="sk-test", access_tokens=None):
+def _make_config(teller_app_id="test-app", claude_key="sk-test", access_tokens=None):
     cfg = MagicMock()
-    cfg.app_id = app_id
+    cfg.teller_app_id = teller_app_id
     cfg.claude_key = claude_key
     cfg.access_tokens = access_tokens or []
     return cfg
 
 
-def test_main_opens_config_when_missing_app_id():
-    """Missing app_id: opens config+certs, waits for input, reloads, then continues."""
-    missing = _make_config(app_id="")
+def test_main_opens_config_when_missing_teller_app_id():
+    """Missing teller_app_id: opens config+certs, waits for input, reloads, then continues."""
+    missing = _make_config(teller_app_id="")
     valid = _make_config(access_tokens=["tok"])
 
     with patch("sprig.cli.load_config", side_effect=[missing, valid, valid]), \
@@ -77,20 +77,21 @@ def test_main_runs_sync_when_configured():
 
 
 def test_main_adds_account_when_user_says_yes():
-    """After sync, user can add another account."""
+    """Before sync, user can add another account."""
     cfg = _make_config(access_tokens=["token1"])
 
     with patch("sprig.cli.load_config", return_value=cfg), \
-         patch("sprig.cli.run_pipeline"), \
+         patch("sprig.cli.run_pipeline") as mock_sync, \
          patch("sprig.cli.authenticate") as mock_auth, \
-         patch("builtins.input", return_value="y"):
+         patch("builtins.input", side_effect=["y", "n"]):
         main()
         mock_auth.assert_called_once_with(cfg)
+        mock_sync.assert_called_once()
 
 
 def test_main_full_first_run():
     """Full first-run: missing creds → fill in → no accounts → authenticate → sync."""
-    missing_creds = _make_config(app_id="", claude_key="")
+    missing_creds = _make_config(teller_app_id="", claude_key="")
     valid_no_tokens = _make_config()
     valid_with_tokens = _make_config(access_tokens=["tok"])
 

@@ -54,7 +54,7 @@ class TestSaveAccessTokens:
             config_data = {
                 "categories": [{"name": "dining", "description": "Restaurants"}],
                 "batch_size": 25,
-                "app_id": "app_test12345678901234567",
+                "teller_app_id": "app_test12345678901234567",
                 "access_tokens": [],
             }
             with open(config_path, "w") as f:
@@ -63,7 +63,7 @@ class TestSaveAccessTokens:
             _save_access_tokens(["token_bbbbbbbbbbbbbbbbbbbbbbbb"], config_path)
 
             reloaded = load_config(config_path)
-            assert reloaded.app_id == "app_test12345678901234567"
+            assert reloaded.teller_app_id == "app_test12345678901234567"
             assert reloaded.batch_size == 25
             assert reloaded.categories[0].name == "dining"
 
@@ -73,7 +73,7 @@ class TestAuthenticate:
         defaults = {
             "categories": [{"name": "general", "description": "general"}],
             "batch_size": 50,
-            "app_id": "app_test12345678901234567",
+            "teller_app_id": "app_test12345678901234567",
         }
         defaults.update(overrides)
         return Config(**defaults)

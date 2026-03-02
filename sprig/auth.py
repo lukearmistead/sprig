@@ -38,7 +38,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
 
     @app.route("/")
     def index():
-        return render_template("connect.html", app_id=config.app_id, environment=config.environment)
+        return render_template("connect.html", teller_app_id=config.teller_app_id, environment=config.environment)
 
     @app.route("/save-token", methods=["POST"])
     def save_token():
@@ -71,7 +71,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
 
     @app.route("/status")
     def status():
-        return jsonify({"status": "running", "app_id": config.app_id})
+        return jsonify({"status": "running", "teller_app_id": config.teller_app_id})
 
     url = f"http://localhost:{port}"
     logger.info(f"Opening browser to {url}")
@@ -93,7 +93,7 @@ def run_auth_server(config: Config, port: int = 8001) -> Optional[str]:
 
 def authenticate(config: Config, port: int = 8001) -> bool:
     """Run Teller OAuth flow. Returns True if successful."""
-    logger.info(f"Starting Teller authentication (app: {config.app_id})")
+    logger.info(f"Starting Teller authentication (app: {config.teller_app_id})")
     result = run_auth_server(config, port)
     if result:
         return True
