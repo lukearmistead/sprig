@@ -1,7 +1,6 @@
 """Configuration models for Sprig."""
 
 import shutil
-import sys
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
@@ -9,7 +8,7 @@ from typing import List, Optional
 from ruamel.yaml import YAML
 from pydantic import BaseModel, field_validator
 
-from sprig.paths import get_default_config_path, get_default_certs_dir
+from sprig.paths import get_default_config_path, get_default_certs_dir, get_package_dir
 
 
 class Category(BaseModel):
@@ -43,11 +42,8 @@ class Config(BaseModel):
         return v
 
 
-
-def _bundled_config_path() -> Optional[Path]:
-    if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "config-template.yml"
-    return Path(__file__).parent.parent.parent / "config-template.yml"
+def _bundled_config_path() -> Path:
+    return get_package_dir().parent / "config-template.yml"
 
 
 def _ensure_config_exists(config_path: Path):

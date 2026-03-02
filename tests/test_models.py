@@ -82,7 +82,6 @@ class TestCategorizationPromptFallback:
     def _make_config(self, prompt=""):
         return Config(
             categories=[{"name": "dining", "description": "Restaurants"}],
-            access_tokens=[],
             categorization_prompt=prompt,
         )
 
