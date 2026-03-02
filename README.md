@@ -24,7 +24,7 @@ categories:
 
 ### Step 1: Install Sprig
 
-**macOS / Linux:**
+**macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.sh | bash
 ```
