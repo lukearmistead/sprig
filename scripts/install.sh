@@ -18,8 +18,12 @@ case "$ARCH" in
 esac
 
 echo "Downloading Sprig for macOS ($ARCH)..."
-sudo curl -fsSL "https://github.com/$REPO/releases/latest/download/$ASSET" -o "$INSTALL_DIR/sprig"
-sudo chmod +x "$INSTALL_DIR/sprig"
+TMP=$(mktemp)
+curl -fsSL "https://github.com/$REPO/releases/latest/download/$ASSET" -o "$TMP"
+
+echo "Installing to $INSTALL_DIR (requires sudo)..."
+sudo install -m 755 "$TMP" "$INSTALL_DIR/sprig" || { rm -f "$TMP"; echo "Install failed (sudo required)"; exit 1; }
+rm -f "$TMP"
 
 echo "Installed to $INSTALL_DIR/sprig"
 
