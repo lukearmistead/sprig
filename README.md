@@ -24,17 +24,15 @@ categories:
 
 ### Step 1: Install Sprig
 
-**macOS / Linux:**
+**macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.sh | sudo bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
 irm https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.ps1 | iex
 ```
-
-Then restart your terminal (the installer adds Sprig to your PATH automatically).
 
 **Or install from source:** `git clone https://github.com/lukearmistead/sprig.git && cd sprig && pip install -e .`
 
