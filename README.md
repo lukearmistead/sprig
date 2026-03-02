@@ -1,20 +1,28 @@
 # 🌱 Sprig: Actually-personal personal finance
 
-Sprig connects to your bank accounts, downloads your transactions locally, buckets them into customizable AI-powered categories, and exports it all into a CSV like this:
+Sprig downloads transactions from all of your bank accounts, categorizes them with AI, and exports a CSV:
 
-| id | date | description | amount | inferred_category | confidence | counterparty | account_name | account_subtype | account_last_four |
-|----|------|-------------|--------|-------------------|------------|--------------|--------------|-----------------|-------------------|
-| tx_abc123 | 2025-11-15 | SAFEWAY | -87.32 | groceries | 0.95 | Safeway | Checking | checking | 1234 |
-| tx_abc124 | 2025-11-14 | SHELL GAS | -45.00 | transport | 0.92 | Shell | Credit Card | credit_card | 5678 |
-| tx_abc125 | 2025-11-12 | REI | -142.50 | shopping | 0.94 | REI | Credit Card | credit_card | 5678 |
+| date | description | amount | ✨ inferred_category | confidence | counterparty | account_name | account_last_four |
+|------|-------------|--------|----------------------|------------|--------------|--------------|-------------------|
+| 2025-11-15 | SAFEWAY | -87.32 | groceries | 0.95 | Safeway | Checking | 1234 |
+| 2025-11-14 | SHELL GAS | -45.00 | transport | 0.92 | Shell | Credit Card | 5678 |
+| 2025-11-12 | REI | -142.50 | shopping | 0.94 | REI | Credit Card | 5678 |
 
----
+You define the categories. The AI applies them and can only use categories you wrote.
+
+```yaml
+categories:
+  - name: groceries
+    description: "Food and household supplies from grocery stores"
+  - name: transport
+    description: "Gas, parking, rideshares, public transit"
+  - name: dining
+    description: "Restaurants, coffee shops, bars, food delivery"
+```
 
 ## Quickstart
 
 ### Step 1: Install Sprig
-
-**Option A: Install via command line (Easiest)**
 
 **macOS / Linux:**
 ```bash
@@ -26,63 +34,45 @@ curl -fsSL https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/in
 irm https://raw.githubusercontent.com/lukearmistead/sprig/main/scripts/install.ps1 | iex
 ```
 
-This downloads the latest binary to `~/.local/bin` and adds it to your PATH.
+**Or install from source:** `git clone https://github.com/lukearmistead/sprig.git && cd sprig && pip install -e .`
 
-**Option B: Install with Python (For Developers)**
+### Step 2: Set up your accounts
 
-```bash
-git clone https://github.com/lukearmistead/sprig.git
-cd sprig
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -e .
-```
+You'll need two free services:
 
-### Step 2: Set Up Your Accounts
+1. **[Teller.io](https://teller.io)** - Connects to your bank accounts
+   - Create a developer account and a new application
+   - [Download your certificate](https://teller.io/settings/certificates) and drag `certificate.pem` and `private_key.pem` into the `~/Documents/Sprig/certs/` folder that Sprig opens for you
+   - Copy your **APP_ID** from [Application Settings](https://teller.io/settings/application) and paste it into the config
 
-You'll need accounts with two services (both free to start):
+2. **[Anthropic](https://console.anthropic.com)** - Powers AI categorization
+   - Create an account and generate an API key, then paste it into the config
+   - Cost: ~$0.10–0.50 per 1,000 transactions
 
-1. **Teller.io** - Connects securely to your bank accounts
-   - Go to [teller.io](https://teller.io) and create a free developer account
-   - Create a new application (use "Personal Project" for company name)
-   - Go to [Certificate Settings](https://teller.io/settings/certificates), click "Create Certificate" and download the zip
-   - Extract and save `certificate.pem` and `private_key.pem` to `~/Documents/Sprig/certs/`
-   - Get your **APP_ID** from [Application Settings](https://teller.io/settings/application)
-
-2. **Anthropic** - Powers AI transaction categorization (required)
-   - Go to [console.anthropic.com](https://console.anthropic.com) and create an account
-   - Create an API key (starts with `sk-ant-api03-`)
-   - **Cost:** ~$0.10-0.50 per 1000 transactions ([see pricing](https://platform.claude.com/docs/en/build-with-claude/batch-processing#pricing))
-
----
-
-## Usage
-
-### Running Sprig
+### Step 3: Connect and sync
 
 ```bash
 sprig sync
 ```
 
-Sprig guides you through setup automatically:
-1. **First run:** Opens `~/Documents/Sprig/config.yml` — add your `app_id` and `claude_key`
-2. **Second run:** Opens browser to connect your bank accounts
-3. **After that:** Fetches, categorizes, and exports your transactions
+On first run, Sprig:
+1. Opens your config file and certs folder for you to paste in keys and certificates
+2. Opens your browser to connect your bank accounts
+3. Fetches, categorizes, and exports your transactions
 
-Your transactions are exported to `~/Documents/Sprig/exports/transactions-YYYY-MM-DD.csv`.
+From now on, just run `sprig sync` whenever you want fresh data.
 
 ```
 Fetching transactions from Teller
 Categorizing 47 transaction(s) using Claude AI
 Exported 47 transaction(s) to ~/Documents/Sprig/exports/transactions-2025-11-17.csv
-Add another bank account? [y/N]
 ```
 
-### Categorization
+## Configuration
 
-Sprig uses Claude AI to categorize each transaction into one of your configured categories. Each transaction gets a category, a confidence score, and a counterparty name.
+### Manual overrides
 
-To manually override a specific transaction, add it to `manual_categories` in your config:
+To override a specific transaction's category, add it to your config:
 
 ```yaml
 manual_categories:
@@ -90,32 +80,8 @@ manual_categories:
     category: dining
 ```
 
-Manual overrides are applied before AI categorization and always take precedence.
+Manual overrides always take precedence over AI categorization.
 
 ### Recategorization
 
-After improving your categories in `~/Documents/Sprig/config.yml`, re-categorize transactions by:
-
-1. **Delete the database and re-sync:**
-   ```bash
-   rm ~/Documents/Sprig/sprig.db
-   sprig sync
-   ```
-
-2. **Or manually clear categories:** Use a SQLite tool to set `inferred_category` to NULL for transactions you want recategorized, then run `sprig categorize`.
-
----
-
-### Customizing Your Categories
-
-Edit `~/Documents/Sprig/config.yml` to customize categories using this format:
-
-```yaml
-categories:
-  - name: your_category_name
-    description: "Detailed description to help AI classify transactions"
-  - name: another_category
-    description: "Another description explaining what belongs here"
-```
-
-After changing categories, delete `~/Documents/Sprig/sprig.db` and re-sync to apply them.
+After changing your categories, delete `~/Documents/Sprig/sprig.db` and run `sprig sync` to recategorize all transactions.
