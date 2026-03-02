@@ -77,11 +77,11 @@ access_tokens: []
 # but can make responses less reliable
 # batch_size: 50
 
-# Teller environment:
+# Teller environment (default: development):
 #   development — free, connects to real banks
 #   sandbox     — fake data for testing
 #   production  — paid usage
-environment: development
+# environment: development
 
 # Manual category overrides — pin specific transactions to a category:
 # manual_categories:
