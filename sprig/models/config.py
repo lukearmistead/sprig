@@ -26,7 +26,7 @@ class Config(BaseModel):
     manual_categories: List[ManualCategory] = []
     batch_size: int = 50
     from_date: Optional[date] = None
-    app_id: str = ""
+    teller_app_id: str = ""
     claude_key: str = ""
     access_tokens: List[str] = []
     environment: str = "development"

@@ -1,31 +1,20 @@
 # =============================================================================
 # SPRIG CONFIGURATION
 # =============================================================================
-# To get started: fill in app_id and claude_key below, then run `sprig sync`
+#
+# To get started:
+#   1. Paste your two API keys below
+#   2. Download your Teller certificate (Settings → Certificates at teller.io)
+#      Sprig opens the certs folder on first run — just drag the files in
+#   3. Run `sprig sync`
 
-# How far back to fetch transactions (YYYY-MM-DD format)
-# More transactions = more Claude API cost, so pick a recent date to start
-from_date: 2026-01-01
+teller_app_id: ""  # Get from https://teller.io → your app settings (e.g. "app_xxxxxxxxxx")
+claude_key: ""     # Get from https://console.anthropic.com → API Keys (e.g. "sk-ant-api03-...")
 
-# -----------------------------------------------------------------------------
-# TELLER (Bank Connection)
-# -----------------------------------------------------------------------------
-# 1. Sign up at https://teller.io and create an application
-# 2. In your application settings, copy your Application ID (looks like: app_xxxxxxxxxx)
-# 3. Download your certificate from Settings → Certificates
-#    Sprig opens the certs folder for you on first run — just drag and drop the files in
-app_id: ""
+from_date: 2026-01-01  # How far back to fetch (more history = higher Claude API cost)
 
 cert_path: certs/certificate.pem
 key_path: certs/private_key.pem
-
-# -----------------------------------------------------------------------------
-# CLAUDE (AI Categorization)
-# -----------------------------------------------------------------------------
-# 1. Sign up at https://console.anthropic.com
-# 2. Go to API Keys → Create a new key (looks like: sk-ant-api03-...)
-# Cost: ~$0.10-0.50 per 1000 transactions (https://anthropic.com/pricing)
-claude_key: ""
 
 # -----------------------------------------------------------------------------
 # CATEGORIES
