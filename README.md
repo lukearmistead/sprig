@@ -2,7 +2,7 @@
 
 Sprig downloads transactions from all of your bank accounts, categorizes them with AI, and exports a CSV:
 
-| date | description | amount | ✨ inferred_category | confidence | counterparty | account_name | account_last_four |
+| date | description | amount | ✨inferred_category✨ | confidence | counterparty | account_name | account_last_four |
 |------|-------------|--------|----------------------|------------|--------------|--------------|-------------------|
 | 2025-11-15 | SAFEWAY | -87.32 | groceries | 0.95 | Safeway | Checking | 1234 |
 | 2025-11-14 | SHELL GAS | -45.00 | transport | 0.92 | Shell | Credit Card | 5678 |
