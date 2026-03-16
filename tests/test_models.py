@@ -77,9 +77,9 @@ class TestConfigDefaults:
         assert config.environment == "sandbox"
 
     def test_empty_teller_app_id_rejected(self):
-        """Pydantic validator rejects empty teller_app_id."""
-        with pytest.raises(ValueError, match="teller_app_id is required"):
-            Config.teller_app_id_required("")
+        """Pydantic rejects empty teller_app_id."""
+        with pytest.raises(ValidationError, match="teller_app_id"):
+            Config.model_validate({"teller_app_id": "", "categories": []})
 
 
 
