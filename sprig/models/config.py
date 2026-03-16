@@ -22,7 +22,7 @@ class ManualCategory(BaseModel):
 
 
 class Config(BaseModel):
-    categories: List[Category]
+    categories: List[Category] = []
     manual_categories: List[ManualCategory] = []
     batch_size: int = 50
     from_date: Optional[date] = None
