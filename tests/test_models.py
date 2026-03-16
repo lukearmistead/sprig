@@ -81,6 +81,11 @@ class TestConfigDefaults:
         with pytest.raises(ValidationError, match="teller_app_id"):
             Config.model_validate({"teller_app_id": "", "categories": []})
 
+    def test_invalid_teller_app_id_rejected(self):
+        """Pydantic rejects teller_app_id that doesn't match app_* pattern."""
+        with pytest.raises(ValidationError, match="teller_app_id"):
+            Config.model_validate({"teller_app_id": "not-a-teller-id", "categories": []})
+
 
 
 class TestCategorizationPromptFallback:

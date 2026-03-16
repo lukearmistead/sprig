@@ -26,7 +26,7 @@ class Config(BaseModel):
     manual_categories: List[ManualCategory] = []
     batch_size: int = 50
     from_date: Optional[date] = None
-    teller_app_id: str = Field(min_length=1)
+    teller_app_id: str = Field(pattern=r"^app_\w+$")
     claude_key: str = ""
     access_tokens: List[str] = []
     environment: str = "development"
