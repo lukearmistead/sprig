@@ -34,10 +34,10 @@ def run_pipeline(config: Config):
         db.save_account(account)
         db.sync_transactions(transactions)
 
-    if config.claude_key:
-        logger.info("Applying manual overrides")
-        save_categories(db, categorize_manually(config))
+    logger.info("Applying manual overrides")
+    save_categories(db, categorize_manually(config))
 
+    if config.claude_key:
         logger.info("Categorizing transactions")
         uncategorized = db.get_uncategorized_transactions()
         views = [TransactionView.from_db_row(row) for row in uncategorized]

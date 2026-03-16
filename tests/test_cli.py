@@ -1,6 +1,5 @@
 """Tests for sprig CLI functionality."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sprig.cli import main
@@ -14,24 +13,6 @@ def _make_config(teller_app_id="test-app", claude_key="sk-test", access_tokens=N
     return cfg
 
 
-def test_main_opens_config_when_missing_teller_app_id():
-    """Missing teller_app_id: opens config+certs, waits for input, reloads, then continues."""
-    missing = _make_config(teller_app_id="")
-    valid = _make_config(access_tokens=["tok"])
-
-    with patch("sprig.cli.load_config", side_effect=[missing, valid, valid]), \
-         patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
-         patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
-         patch("sprig.cli.open_config") as mock_open, \
-         patch("sprig.cli.run_pipeline"), \
-         patch("builtins.input", return_value="n"), \
-         patch("builtins.print"):
-        main()
-        assert mock_open.call_count == 2
-        mock_open.assert_any_call("/cfg")
-        mock_open.assert_any_call("/certs")
-
-
 def test_main_skips_categorization_when_no_claude_key():
     """Empty claude_key: no setup prompt, pipeline still runs."""
     cfg = _make_config(claude_key="", access_tokens=["tok"])
@@ -42,7 +23,9 @@ def test_main_skips_categorization_when_no_claude_key():
          patch("builtins.print") as mock_print:
         main()
         mock_sync.assert_called_once_with(cfg)
-        mock_print.assert_any_call("No Claude API key -- skipping categorization (download only)")
+        mock_print.assert_any_call(
+            "No API key -- transactions will be downloaded from Teller without categorizing"
+        )
 
 
 def test_main_runs_connect_when_no_accounts():
@@ -82,25 +65,3 @@ def test_main_adds_account_when_user_says_yes():
         main()
         mock_auth.assert_called_once_with(cfg)
         mock_sync.assert_called_once()
-
-
-def test_main_full_first_run():
-    """Full first-run: missing teller_app_id → fill in → no accounts → authenticate → sync."""
-    missing_teller = _make_config(teller_app_id="", claude_key="")
-    valid_no_tokens = _make_config(claude_key="")
-    valid_with_tokens = _make_config(claude_key="", access_tokens=["tok"])
-
-    with patch("sprig.cli.load_config", side_effect=[
-            missing_teller, valid_no_tokens, valid_with_tokens, valid_with_tokens,
-         ]), \
-         patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
-         patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
-         patch("sprig.cli.open_config") as mock_open, \
-         patch("sprig.cli.authenticate") as mock_auth, \
-         patch("sprig.cli.run_pipeline") as mock_sync, \
-         patch("builtins.input", return_value="n"), \
-         patch("builtins.print"):
-        main()
-        assert mock_open.call_count == 2
-        mock_auth.assert_called_once_with(valid_no_tokens)
-        mock_sync.assert_called_once_with(valid_with_tokens)

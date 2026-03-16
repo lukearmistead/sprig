@@ -26,7 +26,7 @@ class Config(BaseModel):
     manual_categories: List[ManualCategory] = []
     batch_size: int = 50
     from_date: Optional[date] = None
-    teller_app_id: str = ""
+    teller_app_id: str
     claude_key: str = ""
     access_tokens: List[str] = []
     environment: str = "development"
@@ -39,6 +39,15 @@ class Config(BaseModel):
     def empty_string_to_none(cls, v):
         if v == "":
             return None
+        return v
+
+    @field_validator("teller_app_id")
+    @classmethod
+    def teller_app_id_required(cls, v):
+        if not v:
+            raise ValueError(
+                "teller_app_id is required -- get yours from https://teller.io"
+            )
         return v
 
 

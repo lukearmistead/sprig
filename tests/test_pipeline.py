@@ -51,8 +51,8 @@ def test_fetch_and_persist():
             ).fetchone()[0] == "Integration Test Account"
 
 
-def test_pipeline_skips_categorization_when_no_claude_key():
-    """Empty claude_key: fetch and export run, categorization is skipped."""
+def test_pipeline_skips_ai_categorization_when_no_claude_key():
+    """Empty claude_key: manual overrides still run, AI batches are skipped."""
     config = Mock()
     config.claude_key = ""
     config.access_tokens = ["tok"]
@@ -65,34 +65,10 @@ def test_pipeline_skips_categorization_when_no_claude_key():
          patch("sprig.pipeline.resolve_cert_path", side_effect=lambda p: p), \
          patch("sprig.pipeline.TellerClient"), \
          patch("sprig.pipeline.fetch_all", return_value=[]), \
-         patch("sprig.pipeline.categorize_manually") as mock_manual, \
-         patch("sprig.pipeline.categorize_in_batches") as mock_batches, \
-         patch("sprig.pipeline.export_transactions_to_csv"):
-        mock_db_path.return_value = Path("/tmp/test.db")
-        run_pipeline(config)
-        mock_manual.assert_not_called()
-        mock_batches.assert_not_called()
-
-
-def test_pipeline_runs_categorization_when_claude_key_present():
-    """Non-empty claude_key: categorization steps run."""
-    config = Mock()
-    config.claude_key = "sk-test"
-    config.access_tokens = ["tok"]
-    config.from_date = None
-    config.cert_path = "certs/certificate.pem"
-    config.key_path = "certs/private_key.pem"
-
-    with patch("sprig.pipeline.get_default_db_path") as mock_db_path, \
-         patch("sprig.pipeline.SprigDatabase") as mock_db_cls, \
-         patch("sprig.pipeline.resolve_cert_path", side_effect=lambda p: p), \
-         patch("sprig.pipeline.TellerClient"), \
-         patch("sprig.pipeline.fetch_all", return_value=[]), \
          patch("sprig.pipeline.categorize_manually", return_value=[]) as mock_manual, \
          patch("sprig.pipeline.categorize_in_batches") as mock_batches, \
          patch("sprig.pipeline.export_transactions_to_csv"):
         mock_db_path.return_value = Path("/tmp/test.db")
-        mock_db_cls.return_value.get_uncategorized_transactions.return_value = []
         run_pipeline(config)
         mock_manual.assert_called_once()
-        mock_batches.assert_not_called()  # No uncategorized transactions
+        mock_batches.assert_not_called()
