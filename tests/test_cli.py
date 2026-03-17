@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from pydantic import ValidationError
+
 from sprig.cli import main
 
 
@@ -14,12 +16,11 @@ def _make_config(teller_app_id="test-app", claude_key="sk-test", access_tokens=N
     return cfg
 
 
-def test_main_opens_config_when_missing_teller_app_id():
-    """Missing teller_app_id: opens config+certs, waits for input, reloads, then continues."""
-    missing = _make_config(teller_app_id="")
+def test_main_opens_config_on_validation_error():
+    """Invalid config: shows setup instructions, opens config+certs, waits, then continues."""
     valid = _make_config(access_tokens=["tok"])
 
-    with patch("sprig.cli.load_config", side_effect=[missing, valid, valid]), \
+    with patch("sprig.cli.load_config", side_effect=[ValidationError.from_exception_data("Config", []), valid, valid]), \
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
          patch("sprig.cli.open_config") as mock_open, \
@@ -32,22 +33,19 @@ def test_main_opens_config_when_missing_teller_app_id():
         mock_open.assert_any_call("/certs")
 
 
-def test_main_opens_config_when_missing_claude_key():
-    """Missing claude_key: opens config+certs, waits, reloads, continues."""
-    missing = _make_config(claude_key="")
-    valid = _make_config(access_tokens=["tok"])
+def test_main_skips_categorization_when_no_claude_key():
+    """Empty claude_key: no setup prompt, pipeline still runs."""
+    cfg = _make_config(claude_key="", access_tokens=["tok"])
 
-    with patch("sprig.cli.load_config", side_effect=[missing, valid, valid]), \
-         patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
-         patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
-         patch("sprig.cli.open_config") as mock_open, \
-         patch("sprig.cli.run_pipeline"), \
+    with patch("sprig.cli.load_config", return_value=cfg), \
+         patch("sprig.cli.run_pipeline") as mock_sync, \
          patch("builtins.input", return_value="n"), \
-         patch("builtins.print"):
+         patch("builtins.print") as mock_print:
         main()
-        assert mock_open.call_count == 2
-        mock_open.assert_any_call("/cfg")
-        mock_open.assert_any_call("/certs")
+        mock_sync.assert_called_once_with(cfg)
+        mock_print.assert_any_call(
+            "No API key -- transactions will be downloaded from Teller without categorizing"
+        )
 
 
 def test_main_runs_connect_when_no_accounts():
@@ -90,22 +88,21 @@ def test_main_adds_account_when_user_says_yes():
 
 
 def test_main_full_first_run():
-    """Full first-run: missing creds → fill in → no accounts → authenticate → sync."""
-    missing_creds = _make_config(teller_app_id="", claude_key="")
-    valid_no_tokens = _make_config()
-    valid_with_tokens = _make_config(access_tokens=["tok"])
+    """Full first-run: invalid config → fix → no accounts → authenticate → sync."""
+    valid_no_tokens = _make_config(claude_key="")
+    valid_with_tokens = _make_config(claude_key="", access_tokens=["tok"])
 
     with patch("sprig.cli.load_config", side_effect=[
-            missing_creds, valid_no_tokens, valid_with_tokens, valid_with_tokens,
+            ValidationError.from_exception_data("Config", []),
+            valid_no_tokens, valid_with_tokens, valid_with_tokens,
          ]), \
          patch("sprig.cli.get_default_config_path", return_value=Path("/cfg")), \
          patch("sprig.cli.get_default_certs_dir", return_value=Path("/certs")), \
-         patch("sprig.cli.open_config") as mock_open, \
+         patch("sprig.cli.open_config"), \
          patch("sprig.cli.authenticate") as mock_auth, \
          patch("sprig.cli.run_pipeline") as mock_sync, \
          patch("builtins.input", return_value="n"), \
          patch("builtins.print"):
         main()
-        assert mock_open.call_count == 2
         mock_auth.assert_called_once_with(valid_no_tokens)
         mock_sync.assert_called_once_with(valid_with_tokens)

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from ruamel.yaml import YAML
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from sprig.paths import get_default_config_path, get_default_certs_dir, get_package_dir
 
@@ -22,11 +22,11 @@ class ManualCategory(BaseModel):
 
 
 class Config(BaseModel):
-    categories: List[Category]
+    categories: List[Category] = []
     manual_categories: List[ManualCategory] = []
     batch_size: int = 50
     from_date: Optional[date] = None
-    teller_app_id: str = ""
+    teller_app_id: str = Field(pattern=r"^app_\w+$")
     claude_key: str = ""
     access_tokens: List[str] = []
     environment: str = "development"

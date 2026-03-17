@@ -3,6 +3,9 @@
 from datetime import date
 from unittest.mock import patch, MagicMock
 
+import pytest
+from pydantic import ValidationError
+
 from sprig.models import TellerAccount, TellerTransaction
 from sprig.models.config import Config
 from sprig.models.claude import TransactionView
@@ -58,6 +61,7 @@ def test_teller_transaction():
 
 class TestConfigDefaults:
     MINIMAL_KWARGS = {
+        "teller_app_id": "app_test",
         "categories": [{"name": "general", "description": "general"}],
     }
 
@@ -72,6 +76,16 @@ class TestConfigDefaults:
         assert config.batch_size == 25
         assert config.environment == "sandbox"
 
+    def test_empty_teller_app_id_rejected(self):
+        """Pydantic rejects empty teller_app_id."""
+        with pytest.raises(ValidationError, match="teller_app_id"):
+            Config.model_validate({"teller_app_id": "", "categories": []})
+
+    def test_invalid_teller_app_id_rejected(self):
+        """Pydantic rejects teller_app_id that doesn't match app_* pattern."""
+        with pytest.raises(ValidationError, match="teller_app_id"):
+            Config.model_validate({"teller_app_id": "not-a-teller-id", "categories": []})
+
 
 
 class TestCategorizationPromptFallback:
@@ -81,6 +95,7 @@ class TestCategorizationPromptFallback:
 
     def _make_config(self, prompt=""):
         return Config(
+            teller_app_id="app_test",
             categories=[{"name": "dining", "description": "Restaurants"}],
             categorization_prompt=prompt,
         )

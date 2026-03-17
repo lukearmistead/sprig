@@ -9,7 +9,7 @@
 #   3. Run `sprig sync`
 
 teller_app_id: ""  # Get from https://teller.io → your app settings (e.g. "app_xxxxxxxxxx")
-claude_key: ""     # Get from https://console.anthropic.com → API Keys (e.g. "sk-ant-api03-...")
+claude_key: ""     # Optional -- leave blank to download without categorizing
 
 from_date: 2026-01-01  # How far back to fetch (more history = higher Claude API cost)
 

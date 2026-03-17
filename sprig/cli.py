@@ -5,6 +5,8 @@ import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
+from pydantic import ValidationError
+
 from sprig.auth import authenticate
 from sprig.logger import get_logger
 from sprig.models.config import load_config
@@ -33,35 +35,28 @@ def main():
         print(f"sprig {current_version}")
         return
 
-    config = load_config()
-
-    # Check credentials - open config if missing
-    missing = []
-    if not config.teller_app_id:
-        missing.append("teller_app_id")
-    if not config.claude_key:
-        missing.append("claude_key")
-
-    if missing:
+    try:
+        config = load_config()
+    except ValidationError:
         config_path = get_default_config_path()
         certs_dir = get_default_certs_dir()
-        print(f"Missing: {', '.join(missing)}")
-        print(f"\n1. Add your API keys to {config_path}")
+        print(f"1. Add your Teller app ID to {config_path}")
         print(f"2. Download your certificate from Teller (Settings → Certificates)")
         print(f"   Teller downloads it as teller.zip — unzip it, then drag")
         print(f"   certificate.pem and private_key.pem into: {certs_dir}")
         open_config(str(config_path))
         open_config(str(certs_dir))
-        while missing:
+        while True:
             input("\nPress Enter when ready...")
-            config = load_config()
-            missing = []
-            if not config.teller_app_id:
-                missing.append("teller_app_id")
-            if not config.claude_key:
-                missing.append("claude_key")
-            if missing:
-                print(f"Still missing: {', '.join(missing)}")
+            try:
+                config = load_config()
+                break
+            except ValidationError as e:
+                print(f"Config invalid: {e.error_count()} error(s) -- check your config file")
+                continue
+
+    if not config.claude_key:
+        print("No API key -- transactions will be downloaded from Teller without categorizing")
 
     # Check accounts - run connect flow if none
     while not config.access_tokens:
