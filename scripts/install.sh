@@ -44,4 +44,4 @@ echo "Installed to $INSTALL_DIR/sprig"
 echo ""
 echo "Setup will walk you through connecting your accounts."
 read -r -p "Press Enter to start setup..." < /dev/tty
-"$INSTALL_DIR/sprig" sync
+"$INSTALL_DIR/sprig"
