@@ -2,7 +2,7 @@
 set -e
 
 REPO="lukearmistead/sprig"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="$HOME/.local/bin"
 
 OS=$(uname -s)
 case "$OS" in
@@ -21,13 +21,27 @@ echo "Downloading Sprig for macOS ($ARCH)..."
 TMP=$(mktemp)
 curl -fsSL "https://github.com/$REPO/releases/latest/download/$ASSET" -o "$TMP"
 
-echo "Installing to $INSTALL_DIR (requires sudo)..."
-sudo install -m 755 "$TMP" "$INSTALL_DIR/sprig" || { rm -f "$TMP"; echo "Install failed (sudo required)"; exit 1; }
+mkdir -p "$INSTALL_DIR"
+install -m 755 "$TMP" "$INSTALL_DIR/sprig"
+xattr -d com.apple.quarantine "$INSTALL_DIR/sprig" 2>/dev/null || true
 rm -f "$TMP"
+
+# Add to PATH if not already there
+if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
+  SHELL_NAME=$(basename "$SHELL")
+  case "$SHELL_NAME" in
+    zsh)  RC="$HOME/.zshrc" ;;
+    bash) RC="$HOME/.bashrc" ;;
+    *)    RC="$HOME/.profile" ;;
+  esac
+  echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$RC"
+  export PATH="$INSTALL_DIR:$PATH"
+  echo "Added $INSTALL_DIR to PATH in $RC"
+fi
 
 echo "Installed to $INSTALL_DIR/sprig"
 
 echo ""
 echo "Setup will walk you through connecting your accounts."
 read -r -p "Press Enter to start setup..." < /dev/tty
-exec "$INSTALL_DIR/sprig" sync
+"$INSTALL_DIR/sprig" sync
